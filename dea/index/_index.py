@@ -1,5 +1,5 @@
 from datacube.index.hl import Doc2Dataset
-from dea.io.text import parse_yaml
+from odc.io.text import parse_yaml
 
 
 def from_metadata_stream(metadata_stream, index, **kwargs):
