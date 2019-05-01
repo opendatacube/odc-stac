@@ -9,7 +9,7 @@ setup(
     maintainer='Open Data Cube',
     maintainer_email='',
 
-    description='Various Parallel Processing Tools',
+    description='Datacube index prototypes/tools',
     long_description='',
 
     license='Apache License 2.0',
