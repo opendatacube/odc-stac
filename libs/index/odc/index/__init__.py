@@ -7,6 +7,9 @@ from . _index import (
     dataset_count,
     count_by_year,
     count_by_month,
+    chop_query_by_time,
+    time_range,
+    ordered_dss,
 )
 
 __all__ = (
@@ -15,4 +18,7 @@ __all__ = (
     "dataset_count",
     "count_by_year",
     "count_by_month",
+    "chop_query_by_time",
+    "time_range",
+    "ordered_dss",
 )

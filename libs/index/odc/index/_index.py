@@ -1,6 +1,9 @@
 from datacube.index.hl import Doc2Dataset
 from datacube.api.query import Query
+from datacube.model import Range
+from datacube import Datacube
 from odc.io.text import parse_yaml
+from typing import Iterator
 
 
 def from_metadata_stream(metadata_stream, index, **kwargs):
@@ -94,3 +97,51 @@ def count_by_month(index, product, year):
     """
     return tuple(dataset_count(index, product=product, time='{}-{:02d}'.format(year, month))
                  for month in range(1, 12+1))
+
+
+def time_range(begin, end, freq='m'):
+    """ Return tuples of datetime objects aligned to boundaries of requested period
+    (month is default).
+
+    """
+    from pandas import Period
+    tzinfo = begin.tzinfo
+    t = Period(begin, freq)
+
+    def to_pydate(t):
+        return t.to_pydatetime(warn=False).replace(tzinfo=tzinfo)
+
+    while True:
+        t0, t1 = map(to_pydate, (t.start_time, t.end_time))
+        if t0 > end:
+            break
+
+        yield (max(t0, begin), min(t1, end))
+        t += 1
+
+
+def chop_query_by_time(q: Query, freq: str = 'm') -> Iterator[Query] :
+    """Given a query over longer period of time, chop it up along the time dimension
+    into smaller queries each covering a shorter time period (year, month, week or day).
+    """
+    qq = dict(**q.search_terms)
+    time = qq.pop('time')
+    if time is None:
+        raise ValueError('Need time range in the query')
+
+    for (t0, t1) in time_range(time.begin, time.end, freq=freq):
+        yield Query(**qq, time=Range(t0, t1))
+
+
+def ordered_dss(dc: Datacube, freq: str = 'm', **query):
+    """Emulate "order by time" streaming interface for datacube queries.
+
+        Basic idea is to perform a lot of smaller queries (shorter time
+        periods), sort results then yield them to the calling code.
+    """
+    qq = Query(**query)
+
+    for q in chop_query_by_time(qq, freq=freq):
+        dss = dc.find_datasets(**q.search_terms)
+        dss.sort(key=lambda ds: ds.center_time)
+        yield from dss
