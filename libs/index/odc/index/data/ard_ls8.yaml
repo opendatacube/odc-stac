@@ -1,0 +1,192 @@
+name: ga_ls8c_ard_3
+description: Landsat 8 ARD
+metadata_type: eo3
+
+metadata:
+  product:
+    name: ga_ls8c_ard_3
+
+measurements:
+- name: nbar_coastal_aerosol
+  aliases:
+  - nbar_band01
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbar_blue
+  aliases:
+  - nbar_band02
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbar_green
+  aliases:
+  - nbar_band03
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name:  nbar_red
+  aliases:
+  - nbar_band04
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbar_nir
+  aliases:
+  - nbar_band05
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name:  nbar_swir_1
+  aliases:
+  - nbar_band06
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbar_swir_2
+  aliases:
+  - nbar_band07
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbar_panchromatic
+  aliases:
+  - nbar_band08
+  dtype: int16
+  nodata: -999
+  units: '1'
+
+- name: nbart_coastal_aerosol
+  aliases:
+  - nbart_band01
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbart_blue
+  aliases:
+  - nbart_band02
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbart_green
+  aliases:
+    - nbart_band03
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbart_red
+  aliases:
+  - nbart_band04
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name:  nbart_nir
+  aliases:
+    - nbart_band05
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbart_swir_1
+  aliases:
+    - nbart_band06
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name:  nbart_swir_2
+  aliases:
+    - nbart_band07
+  dtype: int16
+  nodata: -999
+  units: '1'
+- name: nbart_panchromatic
+  aliases:
+  - nbart_band08
+  dtype: int16
+  nodata: -999
+  units: '1'
+
+- name: oa_fmask
+  aliases:
+      - fmask
+  dtype: uint8
+  nodata: 0
+  units: '1'
+  flags_definition:
+    fmask:
+      bits: [0, 1, 2, 3, 4, 5, 6, 7]
+      description: Fmask
+      values:
+        '0': nodata
+        '1': valid
+        '2': cloud
+        '3': shadow
+        '4': snow
+        '5': water
+- name: oa_nbar_contiguity
+  dtype: uint8
+  nodata: 255
+  units: '1'
+  flags_definition:
+    contiguous:
+      bits: [0]
+      values:
+        '1': True
+        '0': False
+- name: oa_nbart_contiguity
+  dtype: uint8
+  nodata: 255
+  units: '1'
+  flags_definition:
+    contiguous:
+      bits: [0]
+      values:
+        '1': True
+        '0': False
+- name: oa_azimuthal_exiting
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_azimuthal_incident
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_combined_terrain_shadow
+  dtype: uint8
+  nodata: -999
+  units: '1'
+- name: oa_exiting_angle
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_incident_angle
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_relative_azimuth
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_relative_slope
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_satellite_azimuth
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_satellite_view
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_solar_azimuth
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_solar_zenith
+  dtype: float32
+  nodata: .nan
+  units: '1'
+- name: oa_time_delta
+  dtype: float32
+  nodata: .nan
+  units: '1'
