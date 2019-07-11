@@ -71,13 +71,6 @@ dataset:
     #
     # But MetadataType does not support integer index keys, so...
     #   BoundingBox: [lon.begin, lat.begin, lon.end, lat.end]
-    lat:
-      description: Latitude range
-      type: double-range
-      min_offset:
-        - ['extent', 'lat', 'begin']
-      max_offset:
-        - ['extent', 'lat', 'end']
 
     lon:
       description: Longitude range
@@ -86,3 +79,12 @@ dataset:
         - ['extent', 'lon', 'begin']
       max_offset:
         - ['extent', 'lon', 'end']
+
+    lat:
+      description: Latitude range
+      type: double-range
+      min_offset:
+        - ['extent', 'lat', 'begin']
+      max_offset:
+        - ['extent', 'lat', 'end']
+
