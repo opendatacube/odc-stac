@@ -56,7 +56,9 @@ def parse_doc_stream(doc_stream, on_error=None):
         yield uri, metadata
 
 
-def from_yaml_doc_stream(doc_stream, index, logger=None, **kwargs):
+def from_yaml_doc_stream(doc_stream, index, logger=None,
+                         transform=None,
+                         **kwargs):
     """ returns a sequence of tuples where each tuple is either
 
         (Dataset, None) or (None, error_message)
@@ -66,6 +68,10 @@ def from_yaml_doc_stream(doc_stream, index, logger=None, **kwargs):
             logger.error("Failed to parse: %s", uri)
 
     metadata_stream = parse_doc_stream(doc_stream, on_error=on_parse_error)
+
+    if transform is not None:
+        metadata_stream = map(lambda d: (d[0], transform(d[1])),
+                              metadata_stream)
 
     return from_metadata_stream(metadata_stream, index, **kwargs)
 
