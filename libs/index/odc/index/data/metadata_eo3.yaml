@@ -30,7 +30,7 @@ dataset:
         In general it is a unique string identifier that datasets covering roughly
         the same spatial region share.
 
-      offset: ['properties', 'odc:reference_code']
+      offset: ['properties', 'odc:region_code']
 
     dataset_maturity:
       description: One of - final|interim|nrt  (near real time)
