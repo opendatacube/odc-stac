@@ -120,7 +120,7 @@ def time_range(begin, end, freq='m'):
         t += 1
 
 
-def chop_query_by_time(q: Query, freq: str = 'm') -> Iterator[Query] :
+def chop_query_by_time(q: Query, freq: str = 'm') -> Iterator[Query]:
     """Given a query over longer period of time, chop it up along the time dimension
     into smaller queries each covering a shorter time period (year, month, week or day).
     """
