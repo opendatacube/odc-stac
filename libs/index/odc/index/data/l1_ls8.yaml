@@ -1,0 +1,81 @@
+name: usgs_ls8o_level1_1
+description: Landsat 8 Level1
+metadata_type: eo3
+
+metadata:
+  product:
+    name: usgs_ls8o_level1_1
+
+measurements:
+- name: coastal_aerosol
+  aliases:
+  - band01
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: blue
+  aliases:
+  - band02
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: green
+  aliases:
+  - band03
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: red
+  aliases:
+  - band04
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: nir
+  aliases:
+  - band05
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name:  swir_1
+  aliases:
+  - band06
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: swir_2
+  aliases:
+  - band07
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: panchromatic
+  aliases:
+  - band08
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: cirrus
+  aliases:
+  - band09
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name:  lwir_1
+  aliases:
+  - band10
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: lwir_2
+  aliases:
+  - band11
+  dtype: uint16
+  nodata: 65535
+  units: '1'
+- name: quality
+  aliases:
+  - bqa
+  dtype: uint16
+  nodata: 65535
+  units: '1'
