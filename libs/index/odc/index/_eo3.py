@@ -30,7 +30,7 @@ def grid2polygon(grid, crs):
     return polygon_from_transform(w, h, transform, crs)
 
 
-def eo3_lonlat_bbox(doc, tol=0.001):
+def eo3_lonlat_bbox(doc, tol=None):
     epsg4326 = CRS('epsg:4326')
     crs = CRS(doc['crs'])
     grids = doc['grids']
@@ -42,7 +42,7 @@ def eo3_lonlat_bbox(doc, tol=0.001):
         return Geometry(geometry, crs).to_crs(epsg4326, tol).boundingbox
 
 
-def eo3_grid_spatial(doc, tol=0.001):
+def eo3_grid_spatial(doc, tol=None):
     """
     Using doc[grids|crs|geometry] compute EO3 style grid spatial:
 
