@@ -88,3 +88,186 @@ dataset:
       max_offset:
         - ['extent', 'lat', 'end']
 
+    # semi-auto generated below
+    eo_gsd:
+      description: 'TODO: <eo:gsd>'
+      indexed: false
+      offset:
+      - properties
+      - eo:gsd
+      type: double
+    eo_sun_azimuth:
+      description: 'TODO: <eo:sun_azimuth>'
+      indexed: false
+      offset:
+      - properties
+      - eo:sun_azimuth
+      type: double
+    eo_sun_elevation:
+      description: 'TODO: <eo:sun_elevation>'
+      indexed: false
+      offset:
+      - properties
+      - eo:sun_elevation
+      type: double
+    fmask_clear:
+      description: 'TODO: <fmask:clear>'
+      indexed: false
+      offset:
+      - properties
+      - fmask:clear
+      type: double
+    fmask_cloud_shadow:
+      description: 'TODO: <fmask:cloud_shadow>'
+      indexed: false
+      offset:
+      - properties
+      - fmask:cloud_shadow
+      type: double
+    fmask_snow:
+      description: 'TODO: <fmask:snow>'
+      indexed: false
+      offset:
+      - properties
+      - fmask:snow
+      type: double
+    fmask_water:
+      description: 'TODO: <fmask:water>'
+      indexed: false
+      offset:
+      - properties
+      - fmask:water
+      type: double
+    gqa_abs_iterative_mean_x:
+      description: 'TODO: <gqa:abs_iterative_mean_x>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:abs_iterative_mean_x
+      type: double
+    gqa_abs_iterative_mean_xy:
+      description: 'TODO: <gqa:abs_iterative_mean_xy>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:abs_iterative_mean_xy
+      type: double
+    gqa_abs_iterative_mean_y:
+      description: 'TODO: <gqa:abs_iterative_mean_y>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:abs_iterative_mean_y
+      type: double
+    gqa_abs_x:
+      description: 'TODO: <gqa:abs_x>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:abs_x
+      type: double
+    gqa_abs_xy:
+      description: 'TODO: <gqa:abs_xy>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:abs_xy
+      type: double
+    gqa_abs_y:
+      description: 'TODO: <gqa:abs_y>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:abs_y
+      type: double
+    gqa_cep90:
+      description: 'TODO: <gqa:cep90>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:cep90
+      type: double
+    gqa_iterative_mean_x:
+      description: 'TODO: <gqa:iterative_mean_x>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:iterative_mean_x
+      type: double
+    gqa_iterative_mean_xy:
+      description: 'TODO: <gqa:iterative_mean_xy>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:iterative_mean_xy
+      type: double
+    gqa_iterative_mean_y:
+      description: 'TODO: <gqa:iterative_mean_y>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:iterative_mean_y
+      type: double
+    gqa_iterative_stddev_x:
+      description: 'TODO: <gqa:iterative_stddev_x>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:iterative_stddev_x
+      type: double
+    gqa_iterative_stddev_xy:
+      description: 'TODO: <gqa:iterative_stddev_xy>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:iterative_stddev_xy
+      type: double
+    gqa_iterative_stddev_y:
+      description: 'TODO: <gqa:iterative_stddev_y>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:iterative_stddev_y
+      type: double
+    gqa_mean_x:
+      description: 'TODO: <gqa:mean_x>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:mean_x
+      type: double
+    gqa_mean_xy:
+      description: 'TODO: <gqa:mean_xy>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:mean_xy
+      type: double
+    gqa_mean_y:
+      description: 'TODO: <gqa:mean_y>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:mean_y
+      type: double
+    gqa_stddev_x:
+      description: 'TODO: <gqa:stddev_x>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:stddev_x
+      type: double
+    gqa_stddev_xy:
+      description: 'TODO: <gqa:stddev_xy>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:stddev_xy
+      type: double
+    gqa_stddev_y:
+      description: 'TODO: <gqa:stddev_y>'
+      indexed: false
+      offset:
+      - properties
+      - gqa:stddev_y
+      type: double
