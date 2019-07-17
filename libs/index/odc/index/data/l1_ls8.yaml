@@ -1,10 +1,10 @@
-name: usgs_ls8o_level1_1
+name: usgs_ls8c_level1_1
 description: Landsat 8 Level1
 metadata_type: eo3
 
 metadata:
   product:
-    name: usgs_ls8o_level1_1
+    name: usgs_ls8c_level1_1
 
 measurements:
 - name: coastal_aerosol
