@@ -3,7 +3,9 @@ from setuptools import setup
 setup(
     name='odc_index',
 
-    version='1',
+    use_scm_version={"root": "../..", "relative_to": __file__},
+    setup_requires=['setuptools_scm'],
+
     author='Open Data Cube',
     author_email='',
     maintainer='Open Data Cube',
