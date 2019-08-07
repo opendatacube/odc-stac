@@ -17,6 +17,10 @@ from ._eo3 import (
     eo3_grid_spatial,
 )
 
+from ._uuid import (
+    odc_uuid,
+)
+
 __all__ = (
     "from_yaml_doc_stream",
     "from_metadata_stream",
@@ -28,4 +32,5 @@ __all__ = (
     "ordered_dss",
     "eo3_lonlat_bbox",
     "eo3_grid_spatial",
+    "odc_uuid",
 )
