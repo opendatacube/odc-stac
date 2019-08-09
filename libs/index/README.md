@@ -7,7 +7,7 @@ Installation
 ------------
 
 ```
-pip install 'git+https://github.com/opendatacube/dea-proto.git#egg=odc_index&subdirectory=libs/index
+pip install --extra-index-url="https://packages.dea.gadevs.ga" odc_index
 ```
 
 Usage

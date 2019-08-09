@@ -19,7 +19,7 @@ setup(
     tests_require=['pytest'],
     install_requires=[
         'datacube',
-        'odc_io @ git+https://github.com/opendatacube/dea-proto.git#egg=odc_io&subdirectory=libs/io',
+        'odc_io',
     ],
 
     packages=['odc.index'],
