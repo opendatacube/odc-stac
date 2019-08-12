@@ -14,7 +14,7 @@ def odc_uuid(algorithm: str,
     """ Generate deterministic UUID for a derived Dataset
 
     :param algorithm: Name of the algorithm
-    :param version: Version string of the algorithm
+    :param algorithm_version: Version string of the algorithm
     :param sources: Sequence of input Dataset UUIDs
     :param deployment_id: Some sort of identifier for installation that performs
                           the run, for example Docker image hash, or dea module version on NCI.
