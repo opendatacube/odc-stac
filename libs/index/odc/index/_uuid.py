@@ -10,7 +10,7 @@ def odc_uuid(algorithm: str,
              algorithm_version: str,
              sources: Sequence[UUID],
              deployment_id: str = '',
-             **other_tags):
+             **other_tags) -> UUID:
     """ Generate deterministic UUID for a derived Dataset
 
     :param algorithm: Name of the algorithm
