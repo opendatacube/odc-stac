@@ -4,6 +4,7 @@ from datacube.model import Range
 from datacube import Datacube
 from odc.io.text import parse_yaml
 from typing import Iterator
+from types import SimpleNamespace
 
 
 def from_metadata_stream(metadata_stream, index, **kwargs):
@@ -151,3 +152,47 @@ def ordered_dss(dc: Datacube, freq: str = 'm', **query):
         dss = dc.find_datasets(**q.search_terms)
         dss.sort(key=lambda ds: ds.center_time)
         yield from dss
+
+
+def bin_dataset_stream(gridspec, dss, persist=None):
+    """
+
+    :param gridspec: GridSpec
+    :param dss: Sequence of datasets (can be lazy)
+    :param persist: Dataset -> SomeThing mapping, defaults to keeping dataset id only
+
+    Return dictionary mapping from (x,y) tile index to object with the following properties
+
+     .idx     - tile index (x,y)
+     .geobox  - tile geobox
+     .dss     - list of UUIDs, or results of `persist(dataset)` if custom `persist` is supplied
+    """
+    from warnings import warn
+
+    cells = {}
+    geobox_cache = {}
+
+    def default_persist(ds):
+        return ds.id
+
+    def register(tile, geobox, val):
+        cell = cells.get(tile)
+        if cell is None:
+            cells[tile] = SimpleNamespace(geobox=geobox, idx=tile, dss=[val])
+        else:
+            cell.dss.append(val)
+
+    if persist is None:
+        persist = default_persist
+
+    for ds in dss:
+        ds_val = persist(ds)
+
+        if ds.extent is None:
+            warn('Dataset without extent info: %s' % str(ds.id))
+            continue
+
+        for tile, geobox in gridspec.tiles_from_geopolygon(ds.extent, geobox_cache=geobox_cache):
+            register(tile, geobox, ds_val)
+
+    return cells
