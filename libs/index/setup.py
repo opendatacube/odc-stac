@@ -20,6 +20,7 @@ setup(
     install_requires=[
         'datacube',
         'odc_io',
+        'toolz',
     ],
 
     packages=['odc.index'],
