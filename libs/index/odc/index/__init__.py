@@ -10,6 +10,8 @@ from . _index import (
     count_by_month,
     chop_query_by_time,
     time_range,
+    month_range,
+    season_range,
     ordered_dss,
 )
 
@@ -38,6 +40,8 @@ __all__ = (
     "count_by_month",
     "chop_query_by_time",
     "time_range",
+    "month_range",
+    "season_range",
     "ordered_dss",
     "eo3_lonlat_bbox",
     "eo3_grid_spatial",

@@ -1,10 +1,12 @@
+import datetime
+from typing import Iterator, Tuple
+from types import SimpleNamespace
+
 from datacube.index.hl import Doc2Dataset
 from datacube.api.query import Query
 from datacube.model import Range
 from datacube import Datacube
 from odc.io.text import parse_yaml
-from typing import Iterator
-from types import SimpleNamespace
 
 
 def from_metadata_stream(metadata_stream, index, **kwargs):
@@ -125,6 +127,43 @@ def time_range(begin, end, freq='m'):
 
         yield (max(t0, begin), min(t1, end))
         t += 1
+
+
+def month_range(year: int, month: int, n: int) -> Tuple[datetime.datetime, datetime.datetime]:
+    """ Return time range covering n months starting from year, month
+        month 1..12
+        month can also be negative
+        2020, -1 === 2019, 12
+    """
+    if month < 0:
+        return month_range(year-1, 12+month+1, n)
+
+    y2 = year
+    m2 = month + n
+    if m2 > 12:
+        m2 -= 12
+        y2 += 1
+    dt_eps = datetime.timedelta(microseconds=1)
+
+    return (datetime.datetime(year=year, month=month, day=1),
+            datetime.datetime(year=y2, month=m2, day=1) - dt_eps)
+
+
+def season_range(year: int, season: str) -> Tuple[datetime.datetime, datetime.datetime]:
+    """ Season is one of djf, mam, jja, son.
+
+        DJF for year X starts in Dec X-1 and ends in Feb X.
+    """
+    seasons = dict(
+        djf=-1,
+        mam=2,
+        jja=6,
+        son=9)
+
+    start_month = seasons.get(season.lower())
+    if start_month is None:
+        raise ValueError(f"No such season {season}, valid seasons are: djf,mam,jja,son")
+    return month_range(year, start_month, 3)
 
 
 def chop_query_by_time(q: Query, freq: str = 'm') -> Iterator[Query]:
