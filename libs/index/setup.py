@@ -19,6 +19,7 @@ setup(
     tests_require=['pytest'],
     install_requires=[
         'datacube',
+        'jinja2',
         'odc_io',
         'toolz',
     ],
