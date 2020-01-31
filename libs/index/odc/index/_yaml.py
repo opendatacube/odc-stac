@@ -56,8 +56,8 @@ measurements:
 
 lineage:
   inputs:
-  {% for ds in task.dss %}
+{% for ds in task.dss %}
   - {{ ds.id }}
-  {% endfor %}
+{% endfor %}
 ...
 ''', trim_blocks=True)
