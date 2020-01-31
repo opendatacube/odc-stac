@@ -2,7 +2,9 @@ import datetime
 import jinja2
 
 
-def render_eo3_yaml(task, processing_datetime=None):
+def render_eo3_yaml(task,
+                    processing_datetime=None,
+                    transform_precision=3):
     """
 
     task:
@@ -19,6 +21,7 @@ def render_eo3_yaml(task, processing_datetime=None):
         processing_datetime = datetime.datetime.utcnow()
 
     return _YAML.render(task=task,
+                        transform_precision=transform_precision,
                         processing_datetime=processing_datetime)
 
 
@@ -35,7 +38,7 @@ crs: {{ task.geobox.crs }}
 grids:
   default:
     shape: [{{ task.geobox.shape[0] }}, {{ task.geobox.shape[1] }}]
-    transform: [{% for t in task.geobox.transform[:6] %}{{t}},{% endfor %} 0, 0, 1]
+    transform: [{% for t in task.geobox.transform[:6] %}{{'%.*f' % (transform_precision, t)}},{% endfor %} 0, 0, 1]
 
 properties:
   odc:region_code: {{ task.region_code }}
