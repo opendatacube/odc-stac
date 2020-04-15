@@ -102,3 +102,36 @@ def eo3_grid_spatial(doc, tol=None):
         lon=dict(begin=bb.left, end=bb.right))
 
     return oo
+
+def add_eo3_parts(doc, tol=None):
+    return dict(**doc,
+                **eo3_grid_spatial(doc, tol=tol))
+
+def prep_eo3(doc, tol=None):
+    if doc is None:
+        return None
+
+    doc = add_eo3_parts(doc, tol=tol)
+    lineage = doc.pop('lineage', {})
+
+    def remap_lineage(uuids):
+        """ Turn [uuid] -> {id: uuid}
+        """
+        uuid, *_ = uuids
+        return dict(id=uuid)
+
+    doc['lineage'] = dict(source_datasets={
+        n: remap_lineage(v) for n, v in lineage.items()})
+
+    return doc
+
+def detect_eo3(doc : dict) -> bool:
+    """Heuristics to auto-detect and apply eo3 transforms
+    
+    Arguments:
+        doc {dict} -- ODC Metadata (typically from YAML)
+    
+    Returns:
+        bool -- is this metadata eo3 ?
+    """
+    return False

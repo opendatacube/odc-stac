@@ -18,6 +18,9 @@ from . _index import (
 from ._eo3 import (
     eo3_lonlat_bbox,
     eo3_grid_spatial,
+    add_eo3_parts,
+    prep_eo3,
+    detect_eo3
 )
 
 from ._uuid import (
