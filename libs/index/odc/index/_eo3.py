@@ -104,10 +104,14 @@ def eo3_grid_spatial(doc, tol=None):
     return oo
 
 def add_eo3_parts(doc, tol=None):
+    """Add spatial keys the DB requires to eo3 metadata
+    """
     return dict(**doc,
                 **eo3_grid_spatial(doc, tol=tol))
 
 def prep_eo3(doc, tol=None):
+    """Modify spatial and lineage sections of eo3 metadata
+    """
     if doc is None:
         return None
 
