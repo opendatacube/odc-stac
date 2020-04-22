@@ -138,4 +138,4 @@ def detect_eo3(doc : dict) -> bool:
     Returns:
         bool -- is this metadata eo3 ?
     """
-    return False
+    return ('grids' in doc) and ('default' in doc['grids']) and ('transform' in doc['grids']['default'])
