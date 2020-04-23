@@ -131,11 +131,13 @@ def prep_eo3(doc, tol=None):
 
 def detect_eo3(doc : dict) -> bool:
     """Heuristics to auto-detect and apply eo3 transforms
-    
     Arguments:
         doc {dict} -- ODC Metadata (typically from YAML)
-    
     Returns:
         bool -- is this metadata eo3 ?
     """
-    return False
+    return (
+        ("grids" in doc)
+        and ("default" in doc["grids"])
+        and ("transform" in doc["grids"]["default"])
+    )
