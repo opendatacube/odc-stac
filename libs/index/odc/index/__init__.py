@@ -15,14 +15,6 @@ from . _index import (
     ordered_dss,
 )
 
-from ._eo3 import (
-    eo3_lonlat_bbox,
-    eo3_grid_spatial,
-    add_eo3_parts,
-    prep_eo3,
-    detect_eo3
-)
-
 from ._uuid import (
     odc_uuid,
 )
@@ -50,8 +42,6 @@ __all__ = (
     "month_range",
     "season_range",
     "ordered_dss",
-    "eo3_lonlat_bbox",
-    "eo3_grid_spatial",
     "odc_uuid",
     "utm_region_code",
     "utm_zone_to_epsg",
