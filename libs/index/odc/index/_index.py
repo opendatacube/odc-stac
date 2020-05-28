@@ -51,7 +51,7 @@ def parse_doc_stream(doc_stream, on_error=None):
     """
     for uri, doc in doc_stream:
         try:
-            if 'json' in uri:
+            if uri.endswith('.json'):
                 metadata = json.loads(doc)
             else:
                 metadata = parse_yaml(doc)
