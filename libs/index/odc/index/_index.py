@@ -1,11 +1,12 @@
 import datetime
-from typing import Iterator, Tuple
+import json
 from types import SimpleNamespace
+from typing import Iterator, Tuple
 
-from datacube.index.hl import Doc2Dataset
-from datacube.api.query import Query
-from datacube.model import Range
 from datacube import Datacube
+from datacube.api.query import Query
+from datacube.index.hl import Doc2Dataset
+from datacube.model import Range
 from odc.io.text import parse_yaml
 
 
@@ -50,7 +51,10 @@ def parse_doc_stream(doc_stream, on_error=None):
     """
     for uri, doc in doc_stream:
         try:
-            metadata = parse_yaml(doc)
+            if 'json' in uri:
+                metadata = json.loads(doc)
+            else:
+                metadata = parse_yaml(doc)
         except Exception as e:
             if on_error is not None:
                 on_error(uri, doc, e)
