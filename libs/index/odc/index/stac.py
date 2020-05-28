@@ -1,5 +1,6 @@
-from pyproj import Transformer
 from pathlib import Path
+
+from datacube.utils.geometry import _make_crs_transform
 from odc.index import odc_uuid
 
 KNOWN_CONSTELLATIONS = [
@@ -69,7 +70,7 @@ def _get_stac_bands(item, default_grid='g10.0m'):
 def _geographic_to_projected(geometry, target_srs):
     """ Transform from WGS84 to the target projection, assuming Lon, Lat order
     """
-    transformer = Transformer.from_crs(4326, target_srs, always_xy=True)
+    transformer = _make_crs_transform(4326, target_srs, always_xy=True)
     geometry['coordinates'][0] = list(transformer.itransform(
         geometry['coordinates'][0]))
 
