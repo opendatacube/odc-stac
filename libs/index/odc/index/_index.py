@@ -69,12 +69,17 @@ def from_yaml_doc_stream(doc_stream, index, logger=None,
     def on_parse_error(uri, doc, err):
         if logger is not None:
             logger.error("Failed to parse: %s", uri)
+        else:
+            print(f"Failed to handle {uri}")
 
     metadata_stream = parse_doc_stream(doc_stream, on_error=on_parse_error)
 
     if transform is not None:
-        metadata_stream = map(lambda d: (d[0], transform(d[1])),
-                              metadata_stream)
+        try:
+            metadata_stream = map(lambda d: (d[0], transform(d[1])),
+                                metadata_stream)
+        except Exception as e:
+            on_parse_error()
 
     return from_metadata_stream(metadata_stream, index, **kwargs)
 
