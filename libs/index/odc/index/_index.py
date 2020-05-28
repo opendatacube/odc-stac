@@ -1,5 +1,6 @@
 import datetime
 import json
+from warnings import warn
 from types import SimpleNamespace
 from typing import Iterator, Tuple
 
@@ -80,8 +81,7 @@ def from_yaml_doc_stream(doc_stream, index, logger=None,
 
     if transform is not None:
         try:
-            metadata_stream = map(lambda d: (d[0], transform(d[1])),
-                                metadata_stream)
+            metadata_stream = map(lambda d: (d[0], transform(d[1])), metadata_stream)
         except Exception as e:
             on_parse_error()
 
@@ -215,7 +215,6 @@ def bin_dataset_stream(gridspec, dss, persist=None):
      .geobox  - tile geobox
      .dss     - list of UUIDs, or results of `persist(dataset)` if custom `persist` is supplied
     """
-    from warnings import warn
 
     cells = {}
     geobox_cache = {}

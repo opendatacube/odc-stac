@@ -1,9 +1,10 @@
 """ Indexing related helper methods.
 """
 
-from . _index import (
+from ._index import (
     from_metadata_stream,
     from_yaml_doc_stream,
+    parse_doc_stream,
     bin_dataset_stream,
     dataset_count,
     count_by_year,
@@ -33,6 +34,7 @@ from ._yaml import (
 __all__ = (
     "from_yaml_doc_stream",
     "from_metadata_stream",
+    "parse_doc_stream",
     "bin_dataset_stream",
     "dataset_count",
     "count_by_year",
