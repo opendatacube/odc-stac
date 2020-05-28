@@ -22,6 +22,7 @@ setup(
         'jinja2',
         'odc_io',
         'toolz',
+        'pyproj'
     ],
 
     packages=['odc.index'],
