@@ -1,6 +1,7 @@
+import math
 from pathlib import Path
 
-from datacube.utils.geometry import _make_crs_transform
+from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
 
 KNOWN_CONSTELLATIONS = [
@@ -67,14 +68,13 @@ def _get_stac_bands(item, default_grid='g10.0m'):
     return bands, grids
 
 
-def _geographic_to_projected(geometry, target_srs):
+def _geographic_to_projected(geometry, crs):
     """ Transform from WGS84 to the target projection, assuming Lon, Lat order
     """
-    transformer = _make_crs_transform(4326, target_srs, always_xy=True)
-    geometry['coordinates'][0] = list(transformer.itransform(
-        geometry['coordinates'][0]))
 
-    return geometry
+    geom = Geometry(geometry, 'EPSG:4326')
+    geom = geom.to_crs(crs, resolution=math.inf)
+    return geom.json
 
 
 def stac_transform(input_stac):
@@ -88,15 +88,14 @@ def stac_transform(input_stac):
     bands, grids = _get_stac_bands(input_stac)
 
     properties = input_stac['properties']
+    epsg = properties['proj:epsg']
+    native_crs = f"epsg:{epsg}"
 
     stac_odc = {
         '$schema': 'https://schemas.opendatacube.org/dataset',
         'id': deterministic_uuid,
-        'crs': f"epsg:{properties['proj:epsg']}",
-        'geometry': _geographic_to_projected(
-            input_stac['geometry'],
-            properties['proj:epsg']
-        ),
+        'crs': native_crs,
+        'geometry': _geographic_to_projected(input_stac['geometry'], native_crs),
         'grids': grids,
         'product': {
             'name': product_name.lower()
