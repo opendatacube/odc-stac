@@ -48,7 +48,7 @@ def parse_doc_stream(doc_stream, on_error=None, transform=None):
        Stream[(uri, bytes)] -> Stream[(uri, dict)]
 
 
-    :param doc_stream: sequence of (uri, doc: byges|string)
+    :param doc_stream: sequence of (uri, doc: bytes|string)
     :param on_error: Callback uri, doc, exception -> None
     :param transform: dict -> dict if supplied also apply further transform on parsed document
 
@@ -63,7 +63,7 @@ def parse_doc_stream(doc_stream, on_error=None, transform=None):
                 metadata = parse_yaml(doc)
 
             if transform is not None:
-                doc = transform(doc)
+                metadata = transform(metadata)
         except Exception as e:
             if on_error is not None:
                 on_error(uri, doc, e)
@@ -87,7 +87,7 @@ def from_yaml_doc_stream(doc_stream, index, logger=None,
     """
     def on_parse_error(uri, doc, err):
         if logger is not None:
-            logger.error("Failed to parse: %s", uri)
+            logger.error(f"Failed to parse: {uri}")
         else:
             print(f'Failed to parse: {uri}', file=sys.stderr)
 
