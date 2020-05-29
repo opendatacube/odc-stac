@@ -1,3 +1,4 @@
+import sys
 import datetime
 import json
 from warnings import warn
@@ -41,14 +42,18 @@ def from_metadata_stream(metadata_stream, index, **kwargs):
                 yield (None, 'Error: %s, %s' % (uri, err))
 
 
-def parse_doc_stream(doc_stream, on_error=None):
+def parse_doc_stream(doc_stream, on_error=None, transform=None):
     """Replace doc bytes/strings with parsed dicts.
 
-    doc_stream -- sequence of (uri, doc: byges|string)
-    on_error -- uri, doc, exception -> None
+       Stream[(uri, bytes)] -> Stream[(uri, dict)]
+
+
+    :param doc_stream: sequence of (uri, doc: byges|string)
+    :param on_error: Callback uri, doc, exception -> None
+    :param transform: dict -> dict if supplied also apply further transform on parsed document
 
     On output doc is replaced with python dict parsed from yaml, or with None
-    if parsing error occured.
+    if parsing/transform error occurred.
     """
     for uri, doc in doc_stream:
         try:
@@ -56,6 +61,9 @@ def parse_doc_stream(doc_stream, on_error=None):
                 metadata = json.loads(doc)
             else:
                 metadata = parse_yaml(doc)
+
+            if transform is not None:
+                doc = transform(doc)
         except Exception as e:
             if on_error is not None:
                 on_error(uri, doc, e)
@@ -67,24 +75,23 @@ def parse_doc_stream(doc_stream, on_error=None):
 def from_yaml_doc_stream(doc_stream, index, logger=None,
                          transform=None,
                          **kwargs):
-    """ returns a sequence of tuples where each tuple is either
+    """
+    Stream[(path, bytes|str)] -> Stream[(Dataset, None)|(None, error_message)]
 
-        (Dataset, None) or (None, error_message)
+    :param doc_stream: sequence of (uri, doc: byges|string)
+    :param on_error: Callback uri, doc, exception -> None
+    :param logger:  Logger object for printing errors or None
+    :param transform: dict -> dict if supplied also apply further transform on parsed document
+    :param kwargs: passed on to from_metadata_stream
+
     """
     def on_parse_error(uri, doc, err):
         if logger is not None:
             logger.error("Failed to parse: %s", uri)
         else:
-            print(f"Failed to handle {uri}")
+            print(f'Failed to parse: {uri}', file=sys.stderr)
 
-    metadata_stream = parse_doc_stream(doc_stream, on_error=on_parse_error)
-
-    if transform is not None:
-        try:
-            metadata_stream = map(lambda d: (d[0], transform(d[1])), metadata_stream)
-        except Exception as e:
-            on_parse_error()
-
+    metadata_stream = parse_doc_stream(doc_stream, on_error=on_parse_error, transform=transform)
     return from_metadata_stream(metadata_stream, index, **kwargs)
 
 
