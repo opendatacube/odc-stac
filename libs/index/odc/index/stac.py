@@ -32,7 +32,7 @@ def _stac_product_lookup(item):
     return product_label, product_name, region_code
 
 
-def _get_stac_bands(item, default_grid='g10.0m'):
+def _get_stac_bands(item, default_grid='g10m'):
     bands = {}
 
     grids = {}
@@ -45,7 +45,7 @@ def _get_stac_bands(item, default_grid='g10.0m'):
             continue
 
         transform = asset['proj:transform']
-        grid = f'g{transform[0]}m'
+        grid = f'g{transform[0]:g}m'
 
         if grid not in grids:
             grids[grid] = {
@@ -85,7 +85,7 @@ def stac_transform(input_stac):
 
     deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
 
-    bands, grids = _get_stac_bands(input_stac)
+    bands, grids = _get_stac_bands(input_stac, default_grid='g10m')
 
     properties = input_stac['properties']
     epsg = properties['proj:epsg']
