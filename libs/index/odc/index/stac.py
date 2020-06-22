@@ -115,6 +115,6 @@ def stac_transform(input_stac):
     }
 
     if region_code:
-        stac_odc['properties']['odc:region_code']: region_code
+        stac_odc['properties']['odc:region_code'] = region_code
 
     return stac_odc
