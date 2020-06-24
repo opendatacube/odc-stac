@@ -1,6 +1,10 @@
 import math
 from pathlib import Path
 
+import toolz
+import requests
+from requests import JSONDecodeError
+
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
 
@@ -74,7 +78,20 @@ def _geographic_to_projected(geometry, crs):
 
     geom = Geometry(geometry, 'EPSG:4326')
     geom = geom.to_crs(crs, resolution=math.inf)
-    return geom.json
+    if geom.is_valid:
+        return geom.json
+    else:
+        return None
+
+
+def _get_sinergise_geometry(sentinel_hub_json_url):
+    try:
+        response = requests.get(sentinel_hub_json_url)
+        sinergise_json = response.json()
+
+        return toolz.get_in(['tileGeometry'], sinergise_json, None)
+    except (ConnectionError, JSONDecodeError) as e:
+        return None
 
 
 def stac_transform(input_stac):
@@ -91,11 +108,19 @@ def stac_transform(input_stac):
     epsg = properties['proj:epsg']
     native_crs = f"epsg:{epsg}"
 
+    geometry = _geographic_to_projected(input_stac['geometry'], native_crs)
+
+    if not geometry:
+        sentinel_hub_json_url = toolz.get_in(['assets', 'info', 'href'], input_stac, None)
+        if sentinel_hub_json_url:
+            # We can get geometry from the Sinergise metadata if it's not valid
+            geometry = _get_sinergise_geometry(sentinel_hub_json_url)
+
     stac_odc = {
         '$schema': 'https://schemas.opendatacube.org/dataset',
         'id': deterministic_uuid,
         'crs': native_crs,
-        'geometry': _geographic_to_projected(input_stac['geometry'], native_crs),
+        'geometry': 
         'grids': grids,
         'product': {
             'name': product_name.lower()
