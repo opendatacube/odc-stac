@@ -209,21 +209,21 @@ def ordered_dss(dc: Datacube, freq: str = 'm', **query):
         yield from dss
 
 
-def bin_dataset_stream(gridspec, dss, persist=None):
+def bin_dataset_stream(gridspec, dss, cells, persist=None):
     """
 
     :param gridspec: GridSpec
     :param dss: Sequence of datasets (can be lazy)
+    :param cells: Dictionary to populate with tiles
     :param persist: Dataset -> SomeThing mapping, defaults to keeping dataset id only
 
-    Return dictionary mapping from (x,y) tile index to object with the following properties
+    The `cells` dictionary is a mapping from (x,y) tile index to object with the following properties
 
      .idx     - tile index (x,y)
      .geobox  - tile geobox
      .dss     - list of UUIDs, or results of `persist(dataset)` if custom `persist` is supplied
     """
 
-    cells = {}
     geobox_cache = {}
 
     def default_persist(ds):
@@ -249,4 +249,4 @@ def bin_dataset_stream(gridspec, dss, persist=None):
         for tile, geobox in gridspec.tiles_from_geopolygon(ds.extent, geobox_cache=geobox_cache):
             register(tile, geobox, ds_val)
 
-    return cells
+        yield ds
