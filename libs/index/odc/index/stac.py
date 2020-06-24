@@ -1,10 +1,9 @@
 import math
+from json.decoder import JSONDecodeError
 from pathlib import Path
 
-import toolz
 import requests
-from requests import JSONDecodeError
-
+import toolz
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
 
@@ -89,7 +88,7 @@ def _get_sinergise_geometry(sentinel_hub_json_url):
         response = requests.get(sentinel_hub_json_url)
         sinergise_json = response.json()
 
-        return toolz.get_in(['tileGeometry'], sinergise_json, None)
+        return toolz.get_in(['tileDataGeometry'], sinergise_json, None)
     except (ConnectionError, JSONDecodeError) as e:
         return None
 
@@ -120,7 +119,6 @@ def stac_transform(input_stac):
         '$schema': 'https://schemas.opendatacube.org/dataset',
         'id': deterministic_uuid,
         'crs': native_crs,
-        'geometry': 
         'grids': grids,
         'product': {
             'name': product_name.lower()
@@ -141,5 +139,8 @@ def stac_transform(input_stac):
 
     if region_code:
         stac_odc['properties']['odc:region_code'] = region_code
+
+    if geometry:
+        stac_odc['geometry'] = geometry
 
     return stac_odc
