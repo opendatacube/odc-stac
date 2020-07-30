@@ -209,6 +209,19 @@ def ordered_dss(dc: Datacube, freq: str = 'm', **query):
         yield from dss
 
 
+def chopped_dss(dc: Datacube, freq: str = 'm', **query):
+    """Emulate streaming interface for datacube queries.
+
+        Basic idea is to perform a lot of smaller queries (shorter time
+        periods)
+    """
+    qq = Query(**query)
+
+    for q in chop_query_by_time(qq, freq=freq):
+        dss = dc.find_datasets_lazy(**q.search_terms)
+        yield from dss
+
+
 def bin_dataset_stream(gridspec, dss, cells, persist=None):
     """
 
