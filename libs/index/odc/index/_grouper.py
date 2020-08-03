@@ -13,14 +13,20 @@ def mid_longitude(geom: Geometry) -> float:
     return lon
 
 
-def solar_offset(geom: Geometry) -> timedelta:
+def solar_offset(geom: Geometry, precision: str = 'h') -> timedelta:
     """
     Given a geometry compute offset to add to UTC timestamp to get solar day right.
 
     This only work when geometry is "local enough".
+    :param precision: one of ``'h'`` or ``'s'``, defaults to hour precision
     """
+    lon = mid_longitude(geom)
+
+    if precision == 'h':
+        return timedelta(hours=int(lon*24/360 + 0.5))
+
     # 240 == (24*60*60)/360 (seconds of a day per degree of longitude)
-    return timedelta(seconds=int(mid_longitude(geom)*240))
+    return timedelta(seconds=int(lon*240))
 
 
 def key2num(objs: Iterable[Hashable],
