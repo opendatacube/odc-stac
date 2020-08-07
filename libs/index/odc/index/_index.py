@@ -108,10 +108,10 @@ def count_by_year(index, product, min_year=None, max_year=None):
     if min_year is None:
         min_year = 1970
     if max_year is None:
-        max_year = 2022
+        max_year = datetime.datetime.now().year
 
     ll = ((year, dataset_count(index, product=product, time=str(year)))
-          for year in range(min_year, max_year))
+          for year in range(min_year, max_year+1))
 
     return {year: c for year, c in ll if c > 0}
 
@@ -187,7 +187,7 @@ def chop_query_by_time(q: Query, freq: str = 'm') -> Iterator[Query]:
     into smaller queries each covering a shorter time period (year, month, week or day).
     """
     qq = dict(**q.search_terms)
-    time = qq.pop('time')
+    time = qq.pop('time', None)
     if time is None:
         raise ValueError('Need time range in the query')
 
