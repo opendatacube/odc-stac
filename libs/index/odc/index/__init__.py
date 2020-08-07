@@ -15,6 +15,7 @@ from ._index import (
     season_range,
     ordered_dss,
     chopped_dss,
+    all_datasets,
 )
 
 from ._uuid import (
@@ -50,6 +51,8 @@ __all__ = (
     "month_range",
     "season_range",
     "ordered_dss",
+    "chopped_dss",
+    "all_datasets",
     "odc_uuid",
     "utm_region_code",
     "utm_zone_to_epsg",

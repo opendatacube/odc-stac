@@ -3,12 +3,12 @@ import datetime
 import json
 from warnings import warn
 from types import SimpleNamespace
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, Optional
 
 from datacube import Datacube
 from datacube.api.query import Query
 from datacube.index.hl import Doc2Dataset
-from datacube.model import Range
+from datacube.model import Range, Dataset
 from odc.io.text import parse_yaml
 
 
@@ -263,3 +263,44 @@ def bin_dataset_stream(gridspec, dss, cells, persist=None):
             register(tile, geobox, ds_val)
 
         yield ds
+
+
+def all_datasets(dc: Datacube,
+                 product: str,
+                 read_chunk: int = 1000,
+                 limit: Optional[int] = None):
+    """
+    Like dc.find_datasets_lazy(product=product) but actually lazy, using db cursors
+    """
+    import psycopg2
+    from random import randint
+    assert isinstance(limit, (int, type(None)))
+
+    db = psycopg2.connect(str(dc.index.url))
+    _limit = '' if limit is None else f'LIMIT {limit}'
+
+    _product = dc.index.products.get_by_name(product)
+
+    query = f'''select
+jsonb_build_object(
+  'product', %(product)s,
+  'uris', array((select _loc_.uri_scheme ||':'||_loc_.uri_body
+                 from agdc.dataset_location as _loc_
+                 where _loc_.dataset_ref = agdc.dataset.id and _loc_.archived is null
+                 order by _loc_.added desc, _loc_.id desc)),
+  'metadata', metadata) as dataset
+from agdc.dataset
+where archived is null
+and dataset_type_ref = (select id from agdc.dataset_type where name = %(product)s)
+{_limit};
+'''
+    cursor_name = 'c{:04X}'.format(randint(0, 0xFFFF))
+    with db.cursor(name=cursor_name) as cursor:
+        cursor.execute(query, dict(product=product))
+
+        while True:
+            chunk = cursor.fetchmany(read_chunk)
+            if not chunk:
+                break
+            for (ds,) in chunk:
+                yield Dataset(_product, ds['metadata'], ds['uris'])
