@@ -17,10 +17,6 @@ LANDSAT_PLATFORMS = [
 def _stac_product_lookup(item):
     properties = item['properties']
 
-    product_label = item['id']
-    product_name = properties['platform']
-    region_code = None
-
     # Maybe this should be the default product_name
     constellation = properties.get('constellation')
 
@@ -33,14 +29,19 @@ def _stac_product_lookup(item):
                 properties['sentinel:latitude_band'],
                 properties['sentinel:grid_square']
             )
-            product_id = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
+            default_grid = "g10m"
     elif properties.get('platform') in LANDSAT_PLATFORMS:
-        product_id = item['id']
         product_label = _product_label(item)
         product_name = properties.get('odc:product')
         region_code = properties.get('odc:region_code')
+        default_grid = "g30m"
+    else:
+        product_label = item['id']
+        product_name = properties['platform']
+        region_code = None
+        default_grid = "default"
 
-    return product_id, product_label, product_name, region_code
+    return product_label, product_name, region_code, default_grid
 
 
 def _product_label(item):
@@ -52,29 +53,30 @@ def _product_label(item):
     return Path(uri).stem.replace(".stac-item", "")
 
 
-def _get_stac_bands(item, default_grid='g10m'):
+def _get_stac_bands(item, default_grid):
     bands = {}
 
     grids = {}
 
-    assets = item['assets']
+    assets = item.get('assets')
 
     for asset_name, asset in assets.items():
-        # Ignore items that are not actual COGs
-        if asset['type'] not in ['image/tiff; application=geotiff; profile=cloud-optimized']:
+        # Ignore items that are not actual COGs/geotiff
+        if asset.get('type') not in ['image/tiff; application=geotiff; profile=cloud-optimized',
+                                 'image/tiff; application=geotiff']:
             continue
 
-        transform = asset['proj:transform']
+        transform = asset.get('proj:transform')
         grid = f'g{transform[0]:g}m'
 
         if grid not in grids:
             grids[grid] = {
-                'shape': asset['proj:shape'],
-                'transform': asset['proj:transform']
+                'shape': asset.get('proj:shape'),
+                'transform': asset.get('proj:transform')
             }
 
         band_info = {
-            'path': Path(asset['href']).name
+            'path': Path(asset.get('href')).name
         }
 
         if grid != default_grid:
@@ -83,51 +85,7 @@ def _get_stac_bands(item, default_grid='g10m'):
         bands[asset_name] = band_info
 
     if default_grid in grids:
-        grids['default'] = grids[default_grid]
-        del grids[default_grid]
-
-    return bands, grids
-
-
-# TODO: Created for testing Landsat C3. Need to merge this function into _get_stac_bands()
-def _get_stac_bands_ls3(item, default_grid='default'):
-    bands = {}
-
-    grids = {}
-
-    default_grid = "default_grid"
-
-    shape = item.get('properties').get('proj:shape')
-    transform = item.get('properties').get('proj:transform')
-    if shape and transform:
-        grids[default_grid] = {
-            'shape': item.get('properties').get('proj:shape'),
-            'transform': item.get('properties').get('proj:transform')
-        }
-
-    assets = item['assets']
-
-    for asset_name, asset in assets.items():
-        if 'data' in asset.get('roles', []):
-            grid = asset_name
-
-            _grid = {
-                'shape': asset.get('proj:shape'),
-                'transform': asset.get('proj:transform')
-            }
-
-            band_info = {
-                'path': Path(asset['href']).name
-            }
-
-            if _grid != grids[default_grid]:
-                band_info['grid'] = grid
-                grids[grid] = _grid
-
-            bands[asset_name] = band_info
-
-    if grids.get(default_grid):
-        grids['default'] = grids[default_grid]
+        grids['default'] = grids.get(default_grid)
         del grids[default_grid]
 
     return bands, grids
@@ -150,9 +108,16 @@ def stac_transform(input_stac):
     """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
     """
 
-    product_id, product_label, product_name, region_code = _stac_product_lookup(input_stac)
+    product_label, product_name, region_code, default_grid = _stac_product_lookup(input_stac)
 
-    bands, grids = _get_stac_bands(input_stac, default_grid='g10m')
+    # Generating UUID for products not having UUID.
+    # TODO: Check is based on hardcoded Product Name, find generic way
+    if product_name in ["s2_l2a"]:
+        deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
+    else:
+        deterministic_uuid = input_stac["id"]
+
+    bands, grids = _get_stac_bands(input_stac, default_grid)
 
     properties = input_stac['properties']
     epsg = properties['proj:epsg']
@@ -162,7 +127,7 @@ def stac_transform(input_stac):
 
     stac_odc = {
         '$schema': 'https://schemas.opendatacube.org/dataset',
-        'id': product_id,
+        'id': deterministic_uuid,
         'crs': native_crs,
         'grids': grids,
         'product': {
