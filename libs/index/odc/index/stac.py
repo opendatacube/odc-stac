@@ -33,7 +33,7 @@ def _stac_product_lookup(item):
     return product_label, product_name, region_code
 
 
-def _get_stac_bands(item, default_grid='g10m'):
+def _get_stac_bands(item, default_grid='g10m', relative=False):
     bands = {}
 
     grids = {}
@@ -54,8 +54,12 @@ def _get_stac_bands(item, default_grid='g10m'):
                 'transform': asset['proj:transform']
             }
 
+        path = asset['href']
+        if relative:
+            path = Path(path).name
+
         band_info = {
-            'path': Path(asset['href']).name
+            'path': path
         }
 
         if grid != default_grid:
@@ -81,8 +85,11 @@ def _geographic_to_projected(geometry, crs):
     else:
         return None
 
+def stac_transform_absolute(input_stac):
+    return stac_transform(input_stac, relative=False)
 
-def stac_transform(input_stac):
+
+def stac_transform(input_stac, relative=True):
     """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
     """
 
@@ -90,7 +97,7 @@ def stac_transform(input_stac):
 
     deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
 
-    bands, grids = _get_stac_bands(input_stac, default_grid='g10m')
+    bands, grids = _get_stac_bands(input_stac, default_grid='g10m', relative=relative)
 
     properties = input_stac['properties']
     epsg = properties['proj:epsg']
