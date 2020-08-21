@@ -1,0 +1,66 @@
+{
+    "$schema": "https://schemas.opendatacube.org/dataset",
+    "id": "503fa092-0f0f-5544-89fb-b45c1da0d5e1",
+    "crs": "epsg:32628",
+    "grids": {
+        "g320m": {
+            "shape": [343, 343],
+            "transform": [320.0, 0.0, 300000.0, 0.0, -320.0, 2300040.0, 0.0, 0.0, 1.0]
+        },
+        "g60m": {
+            "shape": [1830, 1830],
+            "transform": [60.0, 0.0, 300000.0, 0.0, -60.0, 2300040.0, 0.0, 0.0, 1.0]
+        },
+        "g20m": {
+            "shape": [5490, 5490],
+            "transform": [20.0, 0.0, 300000.0, 0.0, -20.0, 2300040.0, 0.0, 0.0, 1.0]
+        },
+        "default": {
+            "shape": [10980, 10980],
+            "transform": [10.0, 0.0, 300000.0, 0.0, -10.0, 2300040.0, 0.0, 0.0, 1.0]
+        }
+    },
+    "product": {"name": "s2_l2a"},
+    "label": "S2A_MSIL2A_20200714T115221_N0214_R123_T28QCH_20200714T191310",
+    "properties": {
+        "datetime": "2020-07-14T11:55:52Z",
+        "odc:processing_datetime": "2020-07-14T11:55:52Z",
+        "eo:cloud_cover": 2.36,
+        "eo:gsd": 10,
+        "eo:instrument": "msi",
+        "eo:platform": "sentinel-2a",
+        "odc:file_format": "GeoTIFF",
+        "odc:region_code": "28QCH"
+    },
+    "measurements": {
+        "overview": {"path": "L2A_PVI.tif", "grid": "g320m"},
+        "visual": {"path": "TCI.tif"},
+        "B01": {"path": "B01.tif", "grid": "g60m"},
+        "B02": {"path": "B02.tif"},
+        "B03": {"path": "B03.tif"},
+        "B04": {"path": "B04.tif"},
+        "B05": {"path": "B05.tif", "grid": "g20m"},
+        "B06": {"path": "B06.tif", "grid": "g20m"},
+        "B07": {"path": "B07.tif", "grid": "g20m"},
+        "B08": {"path": "B08.tif"},
+        "B8A": {"path": "B8A.tif", "grid": "g20m"},
+        "B09": {"path": "B09.tif", "grid": "g60m"},
+        "B11": {"path": "B11.tif", "grid": "g20m"},
+        "B12": {"path": "B12.tif", "grid": "g20m"},
+        "AOT": {"path": "AOT.tif", "grid": "g60m"},
+        "WVP": {"path": "WVP.tif"},
+        "SCL": {"path": "SCL.tif", "grid": "g20m"}
+    },
+    "lineage": {},
+    "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [300110.8997732541, 2218485.674061413],
+                [300101.0001221329, 2300039.0],
+                [320355.68631664006, 2300039.0],
+                [300110.8997732541, 2218485.674061413]
+            ]
+        ]
+    }
+}
