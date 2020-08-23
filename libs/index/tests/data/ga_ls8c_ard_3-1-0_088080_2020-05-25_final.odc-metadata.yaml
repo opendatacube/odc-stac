@@ -30,10 +30,10 @@ grids:
     transform: [15.0, 0.0, 526792.5, 0.0, -15.0, -3077092.5, 0.0, 0.0, 1.0]
 
 properties:
-  datetime: 2020-05-25 23:35:47.745731Z
+  datetime: 2020-05-25T23:35:47.745731Z
   dea:dataset_maturity: final
-  dtr:end_datetime: 2020-05-25 23:36:02.557719Z
-  dtr:start_datetime: 2020-05-25 23:35:32.815426Z
+  dtr:end_datetime: 2020-05-25T23:36:02.557719Z
+  dtr:start_datetime: 2020-05-25T23:35:32.815426Z
   eo:cloud_cover: 42.42102985910952
   eo:gsd: 15.0  # Ground sample distance (m)
   eo:instrument: OLI_TIRS
@@ -72,7 +72,7 @@ properties:
   landsat:wrs_row: 80
   odc:dataset_version: 3.1.0
   odc:file_format: GeoTIFF
-  odc:processing_datetime: 2020-06-18 07:07:06.303867Z
+  odc:processing_datetime: 2020-06-18T07:07:06.303867Z
   odc:producer: ga.gov.au
   odc:product_family: ard
   odc:region_code: '088080'

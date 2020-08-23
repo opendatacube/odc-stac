@@ -30,7 +30,15 @@
         "eo:instrument": "msi",
         "eo:platform": "sentinel-2a",
         "odc:file_format": "GeoTIFF",
-        "odc:region_code": "28QCH"
+        "odc:region_code": "28QCH",
+        "eo:constellation": "sentinel-2",
+        "data_coverage": 6.85,
+        "eo:off_nadir": 0,
+        "proj:epsg": 32628,
+        "sentinel:latitude_band": "Q",
+        "sentinel:grid_square": "CH",
+        "sentinel:sequence": "0",
+        "sentinel:product_id": "S2A_MSIL2A_20200714T115221_N0214_R123_T28QCH_20200714T191310"
     },
     "measurements": {
         "overview": {"path": "L2A_PVI.tif", "grid": "g320m"},

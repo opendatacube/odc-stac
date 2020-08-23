@@ -1,5 +1,6 @@
 import math
 from pathlib import Path
+from typing import Dict, Tuple
 
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
@@ -13,9 +14,28 @@ LANDSAT_PLATFORMS = [
     'landsat-5', 'landsat-7', 'landsat-8'
 ]
 
+# Mapping between EO3 field names and STAC properties object field names
+MAPPING_STAC_TO_EO3 = {
+    "end_datetime": "dtr:end_datetime",
+    "start_datetime": "dtr:start_datetime",
+    "gsd": "eo:gsd",
+    "instruments": "eo:instrument",
+    "platform": "eo:platform",
+    "constellation": "eo:constellation",
+    "view:off_nadir": "eo:off_nadir",
+    "view:azimuth": "eo:azimuth",
+    "view:sun_azimuth": "eo:sun_azimuth",
+    "view:sun_elevation": "eo:sun_elevation",
+}
 
-def _stac_product_lookup(item):
+
+def _stac_product_lookup(item: dict) -> Tuple[str, str, str, str]:
     properties = item['properties']
+
+    product_label = item['id']
+    product_name = properties['platform']
+    region_code = None
+    default_grid = "default"
 
     # Maybe this should be the default product_name
     constellation = properties.get('constellation')
@@ -44,7 +64,10 @@ def _stac_product_lookup(item):
     return product_label, product_name, region_code, default_grid
 
 
-def _product_label(item):
+def _product_label(item: dict) -> str:
+    """
+    Extracting product label from filename of the STAC document 'self' URL
+    """
     uri = None
     for link in item.get("links"):
         rel = link.get("rel")
@@ -53,7 +76,8 @@ def _product_label(item):
     return Path(uri).stem.replace(".stac-item", "")
 
 
-def _get_stac_bands(item, default_grid):
+def _get_stac_bands(item: dict, default_grid: str) -> Tuple[Dict, Dict]:
+
     bands = {}
 
     grids = {}
@@ -63,7 +87,7 @@ def _get_stac_bands(item, default_grid):
     for asset_name, asset in assets.items():
         # Ignore items that are not actual COGs/geotiff
         if asset.get('type') not in ['image/tiff; application=geotiff; profile=cloud-optimized',
-                                 'image/tiff; application=geotiff']:
+                                     'image/tiff; application=geotiff']:
             continue
 
         transform = asset.get('proj:transform')
@@ -104,7 +128,34 @@ def _geographic_to_projected(geometry, crs):
         return None
 
 
-def stac_transform(input_stac):
+def _convert_value_to_eo3_type(key: str, value):
+    """
+    Convert return type as per EO3 specification.
+    Return type is Striing for "instrument" field in EO3 metadata.
+
+    """
+    if key == "instruments":
+        return value[0] if len(value) > 0 else None
+    else:
+        return value
+
+
+def _get_stac_properties(input_stac: dict) -> Dict:
+    properties = input_stac['properties']
+    prop = {
+        **{
+            MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
+            for key, val in properties.items()
+        }
+    }
+    if not prop.get('odc:processing_datetime'):
+        prop['odc:processing_datetime'] = properties['datetime'].replace("000+00:00", "Z")
+    if not prop.get('odc:file_format'):
+        prop['odc:file_format'] = 'GeoTIFF'
+    return prop
+
+
+def stac_transform(input_stac: dict) -> Dict:
     """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
     """
 
@@ -118,6 +169,8 @@ def stac_transform(input_stac):
         deterministic_uuid = input_stac["id"]
 
     bands, grids = _get_stac_bands(input_stac, default_grid)
+
+    stac_properties = _get_stac_properties(input_stac)
 
     properties = input_stac['properties']
     epsg = properties['proj:epsg']
@@ -134,15 +187,7 @@ def stac_transform(input_stac):
             'name': product_name.lower()
         },
         'label': product_label,
-        'properties': {
-            'datetime': properties['datetime'].replace("000+00:00", "Z"),
-            'odc:processing_datetime': properties['datetime'].replace("000+00:00", "Z"),
-            'eo:cloud_cover': properties['eo:cloud_cover'],
-            'eo:gsd': properties['gsd'],
-            'eo:instrument': properties['instruments'][0],
-            'eo:platform': properties['platform'],
-            'odc:file_format': 'GeoTIFF'
-        },
+        'properties': stac_properties,
         'measurements': bands,
         'lineage': {}
     }
