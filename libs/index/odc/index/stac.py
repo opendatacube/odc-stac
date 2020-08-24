@@ -1,6 +1,7 @@
 import math
 from pathlib import Path
 from typing import Dict, Tuple
+from uuid import UUID
 
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
@@ -165,6 +166,17 @@ def _get_stac_properties_lineage(input_stac: dict):
     return prop, lineage
 
 
+def _check_valid_uuid(uuid_string: str) -> bool:
+    """
+    Check if provided uuid string is a valid UUID.
+    """
+    try:
+        UUID(str(uuid_string))
+        return True
+    except ValueError:
+        return False
+
+
 def stac_transform(input_stac: dict) -> Dict:
     """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
     """
@@ -172,11 +184,16 @@ def stac_transform(input_stac: dict) -> Dict:
     product_label, product_name, region_code, default_grid = _stac_product_lookup(input_stac)
 
     # Generating UUID for products not having UUID.
-    # TODO: Check is based on hardcoded Product Name, find generic way
-    if product_name in ["s2_l2a"]:
-        deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
-    else:
+    # Checking if provided id is valid UUID.
+    # If not valid, creating new deterministic uuid using odc_uuid function based on product_name and product_label.
+    # TODO: Verify if this approach to create UUID is valid.
+    if _check_valid_uuid(input_stac["id"]):
         deterministic_uuid = input_stac["id"]
+    else:
+        if product_name in ["s2_l2a"]:
+            deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
+        else:
+            deterministic_uuid = str(odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label]))
 
     bands, grids = _get_stac_bands(input_stac, default_grid)
 
