@@ -131,7 +131,7 @@ def _geographic_to_projected(geometry, crs):
 def _convert_value_to_eo3_type(key: str, value):
     """
     Convert return type as per EO3 specification.
-    Return type is Striing for "instrument" field in EO3 metadata.
+    Return type is String for "instrument" field in EO3 metadata.
 
     """
     if key == "instruments":
@@ -140,7 +140,10 @@ def _convert_value_to_eo3_type(key: str, value):
         return value
 
 
-def _get_stac_properties(input_stac: dict) -> Dict:
+def _get_stac_properties_lineage(input_stac: dict):
+    """
+    Extract properties and lineage field
+    """
     properties = input_stac['properties']
     prop = {
         **{
@@ -152,7 +155,14 @@ def _get_stac_properties(input_stac: dict) -> Dict:
         prop['odc:processing_datetime'] = properties['datetime'].replace("000+00:00", "Z")
     if not prop.get('odc:file_format'):
         prop['odc:file_format'] = 'GeoTIFF'
-    return prop
+
+    # Extract lineage
+    lineage = None
+    if prop.get('odc:lineage'):
+        lineage = prop.get('odc:lineage')
+        del prop['odc:lineage']
+
+    return prop, lineage
 
 
 def stac_transform(input_stac: dict) -> Dict:
@@ -170,7 +180,7 @@ def stac_transform(input_stac: dict) -> Dict:
 
     bands, grids = _get_stac_bands(input_stac, default_grid)
 
-    stac_properties = _get_stac_properties(input_stac)
+    stac_properties, lineage = _get_stac_properties_lineage(input_stac)
 
     properties = input_stac['properties']
     epsg = properties['proj:epsg']
@@ -197,5 +207,8 @@ def stac_transform(input_stac: dict) -> Dict:
 
     if geometry:
         stac_odc['geometry'] = geometry
+
+    if lineage:
+        stac_odc['lineage'] = lineage
 
     return stac_odc

@@ -158,6 +158,11 @@
         "odc:product_family": "ard",
         "odc:region_code": "088080",
         "odc:product": "ga_ls8c_ard_3",
+        "odc:lineage": {
+            "level1": [
+                "b5f234fe-bba8-5483-9bc0-250360d429cf"
+            ]
+        },
         "proj:epsg": 32656,
         "proj:shape": [
             7841,

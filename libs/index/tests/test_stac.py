@@ -61,6 +61,10 @@ def do_diff(actual_doc, expected_doc):
                                         "root['proj:transform']"])
     assert doc_diff == {}, pformat(doc_diff)
 
+    # Test lineage field
+    doc_diff = deep_diff(expected_doc['lineage'], actual_doc['lineage'])
+    assert doc_diff == {}, pformat(doc_diff)
+
 
 @pytest.fixture
 def landsat_stac():
