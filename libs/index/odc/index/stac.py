@@ -77,8 +77,8 @@ def _product_label(item: dict) -> str:
     return Path(uri).stem.replace(".stac-item", "")
 
 
-def _get_stac_bands(item: dict, default_grid: str) -> Tuple[Dict, Dict]:
 
+def _get_stac_bands(item: dict, default_grid: str, relative=False) -> Tuple[Dict, Dict]:
     bands = {}
 
     grids = {}
@@ -100,8 +100,12 @@ def _get_stac_bands(item: dict, default_grid: str) -> Tuple[Dict, Dict]:
                 'transform': asset.get('proj:transform')
             }
 
+        path = asset['href']
+        if relative:
+            path = Path(path).name
+
         band_info = {
-            'path': Path(asset.get('href')).name
+            'path': path
         }
 
         if grid != default_grid:
@@ -127,6 +131,10 @@ def _geographic_to_projected(geometry, crs):
         return geom.json
     else:
         return None
+
+      
+def stac_transform_absolute(input_stac):
+    return stac_transform(input_stac, relative=False)
 
 
 def _convert_value_to_eo3_type(key: str, value):
@@ -177,7 +185,7 @@ def _check_valid_uuid(uuid_string: str) -> bool:
         return False
 
 
-def stac_transform(input_stac: dict) -> Dict:
+def stac_transform(input_stac: dict, relative=True) -> Dict:
     """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
     """
 
@@ -195,7 +203,7 @@ def stac_transform(input_stac: dict) -> Dict:
         else:
             deterministic_uuid = str(odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label]))
 
-    bands, grids = _get_stac_bands(input_stac, default_grid)
+    bands, grids = _get_stac_bands(input_stac, default_grid, relative=relative)
 
     stac_properties, lineage = _get_stac_properties_lineage(input_stac)
 
