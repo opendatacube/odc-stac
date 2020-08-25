@@ -1,5 +1,7 @@
 import math
 from pathlib import Path
+from typing import Dict, Tuple
+from uuid import UUID
 
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
@@ -9,16 +11,35 @@ KNOWN_CONSTELLATIONS = [
     'sentinel-2'
 ]
 
+LANDSAT_PLATFORMS = [
+    'landsat-5', 'landsat-7', 'landsat-8'
+]
 
-def _stac_product_lookup(item):
+# Mapping between EO3 field names and STAC properties object field names
+MAPPING_STAC_TO_EO3 = {
+    "end_datetime": "dtr:end_datetime",
+    "start_datetime": "dtr:start_datetime",
+    "gsd": "eo:gsd",
+    "instruments": "eo:instrument",
+    "platform": "eo:platform",
+    "constellation": "eo:constellation",
+    "view:off_nadir": "eo:off_nadir",
+    "view:azimuth": "eo:azimuth",
+    "view:sun_azimuth": "eo:sun_azimuth",
+    "view:sun_elevation": "eo:sun_elevation",
+}
+
+
+def _stac_product_lookup(item: dict) -> Tuple[str, str, str, str]:
     properties = item['properties']
 
     product_label = item['id']
     product_name = properties['platform']
     region_code = None
+    default_grid = "default"
 
     # Maybe this should be the default product_name
-    constellation = properties['constellation']
+    constellation = properties.get('constellation')
 
     if constellation in KNOWN_CONSTELLATIONS:
         if constellation == 'sentinel-2':
@@ -29,29 +50,54 @@ def _stac_product_lookup(item):
                 properties['sentinel:latitude_band'],
                 properties['sentinel:grid_square']
             )
+            default_grid = "g10m"
+    elif properties.get('platform') in LANDSAT_PLATFORMS:
+        product_label = _product_label(item)
+        product_name = properties.get('odc:product')
+        region_code = properties.get('odc:region_code')
+        default_grid = "g30m"
+    else:
+        product_label = item['id']
+        product_name = properties['platform']
+        region_code = None
+        default_grid = "default"
 
-    return product_label, product_name, region_code
+    return product_label, product_name, region_code, default_grid
 
 
-def _get_stac_bands(item, default_grid='g10m', relative=False):
+def _product_label(item: dict) -> str:
+    """
+    Extracting product label from filename of the STAC document 'self' URL
+    """
+    uri = None
+    for link in item.get("links"):
+        rel = link.get("rel")
+        if rel and rel == "self":
+            uri = link.get("href")
+    return Path(uri).stem.replace(".stac-item", "")
+
+
+
+def _get_stac_bands(item: dict, default_grid: str, relative=False) -> Tuple[Dict, Dict]:
     bands = {}
 
     grids = {}
 
-    assets = item['assets']
+    assets = item.get('assets')
 
     for asset_name, asset in assets.items():
-        # Ignore items that are not actual COGs
-        if asset['type'] not in ['image/tiff; application=geotiff; profile=cloud-optimized']:
+        # Ignore items that are not actual COGs/geotiff
+        if asset.get('type') not in ['image/tiff; application=geotiff; profile=cloud-optimized',
+                                     'image/tiff; application=geotiff']:
             continue
 
-        transform = asset['proj:transform']
+        transform = asset.get('proj:transform')
         grid = f'g{transform[0]:g}m'
 
         if grid not in grids:
             grids[grid] = {
-                'shape': asset['proj:shape'],
-                'transform': asset['proj:transform']
+                'shape': asset.get('proj:shape'),
+                'transform': asset.get('proj:transform')
             }
 
         path = asset['href']
@@ -67,8 +113,9 @@ def _get_stac_bands(item, default_grid='g10m', relative=False):
 
         bands[asset_name] = band_info
 
-    grids['default'] = grids[default_grid]
-    del grids[default_grid]
+    if default_grid in grids:
+        grids['default'] = grids.get(default_grid)
+        del grids[default_grid]
 
     return bands, grids
 
@@ -85,19 +132,80 @@ def _geographic_to_projected(geometry, crs):
     else:
         return None
 
+      
 def stac_transform_absolute(input_stac):
     return stac_transform(input_stac, relative=False)
 
 
-def stac_transform(input_stac, relative=True):
+def _convert_value_to_eo3_type(key: str, value):
+    """
+    Convert return type as per EO3 specification.
+    Return type is String for "instrument" field in EO3 metadata.
+
+    """
+    if key == "instruments":
+        return value[0] if len(value) > 0 else None
+    else:
+        return value
+
+
+def _get_stac_properties_lineage(input_stac: dict):
+    """
+    Extract properties and lineage field
+    """
+    properties = input_stac['properties']
+    prop = {
+        **{
+            MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
+            for key, val in properties.items()
+        }
+    }
+    if not prop.get('odc:processing_datetime'):
+        prop['odc:processing_datetime'] = properties['datetime'].replace("000+00:00", "Z")
+    if not prop.get('odc:file_format'):
+        prop['odc:file_format'] = 'GeoTIFF'
+
+    # Extract lineage
+    lineage = None
+    if prop.get('odc:lineage'):
+        lineage = prop.get('odc:lineage')
+        del prop['odc:lineage']
+
+    return prop, lineage
+
+
+def _check_valid_uuid(uuid_string: str) -> bool:
+    """
+    Check if provided uuid string is a valid UUID.
+    """
+    try:
+        UUID(str(uuid_string))
+        return True
+    except ValueError:
+        return False
+
+
+def stac_transform(input_stac: dict, relative=True) -> Dict:
     """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
     """
 
-    product_label, product_name, region_code = _stac_product_lookup(input_stac)
+    product_label, product_name, region_code, default_grid = _stac_product_lookup(input_stac)
 
-    deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
+    # Generating UUID for products not having UUID.
+    # Checking if provided id is valid UUID.
+    # If not valid, creating new deterministic uuid using odc_uuid function based on product_name and product_label.
+    # TODO: Verify if this approach to create UUID is valid.
+    if _check_valid_uuid(input_stac["id"]):
+        deterministic_uuid = input_stac["id"]
+    else:
+        if product_name in ["s2_l2a"]:
+            deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
+        else:
+            deterministic_uuid = str(odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label]))
 
-    bands, grids = _get_stac_bands(input_stac, default_grid='g10m', relative=relative)
+    bands, grids = _get_stac_bands(input_stac, default_grid, relative=relative)
+
+    stac_properties, lineage = _get_stac_properties_lineage(input_stac)
 
     properties = input_stac['properties']
     epsg = properties['proj:epsg']
@@ -114,15 +222,7 @@ def stac_transform(input_stac, relative=True):
             'name': product_name.lower()
         },
         'label': product_label,
-        'properties': {
-            'datetime': properties['datetime'].replace("000+00:00", "Z"),
-            'odc:processing_datetime': properties['datetime'].replace("000+00:00", "Z"),
-            'eo:cloud_cover': properties['eo:cloud_cover'],
-            'eo:gsd': properties['gsd'],
-            'eo:instrument': properties['instruments'][0],
-            'eo:platform': properties['platform'],
-            'odc:file_format': 'GeoTIFF'
-        },
+        'properties': stac_properties,
         'measurements': bands,
         'lineage': {}
     }
@@ -132,5 +232,8 @@ def stac_transform(input_stac, relative=True):
 
     if geometry:
         stac_odc['geometry'] = geometry
+
+    if lineage:
+        stac_odc['lineage'] = lineage
 
     return stac_odc

@@ -16,7 +16,7 @@ setup(
 
     license='Apache License 2.0',
 
-    tests_require=['pytest'],
+    tests_require=['pytest', 'deepdiff'],
     install_requires=[
         'datacube',
         'jinja2',
