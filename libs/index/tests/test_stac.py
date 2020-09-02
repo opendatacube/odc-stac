@@ -4,14 +4,10 @@ Test for SQS to DC tool
 import json
 from functools import partial
 from pprint import pformat
-
-import pytest
-
 from pathlib import Path
-
-from datacube.utils import documents
+import pytest
 from deepdiff import DeepDiff
-
+from datacube.utils import documents
 from odc.index.stac import stac_transform
 
 

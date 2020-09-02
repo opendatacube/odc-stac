@@ -1,11 +1,13 @@
 import math
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any, Optional
 from uuid import UUID
 
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
 
+
+Document = Dict[str, Any]
 
 KNOWN_CONSTELLATIONS = [
     'sentinel-2'
@@ -30,7 +32,7 @@ MAPPING_STAC_TO_EO3 = {
 }
 
 
-def _stac_product_lookup(item: dict) -> Tuple[str, str, str, str]:
+def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
     properties = item['properties']
 
     product_label = item['id']
@@ -52,38 +54,36 @@ def _stac_product_lookup(item: dict) -> Tuple[str, str, str, str]:
             )
             default_grid = "g10m"
     elif properties.get('platform') in LANDSAT_PLATFORMS:
-        product_label = _product_label(item)
+        self_href = _find_self_href(item)
+        product_label = Path(self_href).stem.replace(".stac-item", "")
         product_name = properties.get('odc:product')
         region_code = properties.get('odc:region_code')
         default_grid = "g30m"
-    else:
-        product_label = item['id']
-        product_name = properties['platform']
-        region_code = None
-        default_grid = "default"
 
     return product_label, product_name, region_code, default_grid
 
 
-def _product_label(item: dict) -> str:
+def _find_self_href(item: Document) -> str:
     """
     Extracting product label from filename of the STAC document 'self' URL
     """
-    uri = None
-    for link in item.get("links"):
-        rel = link.get("rel")
-        if rel and rel == "self":
-            uri = link.get("href")
-    return Path(uri).stem.replace(".stac-item", "")
+    self_uri = [link.get('href', '')
+                for link in item.get("links", [])
+                if link.get('rel') == 'self']
+
+    if len(self_uri) < 1:
+        raise ValueError("Can't find link for 'self'")
+    if len(self_uri) > 1:
+        raise ValueError("Too many links to 'self'")
+    return self_uri[0]
 
 
-
-def _get_stac_bands(item: dict, default_grid: str, relative=False) -> Tuple[Dict, Dict]:
+def _get_stac_bands(item: Document,
+                    default_grid: str,
+                    relative: bool = False) -> Tuple[Document, Document]:
     bands = {}
-
     grids = {}
-
-    assets = item.get('assets')
+    assets = item.get('assets', {})
 
     for asset_name, asset in assets.items():
         # Ignore items that are not actual COGs/geotiff
@@ -114,8 +114,7 @@ def _get_stac_bands(item: dict, default_grid: str, relative=False) -> Tuple[Dict
         bands[asset_name] = band_info
 
     if default_grid in grids:
-        grids['default'] = grids.get(default_grid)
-        del grids[default_grid]
+        grids['default'] = grids.pop(default_grid)
 
     return bands, grids
 
@@ -132,7 +131,7 @@ def _geographic_to_projected(geometry, crs):
     else:
         return None
 
-      
+
 def stac_transform_absolute(input_stac):
     return stac_transform(input_stac, relative=False)
 
@@ -149,27 +148,20 @@ def _convert_value_to_eo3_type(key: str, value):
         return value
 
 
-def _get_stac_properties_lineage(input_stac: dict):
+def _get_stac_properties_lineage(input_stac: Document) -> Tuple[Document, Any]:
     """
     Extract properties and lineage field
     """
     properties = input_stac['properties']
-    prop = {
-        **{
-            MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
-            for key, val in properties.items()
-        }
-    }
-    if not prop.get('odc:processing_datetime'):
+    prop = {MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
+            for key, val in properties.items()}
+    if prop.get('odc:processing_datetime') is None:
         prop['odc:processing_datetime'] = properties['datetime'].replace("000+00:00", "Z")
-    if not prop.get('odc:file_format'):
+    if prop.get('odc:file_format') is None:
         prop['odc:file_format'] = 'GeoTIFF'
 
     # Extract lineage
-    lineage = None
-    if prop.get('odc:lineage'):
-        lineage = prop.get('odc:lineage')
-        del prop['odc:lineage']
+    lineage = prop.pop('odc:lineage', None)
 
     return prop, lineage
 
@@ -185,7 +177,7 @@ def _check_valid_uuid(uuid_string: str) -> bool:
         return False
 
 
-def stac_transform(input_stac: dict, relative=True) -> Dict:
+def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
     """
 
