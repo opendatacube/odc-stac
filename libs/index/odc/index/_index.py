@@ -265,6 +265,25 @@ def bin_dataset_stream(gridspec, dss, cells, persist=None):
         yield ds
 
 
+def bin_dataset_stream2(gridspec, dss, geobox_cache=None):
+    """
+    For every input dataset compute tiles of the GridSpec it overlaps with.
+
+    Iterable[Dataset] -> Iterator[(Dataset, List[Tuple[int, int]])]
+    """
+    if geobox_cache is None:
+        geobox_cache = {}
+
+    for ds in dss:
+        if ds.extent is None:
+            warn(f'Dataset without extent info: {ds.id}')
+            tiles = []
+        else:
+            tiles = [tile for tile, _ in gridspec.tiles_from_geopolygon(ds.extent, geobox_cache=geobox_cache)]
+
+        yield ds, tiles
+
+
 def all_datasets(dc: Datacube,
                  product: str,
                  read_chunk: int = 1000,
