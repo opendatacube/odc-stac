@@ -38,7 +38,7 @@ def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
     product_label = item['id']
     product_name = properties['platform']
     region_code = None
-    default_grid = "default"
+    default_grid = None
 
     # Maybe this should be the default product_name
     constellation = properties.get('constellation')
@@ -112,6 +112,10 @@ def _get_stac_bands(item: Document,
             band_info['grid'] = grid
 
         bands[asset_name] = band_info
+
+    # If we don't specify a default grid, label the first grid 'default'
+    if not default_grid:
+        default_grid = list(grids.keys())[0]
 
     if default_grid in grids:
         grids['default'] = grids.pop(default_grid)
