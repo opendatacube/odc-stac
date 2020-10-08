@@ -5,7 +5,7 @@ from uuid import UUID
 
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
-
+from toolz import get_in
 
 Document = Dict[str, Any]
 
@@ -108,14 +108,14 @@ def _get_stac_bands(item: Document,
             'path': path
         }
 
+        # If we don't specify a default grid, label the first grid 'default'
+        if not default_grid:
+            default_grid = list(grids.keys())[0]
+
         if grid != default_grid:
             band_info['grid'] = grid
 
         bands[asset_name] = band_info
-
-    # If we don't specify a default grid, label the first grid 'default'
-    if not default_grid:
-        default_grid = list(grids.keys())[0]
 
     if default_grid in grids:
         grids['default'] = grids.pop(default_grid)
@@ -123,15 +123,16 @@ def _get_stac_bands(item: Document,
     return bands, grids
 
 
-def _geographic_to_projected(geometry, crs):
+def _geographic_to_projected(geometry, crs, precision=10):
     """ Transform from WGS84 to the target projection, assuming Lon, Lat order
     """
+    geom = geometry.to_crs(crs, resolution=math.inf)
 
-    geom = Geometry(geometry, 'EPSG:4326')
-    geom = geom.to_crs(crs, resolution=math.inf)
+    def round_coords(c1, c2):
+        return [round(coord, precision) for coord in [c1, c2]]
 
     if geom.is_valid:
-        return geom.json
+        return geom.transform(round_coords)
     else:
         return None
 
@@ -199,6 +200,7 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
         else:
             deterministic_uuid = str(odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label]))
 
+    # TODO: handle old STAC that doesn't have grid information here...
     bands, grids = _get_stac_bands(input_stac, default_grid, relative=relative)
 
     stac_properties, lineage = _get_stac_properties_lineage(input_stac)
@@ -207,7 +209,11 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     epsg = properties['proj:epsg']
     native_crs = f"epsg:{epsg}"
 
-    geometry = _geographic_to_projected(input_stac['geometry'], native_crs)
+    # Transform geometry to the native CRS at an appropriate precision
+    pixel_size = get_in(['default', 'transform', 0], grids)
+    geometry = geom = Geometry(input_stac['geometry'], 'epsg:4326')
+    if native_crs != 'epsg:4326':
+        geometry = _geographic_to_projected(geometry, native_crs, int(1 // pixel_size))
 
     stac_odc = {
         '$schema': 'https://schemas.opendatacube.org/dataset',
@@ -227,7 +233,7 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
         stac_odc['properties']['odc:region_code'] = region_code
 
     if geometry:
-        stac_odc['geometry'] = geometry
+        stac_odc['geometry'] = geometry.json
 
     if lineage:
         stac_odc['lineage'] = lineage
