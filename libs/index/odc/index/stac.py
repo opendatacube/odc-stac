@@ -216,10 +216,15 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     native_crs = f"epsg:{epsg}"
 
     # Transform geometry to the native CRS at an appropriate precision
-    pixel_size = get_in(["default", "transform", 0], grids)
     geometry = geom = Geometry(input_stac["geometry"], "epsg:4326")
     if native_crs != "epsg:4326":
-        geometry = _geographic_to_projected(geometry, native_crs, int(1 // pixel_size))
+        # Arbitrary precisions, but should be fine
+        pixel_size = get_in(["default", "transform", 0], grids)
+        precision = 0
+        if pixel_size < 0:
+            precision = 6
+
+        geometry = _geographic_to_projected(geometry, native_crs, precision)
 
     stac_odc = {
         "$schema": "https://schemas.opendatacube.org/dataset",
