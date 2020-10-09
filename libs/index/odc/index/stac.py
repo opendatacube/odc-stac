@@ -9,13 +9,9 @@ from toolz import get_in
 
 Document = Dict[str, Any]
 
-KNOWN_CONSTELLATIONS = [
-    'sentinel-2'
-]
+KNOWN_CONSTELLATIONS = ["sentinel-2"]
 
-LANDSAT_PLATFORMS = [
-    'landsat-5', 'landsat-7', 'landsat-8'
-]
+LANDSAT_PLATFORMS = ["landsat-5", "landsat-7", "landsat-8"]
 
 # Mapping between EO3 field names and STAC properties object field names
 MAPPING_STAC_TO_EO3 = {
@@ -33,31 +29,31 @@ MAPPING_STAC_TO_EO3 = {
 
 
 def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
-    properties = item['properties']
+    properties = item["properties"]
 
-    product_label = item['id']
-    product_name = properties['platform']
-    region_code = None
+    product_label = item["id"]
+    product_name = get_in(["odc:product"], properties, properties["platform"])
+    region_code = get_in(["odc:region_code"], properties, None)
     default_grid = None
 
     # Maybe this should be the default product_name
-    constellation = properties.get('constellation')
+    constellation = properties.get("constellation")
 
     if constellation in KNOWN_CONSTELLATIONS:
-        if constellation == 'sentinel-2':
-            product_label = properties['sentinel:product_id']
-            product_name = 's2_l2a'
-            region_code = '{}{}{}'.format(
-                str(properties['proj:epsg'])[-2:],
-                properties['sentinel:latitude_band'],
-                properties['sentinel:grid_square']
+        if constellation == "sentinel-2":
+            product_label = properties["sentinel:product_id"]
+            product_name = "s2_l2a"
+            region_code = "{}{}{}".format(
+                str(properties["proj:epsg"])[-2:],
+                properties["sentinel:latitude_band"],
+                properties["sentinel:grid_square"],
             )
             default_grid = "g10m"
-    elif properties.get('platform') in LANDSAT_PLATFORMS:
+    elif properties.get("platform") in LANDSAT_PLATFORMS:
         self_href = _find_self_href(item)
         product_label = Path(self_href).stem.replace(".stac-item", "")
-        product_name = properties.get('odc:product')
-        region_code = properties.get('odc:region_code')
+        product_name = properties.get("odc:product")
+        region_code = properties.get("odc:region_code")
         default_grid = "g30m"
 
     return product_label, product_name, region_code, default_grid
@@ -67,9 +63,11 @@ def _find_self_href(item: Document) -> str:
     """
     Extracting product label from filename of the STAC document 'self' URL
     """
-    self_uri = [link.get('href', '')
-                for link in item.get("links", [])
-                if link.get('rel') == 'self']
+    self_uri = [
+        link.get("href", "")
+        for link in item.get("links", [])
+        if link.get("rel") == "self"
+    ]
 
     if len(self_uri) < 1:
         raise ValueError("Can't find link for 'self'")
@@ -78,54 +76,53 @@ def _find_self_href(item: Document) -> str:
     return self_uri[0]
 
 
-def _get_stac_bands(item: Document,
-                    default_grid: str,
-                    relative: bool = False) -> Tuple[Document, Document]:
+def _get_stac_bands(
+    item: Document, default_grid: str, relative: bool = False
+) -> Tuple[Document, Document]:
     bands = {}
     grids = {}
-    assets = item.get('assets', {})
+    assets = item.get("assets", {})
 
     for asset_name, asset in assets.items():
         # Ignore items that are not actual COGs/geotiff
-        if asset.get('type') not in ['image/tiff; application=geotiff; profile=cloud-optimized',
-                                     'image/tiff; application=geotiff']:
+        if asset.get("type") not in [
+            "image/tiff; application=geotiff; profile=cloud-optimized",
+            "image/tiff; application=geotiff",
+        ]:
             continue
 
-        transform = asset.get('proj:transform')
-        grid = f'g{transform[0]:g}m'
+        transform = asset.get("proj:transform")
+        grid = f"g{transform[0]:g}m"
 
         if grid not in grids:
             grids[grid] = {
-                'shape': asset.get('proj:shape'),
-                'transform': asset.get('proj:transform')
+                "shape": asset.get("proj:shape"),
+                "transform": asset.get("proj:transform"),
             }
 
-        path = asset['href']
+        path = asset["href"]
         if relative:
             path = Path(path).name
 
-        band_info = {
-            'path': path
-        }
+        band_info = {"path": path}
 
         # If we don't specify a default grid, label the first grid 'default'
         if not default_grid:
             default_grid = list(grids.keys())[0]
 
         if grid != default_grid:
-            band_info['grid'] = grid
+            band_info["grid"] = grid
 
         bands[asset_name] = band_info
 
     if default_grid in grids:
-        grids['default'] = grids.pop(default_grid)
+        grids["default"] = grids.pop(default_grid)
 
     return bands, grids
 
 
 def _geographic_to_projected(geometry, crs, precision=10):
-    """ Transform from WGS84 to the target projection, assuming Lon, Lat order
-    """
+    """Transform from WGS84 to the target projection, assuming Lon, Lat order"""
     geom = geometry.to_crs(crs, resolution=math.inf)
 
     def round_coords(c1, c2):
@@ -157,16 +154,20 @@ def _get_stac_properties_lineage(input_stac: Document) -> Tuple[Document, Any]:
     """
     Extract properties and lineage field
     """
-    properties = input_stac['properties']
-    prop = {MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
-            for key, val in properties.items()}
-    if prop.get('odc:processing_datetime') is None:
-        prop['odc:processing_datetime'] = properties['datetime'].replace("000+00:00", "Z")
-    if prop.get('odc:file_format') is None:
-        prop['odc:file_format'] = 'GeoTIFF'
+    properties = input_stac["properties"]
+    prop = {
+        MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
+        for key, val in properties.items()
+    }
+    if prop.get("odc:processing_datetime") is None:
+        prop["odc:processing_datetime"] = properties["datetime"].replace(
+            "000+00:00", "Z"
+        )
+    if prop.get("odc:file_format") is None:
+        prop["odc:file_format"] = "GeoTIFF"
 
     # Extract lineage
-    lineage = prop.pop('odc:lineage', None)
+    lineage = prop.pop("odc:lineage", None)
 
     return prop, lineage
 
@@ -183,10 +184,11 @@ def _check_valid_uuid(uuid_string: str) -> bool:
 
 
 def stac_transform(input_stac: Document, relative: bool = True) -> Document:
-    """ Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary
-    """
+    """Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary"""
 
-    product_label, product_name, region_code, default_grid = _stac_product_lookup(input_stac)
+    product_label, product_name, region_code, default_grid = _stac_product_lookup(
+        input_stac
+    )
 
     # Generating UUID for products not having UUID.
     # Checking if provided id is valid UUID.
@@ -196,46 +198,48 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
         deterministic_uuid = input_stac["id"]
     else:
         if product_name in ["s2_l2a"]:
-            deterministic_uuid = str(odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label]))
+            deterministic_uuid = str(
+                odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label])
+            )
         else:
-            deterministic_uuid = str(odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label]))
+            deterministic_uuid = str(
+                odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label])
+            )
 
     # TODO: handle old STAC that doesn't have grid information here...
     bands, grids = _get_stac_bands(input_stac, default_grid, relative=relative)
 
     stac_properties, lineage = _get_stac_properties_lineage(input_stac)
 
-    properties = input_stac['properties']
-    epsg = properties['proj:epsg']
+    properties = input_stac["properties"]
+    epsg = properties["proj:epsg"]
     native_crs = f"epsg:{epsg}"
 
     # Transform geometry to the native CRS at an appropriate precision
-    pixel_size = get_in(['default', 'transform', 0], grids)
-    geometry = geom = Geometry(input_stac['geometry'], 'epsg:4326')
-    if native_crs != 'epsg:4326':
+    pixel_size = get_in(["default", "transform", 0], grids)
+    geometry = geom = Geometry(input_stac["geometry"], "epsg:4326")
+    if native_crs != "epsg:4326":
         geometry = _geographic_to_projected(geometry, native_crs, int(1 // pixel_size))
 
     stac_odc = {
-        '$schema': 'https://schemas.opendatacube.org/dataset',
-        'id': deterministic_uuid,
-        'crs': native_crs,
-        'grids': grids,
-        'product': {
-            'name': product_name.lower()
-        },
-        'label': product_label,
-        'properties': stac_properties,
-        'measurements': bands,
-        'lineage': {}
+        "$schema": "https://schemas.opendatacube.org/dataset",
+        "id": deterministic_uuid,
+        "crs": native_crs,
+        "grids": grids,
+        "product": {"name": product_name.lower()},
+        "label": product_label,
+        "properties": stac_properties,
+        "measurements": bands,
+        "lineage": {},
     }
 
     if region_code:
-        stac_odc['properties']['odc:region_code'] = region_code
+        stac_odc["properties"]["odc:region_code"] = region_code
 
     if geometry:
-        stac_odc['geometry'] = geometry.json
+        stac_odc["geometry"] = geometry.json
 
     if lineage:
-        stac_odc['lineage'] = lineage
+        stac_odc["lineage"] = lineage
 
     return stac_odc
