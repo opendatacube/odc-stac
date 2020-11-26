@@ -195,17 +195,26 @@ def chop_query_by_time(q: Query, freq: str = 'm') -> Iterator[Query]:
         yield Query(**qq, time=Range(t0, t1))
 
 
-def ordered_dss(dc: Datacube, freq: str = 'm', **query):
+def ordered_dss(dc: Datacube, freq: str = 'm', key=None, **query):
     """Emulate "order by time" streaming interface for datacube queries.
 
         Basic idea is to perform a lot of smaller queries (shorter time
         periods), sort results then yield them to the calling code.
+
+    :param dc: Datacube instance
+
+    :param freq: 'm' month sized chunks, 'w' week sized chunks, 'd' day
+
+    :param key: Optional sorting function Dataset -> Comparable, for example
+                ``lambda ds: (ds.center_time, ds.metadata.region_code)``
     """
     qq = Query(**query)
+    if key is None:
+        key = lambda ds: ds.center_time
 
     for q in chop_query_by_time(qq, freq=freq):
         dss = dc.find_datasets(**q.search_terms)
-        dss.sort(key=lambda ds: ds.center_time)
+        dss.sort(key=key)
         yield from dss
 
 
