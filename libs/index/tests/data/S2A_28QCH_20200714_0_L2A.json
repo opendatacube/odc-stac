@@ -41,7 +41,7 @@
     "platform": "sentinel-2a",
     "constellation": "sentinel-2",
     "instruments": [
-      "msi"
+      "MSI"
     ],
     "gsd": 10,
     "data_coverage": 6.85,

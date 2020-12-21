@@ -116,7 +116,8 @@
         "eo:cloud_cover": 42.42102985910952,
         "gsd": 15.0,
         "instruments": [
-            "OLI_TIRS"
+            "oli",
+            "tirs"
         ],
         "platform": "landsat-8",
         "view:sun_azimuth": 34.22994171,

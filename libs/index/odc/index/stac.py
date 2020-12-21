@@ -145,7 +145,10 @@ def _convert_value_to_eo3_type(key: str, value):
 
     """
     if key == "instruments":
-        return value[0] if len(value) > 0 else None
+        if len(value) > 0:
+            return "_".join([i.upper() for i in value])
+        else:
+            return None
     else:
         return value
 
