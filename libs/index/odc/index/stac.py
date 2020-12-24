@@ -30,9 +30,10 @@ MAPPING_STAC_TO_EO3 = {
 
 def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
     properties = item["properties"]
+    platform = properties.get("platform", None)
 
     product_label = item["id"]
-    product_name = get_in(["odc:product"], properties, properties["platform"])
+    product_name = get_in(["odc:product"], properties, platform)
     region_code = get_in(["odc:region_code"], properties, None)
     default_grid = None
 
