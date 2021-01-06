@@ -28,9 +28,9 @@ MAPPING_STAC_TO_EO3 = {
 }
 
 LANDSAT_PRODUCTS = {
-    "LANDSAT_8": "ls8-sr",
-    "LANDSAT_7": "ls7-sr",
-    "LANDSAT_5": "ls5-sr"
+    "LANDSAT_8": "ls8_sr",
+    "LANDSAT_7": "ls7_sr",
+    "LANDSAT_5": "ls5_sr"
 }
 
 def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
