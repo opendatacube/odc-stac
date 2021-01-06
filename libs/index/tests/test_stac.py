@@ -16,18 +16,20 @@ LANDSAT_STAC: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.stac-item.json"
 LANDSAT_ODC: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.odc-metadata.yaml"
 SENTINEL_STAC: str = "S2A_28QCH_20200714_0_L2A.json"
 SENTINEL_ODC: str = "S2A_28QCH_20200714_0_L2A.odc-metadata.json"
+USGS_LANDSAT_STAC: str = "LC08_L2SR_081119_20200101_20200823_02_T2.json"
 
 deep_diff = partial(DeepDiff, significant_digits=6, ignore_type_in_groups=[(tuple, list)])
 
-# @pytest.mark.skip(reason="Skipping due to issues with coordinate rounding")
 def test_landsat_stac_transform(landsat_stac, landsat_odc):
     actual_doc = stac_transform(landsat_stac)
     do_diff(actual_doc, landsat_odc)
 
-# @pytest.mark.skip(reason="Skipping due to issues with coordinate rounding")
 def test_sentinel_stac_transform(sentinel_stac, sentinel_odc):
     actual_doc = stac_transform(sentinel_stac)
     do_diff(actual_doc, sentinel_odc)
+
+def test_usgs_landsat_stac_transform(usgs_landsat_stac):
+    transformed = stac_transform(usgs_landsat_stac)
 
 
 def do_diff(actual_doc, expected_doc):
@@ -37,8 +39,6 @@ def do_diff(actual_doc, expected_doc):
     assert expected_doc['product']['name'] == actual_doc['product']['name']
     assert expected_doc['label'] == actual_doc['label']
 
-    print(actual_doc)
-    print(actual_doc['geometry'])
     # Test geometry field
     doc_diff = deep_diff(expected_doc['geometry'], actual_doc['geometry'])
     assert doc_diff == {}, pformat(doc_diff)
@@ -62,6 +62,11 @@ def do_diff(actual_doc, expected_doc):
     # Test lineage field
     doc_diff = deep_diff(expected_doc['lineage'], actual_doc['lineage'])
     assert doc_diff == {}, pformat(doc_diff)
+
+@pytest.fixture
+def usgs_landsat_stac():
+    with TEST_DATA_FOLDER.joinpath(USGS_LANDSAT_STAC).open("r") as f:
+        return json.load(f)
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from toolz import get_in
 
 Document = Dict[str, Any]
 
-KNOWN_CONSTELLATIONS = ["sentinel-2"]
+KNOWN_CONSTELLATIONS = ["sentinel-2", "Landsat"]
 
 LANDSAT_PLATFORMS = ["landsat-5", "landsat-7", "landsat-8"]
 
@@ -27,10 +27,15 @@ MAPPING_STAC_TO_EO3 = {
     "view:sun_elevation": "eo:sun_elevation",
 }
 
+LANDSAT_PRODUCTS = {
+    "LANDSAT_8": "ls8-sr",
+    "LANDSAT_7": "ls7-sr",
+    "LANDSAT_5": "ls5-sr"
+}
 
 def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
     properties = item["properties"]
-    platform = properties.get("platform", None)
+    platform = properties.get("eo:platform", properties.get("platform", None))
 
     product_label = item["id"]
     product_name = get_in(["odc:product"], properties, platform)
@@ -50,6 +55,13 @@ def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
                 properties["sentinel:grid_square"],
             )
             default_grid = "g10m"
+        if constellation == "Landsat":
+            product_label = properties["landsat:scene_id"]
+            product_name = LANDSAT_PRODUCTS[properties["eo:platform"]]
+            region_code = "{path:03d}{row:03d}".format(
+                path=int(properties['landsat:wrs_path']),
+                row=int(properties['landsat:wrs_row'])
+            )
     elif properties.get("platform") in LANDSAT_PLATFORMS:
         self_href = _find_self_href(item)
         product_label = Path(self_href).stem.replace(".stac-item", "")
