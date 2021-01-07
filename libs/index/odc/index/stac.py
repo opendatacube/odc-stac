@@ -27,11 +27,8 @@ MAPPING_STAC_TO_EO3 = {
     "view:sun_elevation": "eo:sun_elevation",
 }
 
-LANDSAT_PRODUCTS = {
-    "LANDSAT_8": "ls8_sr",
-    "LANDSAT_7": "ls7_sr",
-    "LANDSAT_5": "ls5_sr"
-}
+LANDSAT_PRODUCTS = {"LANDSAT_8": "ls8_sr", "LANDSAT_7": "ls7_sr", "LANDSAT_5": "ls5_sr"}
+
 
 def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
     properties = item["properties"]
@@ -59,8 +56,8 @@ def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
             product_label = properties["landsat:scene_id"]
             product_name = LANDSAT_PRODUCTS[properties["eo:platform"]]
             region_code = "{path:03d}{row:03d}".format(
-                path=int(properties['landsat:wrs_path']),
-                row=int(properties['landsat:wrs_row'])
+                path=int(properties["landsat:wrs_path"]),
+                row=int(properties["landsat:wrs_row"]),
             )
     elif properties.get("platform") in LANDSAT_PLATFORMS:
         self_href = _find_self_href(item)

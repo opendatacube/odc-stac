@@ -9,11 +9,11 @@ from datacube.utils.geometry import Geometry
 
 
 def mid_longitude(geom: Geometry) -> float:
-    ((lon,), _) = geom.centroid.to_crs('epsg:4326').xy
+    ((lon,), _) = geom.centroid.to_crs("epsg:4326").xy
     return lon
 
 
-def solar_offset(geom: Geometry, precision: str = 'h') -> timedelta:
+def solar_offset(geom: Geometry, precision: str = "h") -> timedelta:
     """
     Given a geometry compute offset to add to UTC timestamp to get solar day right.
 
@@ -22,15 +22,16 @@ def solar_offset(geom: Geometry, precision: str = 'h') -> timedelta:
     """
     lon = mid_longitude(geom)
 
-    if precision == 'h':
-        return timedelta(hours=int(lon*24/360 + 0.5))
+    if precision == "h":
+        return timedelta(hours=int(lon * 24 / 360 + 0.5))
 
     # 240 == (24*60*60)/360 (seconds of a day per degree of longitude)
-    return timedelta(seconds=int(lon*240))
+    return timedelta(seconds=int(lon * 240))
 
 
-def key2num(objs: Iterable[Hashable],
-            reverse_map: Optional[Dict[int, Any]] = None) -> Iterator[int]:
+def key2num(
+    objs: Iterable[Hashable], reverse_map: Optional[Dict[int, Any]] = None
+) -> Iterator[int]:
     """
     Given a sequence of hashable objects return sequence of numeric ids starting from 0.
     For example ``'A' 'B' 'A' 'A' 'C' -> 0 1 0 0 2``
@@ -46,8 +47,9 @@ def key2num(objs: Iterable[Hashable],
         yield _c
 
 
-def group_by_nothing(dss: List[Dataset],
-                     solar_day_offset: Optional[timedelta] = None) -> xr.DataArray:
+def group_by_nothing(
+    dss: List[Dataset], solar_day_offset: Optional[timedelta] = None
+) -> xr.DataArray:
     """
     Construct "sources" just like ``.group_dataset`` but with every slice
     containing just one Dataset object wrapped in a tuple.
@@ -59,12 +61,13 @@ def group_by_nothing(dss: List[Dataset],
     solar_day = None
 
     if solar_day_offset is not None:
-        solar_day = np.asarray([(dt+solar_day_offset).date() for dt in time],
-                               dtype='datetime64[D]')
+        solar_day = np.asarray(
+            [(dt + solar_day_offset).date() for dt in time], dtype="datetime64[D]"
+        )
 
-    idx = np.arange(0, len(dss), dtype='uint32')
-    uuids = np.empty(len(dss), dtype='O')
-    data = np.empty(len(dss), dtype='O')
+    idx = np.arange(0, len(dss), dtype="uint32")
+    uuids = np.empty(len(dss), dtype="O")
+    data = np.empty(len(dss), dtype="O")
     grid2crs: Dict[int, Any] = {}
     grid = list(key2num((ds.crs for ds in dss), grid2crs))
 
@@ -73,14 +76,13 @@ def group_by_nothing(dss: List[Dataset],
         uuids[i] = ds.id
 
     coords = [np.asarray(time, dtype="datetime64[ms]"), idx, uuids, grid]
-    names = ['time', 'idx', 'uuid', 'grid']
+    names = ["time", "idx", "uuid", "grid"]
     if solar_day is not None:
         coords.append(solar_day)
-        names.append('solar_day')
+        names.append("solar_day")
 
     coord = pd.MultiIndex.from_arrays(coords, names=names)
 
-    return xr.DataArray(data=data,
-                        coords=dict(spec=coord),
-                        attrs={'grid2crs': grid2crs},
-                        dims=('spec',))
+    return xr.DataArray(
+        data=data, coords=dict(spec=coord), attrs={"grid2crs": grid2crs}, dims=("spec",)
+    )

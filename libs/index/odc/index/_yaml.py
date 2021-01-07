@@ -2,9 +2,7 @@ import datetime
 import jinja2
 
 
-def render_eo3_yaml(task,
-                    processing_datetime=None,
-                    transform_precision=3):
+def render_eo3_yaml(task, processing_datetime=None, transform_precision=3):
     """
 
     task:
@@ -20,12 +18,15 @@ def render_eo3_yaml(task,
     if processing_datetime is None:
         processing_datetime = datetime.datetime.utcnow()
 
-    return _YAML.render(task=task,
-                        transform_precision=transform_precision,
-                        processing_datetime=processing_datetime)
+    return _YAML.render(
+        task=task,
+        transform_precision=transform_precision,
+        processing_datetime=processing_datetime,
+    )
 
 
-_YAML = jinja2.Template('''---
+_YAML = jinja2.Template(
+    """---
 # Dataset
 $schema: https://schemas.opendatacube.org/dataset
 id: {{ task.uuid}}
@@ -60,4 +61,6 @@ lineage:
   - {{ ds.id }}
 {% endfor %}
 ...
-''', trim_blocks=True)
+""",
+    trim_blocks=True,
+)

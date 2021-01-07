@@ -4,23 +4,28 @@ from datacube.utils.geometry import CRS
 from datacube.model import GridSpec
 
 
-def mk_utm_gs(epsg: int,
-              resolution: Union[Tuple[float, float], float] = 10,
-              pixels_per_cell: int = 10_000,
-              origin: Tuple[float, float] = (0, 0)) -> GridSpec:
+def mk_utm_gs(
+    epsg: int,
+    resolution: Union[Tuple[float, float], float] = 10,
+    pixels_per_cell: int = 10_000,
+    origin: Tuple[float, float] = (0, 0),
+) -> GridSpec:
     if not isinstance(resolution, tuple):
         resolution = (-resolution, resolution)
 
-    tile_size = tuple([abs(r)*pixels_per_cell for r in resolution])
+    tile_size = tuple([abs(r) * pixels_per_cell for r in resolution])
 
-    return GridSpec(crs=CRS(f'epsg:{epsg}'),
-                    resolution=resolution,
-                    tile_size=tile_size,
-                    origin=origin)
+    return GridSpec(
+        crs=CRS(f"epsg:{epsg}"),
+        resolution=resolution,
+        tile_size=tile_size,
+        origin=origin,
+    )
 
 
-def utm_region_code(epsg: Union[int, Tuple[int, int, int]],
-                    tidx: Optional[Tuple[int, int]] = None) -> str:
+def utm_region_code(
+    epsg: Union[int, Tuple[int, int, int]], tidx: Optional[Tuple[int, int]] = None
+) -> str:
     """
     Examples:
     - 32751          -> "51S"
@@ -32,28 +37,29 @@ def utm_region_code(epsg: Union[int, Tuple[int, int, int]],
         epsg = epsg[0]
 
     if 32601 <= epsg <= 32660:
-        zone, code = epsg-32600, 'N'
+        zone, code = epsg - 32600, "N"
     elif 32701 <= epsg <= 32760:
-        zone, code = epsg - 32700, 'S'
+        zone, code = epsg - 32700, "S"
     else:
-        raise ValueError(f"Not a utm epsg: {epsg}, valid ranges [32601, 32660] and [32701, 32760]")
+        raise ValueError(
+            f"Not a utm epsg: {epsg}, valid ranges [32601, 32660] and [32701, 32760]"
+        )
 
     if tidx is None:
-        return f'{zone:02d}{code}'
+        return f"{zone:02d}{code}"
 
-    return f'{zone:02d}{code}_{tidx[0]:02d}_{tidx[1]:02d}'
+    return f"{zone:02d}{code}_{tidx[0]:02d}_{tidx[1]:02d}"
 
 
 def utm_zone_to_epsg(zone):
     """
-      56S -> 32756
-      55N -> 32655
+    56S -> 32756
+    55N -> 32655
     """
     if len(zone) < 2:
         raise ValueError(f'Not a valid zone: "{zone}", expect <int: 1-60><str:S|N>')
 
-    offset = dict(S=32700,
-                  N=32600).get(zone[-1].upper())
+    offset = dict(S=32700, N=32600).get(zone[-1].upper())
 
     if offset is None:
         raise ValueError(f'Not a valid zone: "{zone}", expect <int: 1-60><str:S|N>')
@@ -73,7 +79,7 @@ def utm_zone_to_epsg(zone):
 
 
 def utm_tile_dss(dss, **gridspec_options):
-    """ Given a sequence of Dataset objects each using UTM projection bin them into tiles.
+    """Given a sequence of Dataset objects each using UTM projection bin them into tiles.
 
     Equivalent to:
 
@@ -113,10 +119,8 @@ def utm_tile_dss(dss, **gridspec_options):
 
             if tile is None:
                 tile = SimpleNamespace(
-                    region=region,
-                    grid_spec=gs,
-                    geobox=geobox,
-                    dss=[])
+                    region=region, grid_spec=gs, geobox=geobox, dss=[]
+                )
                 tiles[region] = tile
 
             tile.dss.append(ds)
