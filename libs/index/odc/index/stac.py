@@ -102,10 +102,13 @@ def _get_stac_bands(
             }
 
         path = asset["href"]
+        band_index = asset.get("band", None)
         if relative:
             path = Path(path).name
 
         band_info = {"path": path}
+        if band_index:
+            band_info["band"] = band_index
 
         # If we don't specify a default grid, label the first grid 'default'
         if not default_grid:
