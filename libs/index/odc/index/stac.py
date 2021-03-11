@@ -107,7 +107,7 @@ def _get_stac_bands(
             path = Path(path).name
 
         band_info = {"path": path}
-        if band_index:
+        if band_index is not None:
             band_info["band"] = band_index
 
         # If we don't specify a default grid, label the first grid 'default'
