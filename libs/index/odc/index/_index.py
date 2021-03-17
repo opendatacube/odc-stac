@@ -10,6 +10,7 @@ from datacube.api.query import Query
 from datacube.index.hl import Doc2Dataset
 from datacube.model import Range, Dataset
 from odc.io.text import parse_yaml
+from ._grouper import solar_offset
 
 
 def from_metadata_stream(metadata_stream, index, **kwargs):
@@ -249,6 +250,7 @@ def bin_dataset_stream(gridspec, dss, cells, persist=None):
 
      .idx     - tile index (x,y)
      .geobox  - tile geobox
+     .utc_offset - timedelta to add to timestamp to get day component in local time
      .dss     - list of UUIDs, or results of `persist(dataset)` if custom `persist` is supplied
     """
 
@@ -260,7 +262,10 @@ def bin_dataset_stream(gridspec, dss, cells, persist=None):
     def register(tile, geobox, val):
         cell = cells.get(tile)
         if cell is None:
-            cells[tile] = SimpleNamespace(geobox=geobox, idx=tile, dss=[val])
+            utc_ofset = solar_offset(geobox.extent)
+            cells[tile] = SimpleNamespace(
+                geobox=geobox, idx=tile, utc_offset=utc_ofset, dss=[val]
+            )
         else:
             cell.dss.append(val)
 
