@@ -8,7 +8,7 @@ from typing import Iterator, Tuple, Optional
 from datacube import Datacube
 from datacube.api.query import Query
 from datacube.index.hl import Doc2Dataset
-from datacube.model import Range, Dataset
+from datacube.model import Range, Dataset, DatasetType, MetadataType, metadata_from_doc
 from odc.io.text import parse_yaml
 from ._grouper import solar_offset
 
@@ -350,3 +350,35 @@ and dataset_type_ref = (select id from agdc.dataset_type where name = %(product)
                 break
             for (ds,) in chunk:
                 yield Dataset(_product, ds["metadata"], ds["uris"])
+
+
+def product_from_yaml(path: str, dc: Optional[Datacube] = None) -> DatasetType:
+    """
+    Make product definition from yaml file without access to the database.
+
+    NOTE: access to database is only needed when non-standard metadata types
+    are used.
+
+    :param path: File path or a URL pointing to yaml definition of the product
+    :param dc: Optional datacube instance (used to query MetadataType, only
+               used if non-standard metadata type is used in the product)
+    """
+    from datacube.index.index import default_metadata_type_docs
+    from datacube.utils.documents import load_documents
+
+    standard_metadata_types = {
+        d["name"]: metadata_from_doc(d) for d in default_metadata_type_docs()
+    }
+
+    product, *_ = load_documents(path)
+
+    metadata = standard_metadata_types.get(product.get("metadata_type"), None)
+    if metadata is not None:
+        # Standard metadata we can do this without DB
+        return DatasetType(metadata, product)
+
+    # Not eo|eo3 see if we can get that from DB
+    if dc is None:
+        dc = Datacube()
+
+    return dc.index.products.from_doc(product)

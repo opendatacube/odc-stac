@@ -17,6 +17,7 @@ from ._index import (
     ordered_dss,
     chopped_dss,
     all_datasets,
+    product_from_yaml,
 )
 
 from ._uuid import (
@@ -55,6 +56,7 @@ __all__ = (
     "ordered_dss",
     "chopped_dss",
     "all_datasets",
+    "product_from_yaml",
     "odc_uuid",
     "utm_region_code",
     "utm_zone_to_epsg",
