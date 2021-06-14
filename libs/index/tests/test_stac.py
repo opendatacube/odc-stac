@@ -17,6 +17,7 @@ LANDSAT_ODC: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.odc-metadata.yaml"
 SENTINEL_STAC: str = "S2A_28QCH_20200714_0_L2A.json"
 SENTINEL_ODC: str = "S2A_28QCH_20200714_0_L2A.odc-metadata.json"
 USGS_LANDSAT_STAC: str = "LC08_L2SR_081119_20200101_20200823_02_T2.json"
+LIDAR_STAC: str = "lidar_dem.json"
 
 deep_diff = partial(
     DeepDiff, significant_digits=6, ignore_type_in_groups=[(tuple, list)]
@@ -35,6 +36,10 @@ def test_sentinel_stac_transform(sentinel_stac, sentinel_odc):
 
 def test_usgs_landsat_stac_transform(usgs_landsat_stac):
     transformed = stac_transform(usgs_landsat_stac)
+
+
+def test_lidar_stac_transform(lidar_stac):
+    transformed = stac_transform(lidar_stac)
 
 
 def do_diff(actual_doc, expected_doc):
@@ -83,6 +88,13 @@ def usgs_landsat_stac():
 @pytest.fixture
 def landsat_stac():
     with TEST_DATA_FOLDER.joinpath(LANDSAT_STAC).open("r") as f:
+        metadata = json.load(f)
+    return metadata
+
+
+@pytest.fixture
+def lidar_stac():
+    with TEST_DATA_FOLDER.joinpath(LIDAR_STAC).open("r") as f:
         metadata = json.load(f)
     return metadata
 

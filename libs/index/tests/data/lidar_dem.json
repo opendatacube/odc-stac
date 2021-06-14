@@ -1,0 +1,103 @@
+{
+    "type": "Feature",
+    "stac_version": "1.0.0-beta.2",
+    "id": "lidar_id",
+    "properties": {
+        "start_datetime": "2012-01-01T00:00:00Z",
+        "end_datetime": "2012-01-01T00:00:00Z",
+        "resolution": 1.0,
+        "data_type": "float32",
+        "derived_from": "Category 1 Lidar",
+        "platform": "Aircraft",
+        "interpolation_type": "TIN",
+        "horizontal_datum": "GDA94",
+        "vertical_datum": "AHD71 - using local Geoid model",
+        "model_type": "DEM",
+        "horizontal_accuracy": "+/-0.80 @95% Confidence Interval",
+        "vertical_accuracy": "+/-0.30 @95% Confidence Interval",
+        "sensor": "ALS50 (SN101)",
+        "proj:epsg": 28355,
+        "proj:shape": [
+            2000,
+            2000
+        ],
+        "proj:transform": [
+            1.0,
+            0.0,
+            766000.0,
+            0.0,
+            -1.0,
+            6732000.0,
+            0.0,
+            0.0,
+            1.0
+        ],
+        "datetime": null
+    },
+    "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    149.74413486135487,
+                    -29.513331085946845
+                ],
+                [
+                    149.74462179934187,
+                    -29.531360829758146
+                ],
+                [
+                    149.76523815043552,
+                    -29.53093320024493
+                ],
+                [
+                    149.7647475661126,
+                    -29.512903768601603
+                ],
+                [
+                    149.74413486135487,
+                    -29.513331085946845
+                ]
+            ]
+        ]
+    },
+    "links": [
+        {
+            "rel": "root",
+            "href": "s3://example-bucket/catalog.json",
+            "type": "application/json"
+        },
+        {
+            "rel": "collection",
+            "href": "s3://example-bucket/lidar_collection/collection.json",
+            "type": "application/json"
+        },
+        {
+            "rel": "parent",
+            "href": "s3://example-bucket/lidar_collection/collection.json",
+            "type": "application/json"
+        },
+        {
+            "rel": "self",
+            "href": "s3://example-bucket/lidar_collection/lidar_id.json",
+            "type": "application/json"
+        }
+    ],
+    "assets": {
+        "dem": {
+            "href": "s3://example-bucket/lidar_id.tif",
+            "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+            "title": "Cloud-Optimized Geotiff"
+        }
+    },
+    "bbox": [
+        149.74413486135487,
+        -29.531360829758146,
+        149.76523815043552,
+        -29.512903768601603
+    ],
+    "stac_extensions": [
+        "projection"
+    ],
+    "collection": "lidar_collection"
+}
