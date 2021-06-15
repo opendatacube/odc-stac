@@ -78,8 +78,11 @@ def _find_self_href(item: Document) -> str:
 
 
 def _get_stac_bands(
-    item: Document, default_grid: str, relative: bool = False,
-    proj_shape: str = None, proj_transform: str = None,
+    item: Document,
+    default_grid: str,
+    relative: bool = False,
+    proj_shape: Optional[str] = None,
+    proj_transform: Optional[str] = None,
 ) -> Tuple[Document, Document]:
     bands = {}
     grids = {}
@@ -172,7 +175,10 @@ def _get_stac_properties_lineage(input_stac: Document) -> Tuple[Document, Any]:
         MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
         for key, val in properties.items()
     }
-    if prop.get("odc:processing_datetime") is None and properties["datetime"] is not None:
+    if (
+        prop.get("odc:processing_datetime") is None
+        and properties.get("datetime") is not None
+    ):
         prop["odc:processing_datetime"] = properties["datetime"].replace(
             "000+00:00", "Z"
         )
@@ -223,12 +229,16 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     # Specifically, proj:shape and proj:transform, as these are otherwise
     # fetched in _get_stac_bands.
     properties = input_stac["properties"]
-    proj_shape = properties.get('proj:shape')
-    proj_transform = properties.get('proj:transform')
+    proj_shape = properties.get("proj:shape")
+    proj_transform = properties.get("proj:transform")
     # TODO: handle old STAC that doesn't have grid information here...
     bands, grids = _get_stac_bands(
-        input_stac, default_grid, relative=relative,
-        proj_shape=proj_shape, proj_transform=proj_transform)
+        input_stac,
+        default_grid,
+        relative=relative,
+        proj_shape=proj_shape,
+        proj_transform=proj_transform,
+    )
 
     stac_properties, lineage = _get_stac_properties_lineage(input_stac)
 
