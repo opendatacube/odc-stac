@@ -93,22 +93,13 @@ def _get_stac_bands(
         ]:
             continue
 
-        transform = asset.get("proj:transform")
-        if transform and proj_transform and proj_transform != transform:
-            raise ValueError(
-                'Conflicting proj:transform specified: {} and {}'.format(
-                    transform, proj_transform,
-                ))
-        transform = transform if transform else proj_transform
+        # If transform specified here in the asset it should override
+        # the properties-specified transform.
+        transform = asset.get("proj:transform") or proj_transform
         grid = f"g{transform[0]:g}m"
 
-        shape = asset.get("proj:shape")
-        if shape and proj_shape and shape != proj_shape:
-            raise ValueError(
-                'Conflicting proj:shape specified: {} and {}'.format(
-                    shape, proj_shape,
-                ))
-        shape = shape if shape else proj_shape
+        # As per transform, shape here overrides properties
+        shape = asset.get("proj:shape") or proj_shape
 
         if grid not in grids:
             grids[grid] = {
