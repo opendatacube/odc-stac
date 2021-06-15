@@ -172,7 +172,7 @@ def _get_stac_properties_lineage(input_stac: Document) -> Tuple[Document, Any]:
         MAPPING_STAC_TO_EO3.get(key, key): _convert_value_to_eo3_type(key, val)
         for key, val in properties.items()
     }
-    if prop.get("odc:processing_datetime") is None:
+    if prop.get("odc:processing_datetime") is None and properties["datetime"] is not None:
         prop["odc:processing_datetime"] = properties["datetime"].replace(
             "000+00:00", "Z"
         )
