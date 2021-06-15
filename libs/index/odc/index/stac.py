@@ -78,7 +78,8 @@ def _find_self_href(item: Document) -> str:
 
 
 def _get_stac_bands(
-    item: Document, default_grid: str, relative: bool = False
+    item: Document, default_grid: str, relative: bool = False,
+    proj_shape: str = None, proj_transform: str = None,
 ) -> Tuple[Document, Document]:
     bands = {}
     grids = {}
@@ -93,12 +94,26 @@ def _get_stac_bands(
             continue
 
         transform = asset.get("proj:transform")
+        if transform and proj_transform and proj_transform != transform:
+            raise ValueError(
+                'Conflicting proj:transform specified: {} and {}'.format(
+                    transform, proj_transform,
+                ))
+        transform = transform if transform else proj_transform
         grid = f"g{transform[0]:g}m"
+
+        shape = asset.get("proj:shape")
+        if shape and proj_shape and shape != proj_shape:
+            raise ValueError(
+                'Conflicting proj:shape specified: {} and {}'.format(
+                    shape, proj_shape,
+                ))
+        shape = shape if shape else proj_shape
 
         if grid not in grids:
             grids[grid] = {
-                "shape": asset.get("proj:shape"),
-                "transform": asset.get("proj:transform"),
+                "shape": shape,
+                "transform": transform,
             }
 
         path = asset["href"]
@@ -213,12 +228,19 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
                 odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label])
             )
 
+    # Check for projection extension properties that are not in the asset fields.
+    # Specifically, proj:shape and proj:transform, as these are otherwise
+    # fetched in _get_stac_bands.
+    properties = input_stac["properties"]
+    proj_shape = properties.get('proj:shape')
+    proj_transform = properties.get('proj:transform')
     # TODO: handle old STAC that doesn't have grid information here...
-    bands, grids = _get_stac_bands(input_stac, default_grid, relative=relative)
+    bands, grids = _get_stac_bands(
+        input_stac, default_grid, relative=relative,
+        proj_shape=proj_shape, proj_transform=proj_transform)
 
     stac_properties, lineage = _get_stac_properties_lineage(input_stac)
 
-    properties = input_stac["properties"]
     epsg = properties["proj:epsg"]
     native_crs = f"epsg:{epsg}"
 
