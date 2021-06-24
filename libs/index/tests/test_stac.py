@@ -35,11 +35,11 @@ def test_sentinel_stac_transform(sentinel_stac, sentinel_odc):
 
 
 def test_usgs_landsat_stac_transform(usgs_landsat_stac):
-    transformed = stac_transform(usgs_landsat_stac)
+    _ = stac_transform(usgs_landsat_stac)
 
 
 def test_lidar_stac_transform(lidar_stac):
-    transformed = stac_transform(lidar_stac)
+    _ = stac_transform(lidar_stac)
 
 
 def do_diff(actual_doc, expected_doc):
@@ -76,6 +76,8 @@ def do_diff(actual_doc, expected_doc):
 
     # Test lineage field
     doc_diff = deep_diff(expected_doc["lineage"], actual_doc["lineage"])
+    if expected_doc.get("accessories") is not None:
+        doc_diff = deep_diff(expected_doc["accessories"], actual_doc["accessories"])
     assert doc_diff == {}, pformat(doc_diff)
 
 

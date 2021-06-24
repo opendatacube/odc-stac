@@ -86,14 +86,24 @@ def _get_stac_bands(
 ) -> Tuple[Document, Document]:
     bands = {}
     grids = {}
+    accessories = {}
+
     assets = item.get("assets", {})
 
+    def _get_path(asset):
+        path = asset["href"]
+        if relative:
+            path = Path(path).name
+
+        return path
+
     for asset_name, asset in assets.items():
-        # Ignore items that are not actual COGs/geotiff
+        # If something's not a geotiff, make it an accessory
         if asset.get("type") not in [
             "image/tiff; application=geotiff; profile=cloud-optimized",
             "image/tiff; application=geotiff",
         ]:
+            accessories[asset_name] = {"path": _get_path(asset)}
             continue
 
         # If transform specified here in the asset it should override
@@ -110,10 +120,8 @@ def _get_stac_bands(
                 "transform": transform,
             }
 
-        path = asset["href"]
+        path = _get_path(asset)
         band_index = asset.get("band", None)
-        if relative:
-            path = Path(path).name
 
         band_info = {"path": path}
         if band_index is not None:
@@ -131,7 +139,7 @@ def _get_stac_bands(
     if default_grid in grids:
         grids["default"] = grids.pop(default_grid)
 
-    return bands, grids
+    return bands, grids, accessories
 
 
 def _geographic_to_projected(geometry, crs, precision=10):
@@ -232,7 +240,7 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     proj_shape = properties.get("proj:shape")
     proj_transform = properties.get("proj:transform")
     # TODO: handle old STAC that doesn't have grid information here...
-    bands, grids = _get_stac_bands(
+    bands, grids, accessories = _get_stac_bands(
         input_stac,
         default_grid,
         relative=relative,
@@ -266,6 +274,7 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
         "properties": stac_properties,
         "measurements": bands,
         "lineage": {},
+        "accessories": accessories
     }
 
     if region_code:
