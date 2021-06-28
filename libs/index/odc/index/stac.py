@@ -28,11 +28,14 @@ MAPPING_STAC_TO_EO3 = {
 }
 
 
-def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
+def _stac_product_lookup(
+    item: Document,
+) -> Tuple[str, Optional[str], str, Optional[str], str]:
     properties = item["properties"]
     platform = properties.get("eo:platform", properties.get("platform", None))
 
-    product_label = item["id"]
+    dataset_id: str = item["id"]
+    dataset_label = item.get("title")
     product_name = get_in(["odc:product"], properties, platform)
     region_code = get_in(["odc:region_code"], properties, None)
     default_grid = None
@@ -42,7 +45,7 @@ def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
 
     if constellation in KNOWN_CONSTELLATIONS:
         if constellation == "sentinel-2":
-            product_label = properties["sentinel:product_id"]
+            dataset_id = properties["sentinel:product_id"]
             product_name = "s2_l2a"
             region_code = "{}{}{}".format(
                 str(properties["proj:epsg"])[-2:],
@@ -52,12 +55,20 @@ def _stac_product_lookup(item: Document) -> Tuple[str, str, Optional[str], str]:
             default_grid = "g10m"
     elif properties.get("platform") in LANDSAT_PLATFORMS:
         self_href = _find_self_href(item)
-        product_label = Path(self_href).stem.replace(".stac-item", "")
+        dataset_label = Path(self_href).stem.replace(".stac-item", "")
         product_name = properties.get("odc:product")
         region_code = properties.get("odc:region_code")
         default_grid = "g30m"
 
-    return product_label, product_name, region_code, default_grid
+    # If the ID is not cold and numerical, assume it can serve a label.
+    if (
+        not dataset_label
+        and not _check_valid_uuid(dataset_id)
+        and not dataset_id.isnumeric()
+    ):
+        dataset_label = dataset_id
+
+    return dataset_id, dataset_label, product_name, region_code, default_grid
 
 
 def _find_self_href(item: Document) -> str:
@@ -83,7 +94,7 @@ def _get_stac_bands(
     relative: bool = False,
     proj_shape: Optional[str] = None,
     proj_transform: Optional[str] = None,
-) -> Tuple[Document, Document]:
+) -> Tuple[Document, Document, Document]:
     bands = {}
     grids = {}
     accessories = {}
@@ -213,9 +224,13 @@ def _check_valid_uuid(uuid_string: str) -> bool:
 def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     """Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary"""
 
-    product_label, product_name, region_code, default_grid = _stac_product_lookup(
-        input_stac
-    )
+    (
+        dataset_id,
+        dataset_label,
+        product_name,
+        region_code,
+        default_grid,
+    ) = _stac_product_lookup(input_stac)
 
     # Generating UUID for products not having UUID.
     # Checking if provided id is valid UUID.
@@ -226,11 +241,11 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     else:
         if product_name in ["s2_l2a"]:
             deterministic_uuid = str(
-                odc_uuid("sentinel-2_stac_process", "1.0.0", [product_label])
+                odc_uuid("sentinel-2_stac_process", "1.0.0", [dataset_id])
             )
         else:
             deterministic_uuid = str(
-                odc_uuid(f"{product_name}_stac_process", "1.0.0", [product_label])
+                odc_uuid(f"{product_name}_stac_process", "1.0.0", [dataset_id])
             )
 
     # Check for projection extension properties that are not in the asset fields.
@@ -270,12 +285,13 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
         "crs": native_crs,
         "grids": grids,
         "product": {"name": product_name.lower()},
-        "label": product_label,
         "properties": stac_properties,
         "measurements": bands,
         "lineage": {},
-        "accessories": accessories
+        "accessories": accessories,
     }
+    if dataset_label:
+        stac_odc["label"] = dataset_label
 
     if region_code:
         stac_odc["properties"]["odc:region_code"] = region_code
