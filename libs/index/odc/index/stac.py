@@ -274,7 +274,7 @@ def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     geometry = Geometry(input_stac["geometry"], "epsg:4326")
     if native_crs != "epsg:4326":
         # Arbitrary precisions, but should be fine
-        pixel_size = get_in(["default", "transform", 0], grids)
+        pixel_size = get_in(["default", "transform", 0], grids, no_default=True)
         precision = 0
         if pixel_size < 0:
             precision = 6
