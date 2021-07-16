@@ -1,9 +1,8 @@
 import math
 from pathlib import Path
-from typing import Dict, Tuple, Any, Optional
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
-import dateutil.parser
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
 from toolz import get_in
