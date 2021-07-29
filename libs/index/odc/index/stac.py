@@ -113,7 +113,7 @@ def _get_stac_bands(
 
     for asset_name, asset in assets.items():
         # If something's not a geotiff, make it an accessory
-        if 'geotiff' in asset.get("type"):
+        if 'geotiff' not in asset.get("type"):
             accessories[asset_name] = {"path": _get_path(asset)}
             continue
 
