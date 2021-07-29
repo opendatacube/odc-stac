@@ -37,6 +37,9 @@ def _stac_product_lookup(
     dataset_id: str = item["id"]
     dataset_label = item.get("title")
     product_name = get_in(["odc:product"], properties, platform)
+    if product_name is None:
+        # If there's no odc:product, platform and collection, then fail.
+        product_name = get_in(["collection"], item, no_default=True)
     region_code = get_in(["odc:region_code"], properties, None)
     default_grid = None
 
