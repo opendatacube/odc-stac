@@ -44,17 +44,23 @@ def _stac_product_lookup(
     default_grid = None
 
     # Maybe this should be the default product_name
-    constellation = properties.get("constellation")
+    constellation = properties.get("constellation") or properties.get("eo:constellation")
+    if constellation is not None:
+        constellation = constellation.lower().replace(" ", "-")
 
     if constellation in KNOWN_CONSTELLATIONS:
+        # This handles the Element 84 and  Microsft PC docs
         if constellation == "sentinel-2":
-            dataset_id = properties["sentinel:product_id"]
+            dataset_id = properties.get("sentinel:product_id") or properties.get("s2:granule_id")
             product_name = "s2_l2a"
-            region_code = "{}{}{}".format(
-                str(properties["proj:epsg"])[-2:],
-                properties["sentinel:latitude_band"],
-                properties["sentinel:grid_square"],
-            )
+            region_code = properties.get("s2:mgrs_tile")
+            if region_code is None:
+                # Let this throw an exception if there's something missing
+                region_code = "{}{}{}".format(
+                    str(properties["proj:epsg"])[-2:],
+                    properties["sentinel:latitude_band"],
+                    properties["sentinel:grid_square"],
+                )
             default_grid = "g10m"
     elif properties.get("platform") in LANDSAT_PLATFORMS:
         self_href = _find_self_href(item)
@@ -113,7 +119,8 @@ def _get_stac_bands(
 
     for asset_name, asset in assets.items():
         # If something's not a geotiff, make it an accessory
-        if 'geotiff' not in asset.get("type"):
+        # include thumbnails in accessories
+        if "geotiff" not in asset.get("type") or "thumbnail" in asset.get("roles", []):
             accessories[asset_name] = {"path": _get_path(asset)}
             continue
 
