@@ -40,6 +40,8 @@ def _stac_product_lookup(
     if product_name is None:
         # If there's no odc:product, platform and collection, then fail.
         product_name = get_in(["collection"], item, no_default=True)
+    # Product names can't have dashes in them, for some reason
+    product_name = product_name.replace("-", "_")
     region_code = get_in(["odc:region_code"], properties, None)
     default_grid = None
 
