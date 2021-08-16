@@ -29,12 +29,22 @@ MAPPING_STAC_TO_EO3 = {
     "view:sun_elevation": "eo:sun_elevation",
 }
 
+# Add more here as they are discovered
+CANDIDATE_REGION_CODES = [
+    "odc:region_code",
+    "s2:mgrs_tile",
+    "io:supercell_id"
+]
+
 
 def _get_region_code(properties: Dict[str, Any]) -> str:
-    # Nice ODC default
-    region_code = get_in(["odc:region_code"], properties, None)
+    # Check the default candidates
+    for region_code_name in CANDIDATE_REGION_CODES:
+        region_code = properties.get(region_code_name, None)
+        if region_code is not None:
+            return region_code
 
-    # Landsat
+    # Landsat special case
     if region_code is None:
         row = get_in(["landsat:wrs_row"], properties, None)
         path = get_in(["landsat:wrs_path"], properties, None)
@@ -43,14 +53,6 @@ def _get_region_code(properties: Dict[str, Any]) -> str:
                 region_code = f"{int(path):03d}{int(row):03d}"
         except ValueError:
             pass
-
-    # Sentinel-2
-    if region_code is None:
-        region_code = get_in(["s2:mgrs_tile"], properties, None)
-
-    # ESRI Land Use
-    if region_code is None:
-        region_code = get_in(["io:supercell_id"], properties, None)
 
     return region_code
 
@@ -62,14 +64,15 @@ def _stac_product_lookup(
 
     dataset_id: str = item["id"]
     dataset_label = item.get("title")
-    product_name = get_in(["odc:product"], properties, None)
+
+    product_name = properties.get("odc:product", None)
     if product_name is None:
         # If there's no odc:product or collection, then fail.
         product_name = get_in(["collection"], item, no_default=True)
     # Product names can't have dashes in them, for some reason
     product_name = product_name.replace("-", "_")
 
-    # Try to getss some region_codes
+    # Try to get some region_codes
     region_code = _get_region_code(properties)
 
     default_grid = None
@@ -92,7 +95,8 @@ def _stac_product_lookup(
                     properties["sentinel:grid_square"],
                 )
             default_grid = "g10m"
-    elif product_name in DEA_LANDSAT_PRODUCTS:
+
+    if product_name in DEA_LANDSAT_PRODUCTS:
         self_href = _find_self_href(item)
         dataset_label = Path(self_href).stem.replace(".stac-item", "")
         default_grid = "g30m"
