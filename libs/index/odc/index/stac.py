@@ -9,9 +9,11 @@ from toolz import get_in
 
 Document = Dict[str, Any]
 
-KNOWN_CONSTELLATIONS = ["sentinel-2"]
+# This is an old hack, should be refactored out
+DEA_LANDSAT_PRODUCTS = ["ga_ls8c_ard_3", "ga_ls7e_ard_3", "ga_ls8t_ard_3"]
 
-LANDSAT_PLATFORMS = ["landsat-5", "landsat-7", "landsat-8"]
+# This is an old hack too.
+KNOWN_CONSTELLATIONS = ["sentinel-2"]
 
 # Mapping between EO3 field names and STAC properties object field names
 MAPPING_STAC_TO_EO3 = {
@@ -27,22 +29,52 @@ MAPPING_STAC_TO_EO3 = {
     "view:sun_elevation": "eo:sun_elevation",
 }
 
+# Add more here as they are discovered
+CANDIDATE_REGION_CODES = [
+    "odc:region_code",
+    "s2:mgrs_tile",
+    "io:supercell_id"
+]
+
+
+def _get_region_code(properties: Dict[str, Any]) -> str:
+    # Check the default candidates
+    for region_code_name in CANDIDATE_REGION_CODES:
+        region_code = properties.get(region_code_name, None)
+        if region_code is not None:
+            return region_code
+
+    # Landsat special case
+    if region_code is None:
+        row = get_in(["landsat:wrs_row"], properties, None)
+        path = get_in(["landsat:wrs_path"], properties, None)
+        try:
+            if row is not None and path is not None:
+                region_code = f"{int(path):03d}{int(row):03d}"
+        except ValueError:
+            pass
+
+    return region_code
+
 
 def _stac_product_lookup(
     item: Document,
 ) -> Tuple[str, Optional[str], str, Optional[str], str]:
     properties = item["properties"]
-    platform = properties.get("eo:platform", properties.get("platform", None))
 
     dataset_id: str = item["id"]
     dataset_label = item.get("title")
-    product_name = get_in(["odc:product"], properties, platform)
+
+    product_name = properties.get("odc:product", None)
     if product_name is None:
-        # If there's no odc:product, platform and collection, then fail.
+        # If there's no odc:product or collection, then fail.
         product_name = get_in(["collection"], item, no_default=True)
     # Product names can't have dashes in them, for some reason
     product_name = product_name.replace("-", "_")
-    region_code = get_in(["odc:region_code"], properties, None)
+
+    # Try to get some region_codes
+    region_code = _get_region_code(properties)
+
     default_grid = None
 
     # Maybe this should be the default product_name
@@ -55,7 +87,6 @@ def _stac_product_lookup(
         if constellation == "sentinel-2":
             dataset_id = properties.get("sentinel:product_id") or properties.get("s2:granule_id")
             product_name = "s2_l2a"
-            region_code = properties.get("s2:mgrs_tile")
             if region_code is None:
                 # Let this throw an exception if there's something missing
                 region_code = "{}{}{}".format(
@@ -64,11 +95,10 @@ def _stac_product_lookup(
                     properties["sentinel:grid_square"],
                 )
             default_grid = "g10m"
-    elif properties.get("platform") in LANDSAT_PLATFORMS:
+
+    if product_name in DEA_LANDSAT_PRODUCTS:
         self_href = _find_self_href(item)
         dataset_label = Path(self_href).stem.replace(".stac-item", "")
-        product_name = properties.get("odc:product")
-        region_code = properties.get("odc:region_code")
         default_grid = "g30m"
 
     # If the ID is not cold and numerical, assume it can serve a label.
