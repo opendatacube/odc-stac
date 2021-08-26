@@ -77,7 +77,14 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
     assert _proj.crs_string is not None
 
     h, w = _proj.shape
-    affine = Affine(*_proj.transform)
+    if len(_proj.transform) == 9:
+        if _proj.transform[6:] != [0, 0, 1]:
+            raise ValueError(
+                f"Asset transform is not affine: {_proj.transform}")
+        transform = _proj.transform[0:6]
+    else:
+        transform = _proj.transform
+    affine = Affine(*transform)
     return GeoBox(w, h, affine, _proj.crs_string)
 
 

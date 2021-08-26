@@ -1,12 +1,6 @@
-from odc.stac._eo3 import (
-    mk_product,
-    BandMetadata,
-    compute_eo3_grids,
-    infer_dc_product,
-    is_raster_data,
-    item_to_ds,
-    stac2ds,
-)
+from odc.stac._eo3 import (mk_product, BandMetadata, compute_eo3_grids,
+                           infer_dc_product, is_raster_data, item_to_ds,
+                           stac2ds, asset_geobox)
 import pystac
 
 STAC_CFG = {
@@ -95,3 +89,9 @@ def test_item_to_ds(sentinel_stac_ms):
     dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
     assert len(dss) == 3
     assert len(set(id(ds.type) for ds in dss)) == 1
+
+
+def test_asset_geobox(sentinel_stac):
+    item = pystac.Item.from_dict(sentinel_stac)
+    asset = item.assets["B01"]
+    asset_geobox(asset)
