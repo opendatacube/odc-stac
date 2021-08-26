@@ -2,9 +2,9 @@
   "type": "Feature",
   "stac_version": "1.0.0-beta.1",
   "stac_extensions": [
-    "eo",
-    "view",
-    "proj"
+    "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/view/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
   ],
   "id": "S2A_28QCH_20200714_0_L2A",
   "bbox": [
