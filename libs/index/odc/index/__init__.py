@@ -1,6 +1,6 @@
 """ Indexing related helper methods.
 """
-from ._version import __version__
+from ..stac._version import __version__
 
 from ._index import (
     from_metadata_stream,

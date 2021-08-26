@@ -1,6 +1,7 @@
 """
 STAC Item -> ODC Dataset[eo3]
 """
+from ._version import __version__
 
 from ._eo3 import (
     BandMetadata,
@@ -13,4 +14,5 @@ __all__ = (
     "BandMetadata",
     "ConversionConfig",
     "stac2ds",
+    "__version__",
 )

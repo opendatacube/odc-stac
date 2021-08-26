@@ -1,13 +1,13 @@
-odc.index
-=========
+odc.stac
+========
 
-Datacube index prototypes/tools
+Tooling for converting STAC metadata to ODC data model.
 
 Installation
 ------------
 
 ```
-pip install odc-index
+pip install odc-stac
 ```
 
 Usage
