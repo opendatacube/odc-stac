@@ -1,15 +1,25 @@
-import sys
+"""
+These should probably be in datacube library
+"""
 import datetime
 import json
-from warnings import warn
+import sys
+from random import randint
 from types import SimpleNamespace
-from typing import Iterator, Tuple, Optional
+from typing import Iterator, Optional, Tuple
+from warnings import warn
+
+import psycopg2
+from pandas import Period
 
 from datacube import Datacube
 from datacube.api.query import Query
 from datacube.index.hl import Doc2Dataset
-from datacube.model import Range, Dataset, DatasetType, MetadataType, metadata_from_doc
+from datacube.index.index import default_metadata_type_docs
+from datacube.model import Dataset, DatasetType, Range, metadata_from_doc
+from datacube.utils.documents import load_documents
 from odc.io.text import parse_yaml
+
 from ._grouper import solar_offset
 
 
@@ -65,7 +75,7 @@ def parse_doc_stream(doc_stream, on_error=None, transform=None):
 
             if transform is not None:
                 metadata = transform(metadata)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             if on_error is not None:
                 on_error(uri, doc, e)
             metadata = None
@@ -86,6 +96,7 @@ def from_yaml_doc_stream(doc_stream, index, logger=None, transform=None, **kwarg
     """
 
     def on_parse_error(uri, doc, err):
+        # pylint: disable=unused-argument
         if logger is not None:
             logger.error(f"Failed to parse: {uri}")
         else:
@@ -98,11 +109,15 @@ def from_yaml_doc_stream(doc_stream, index, logger=None, transform=None, **kwarg
 
 
 def dataset_count(index, **query):
+    """
+    Returns number of datasets matching a query.
+    """
     return index.datasets.count(**Query(**query).search_terms)
 
 
 def count_by_year(index, product, min_year=None, max_year=None):
-    """Returns dictionary Int->Int: `year` -> `dataset count for this year`.
+    """
+    Returns dictionary Int->Int: `year` -> `dataset count for this year`.
     Only non-empty years are reported.
     """
 
@@ -112,16 +127,17 @@ def count_by_year(index, product, min_year=None, max_year=None):
     if max_year is None:
         max_year = datetime.datetime.now().year
 
-    ll = (
+    year_count = (
         (year, dataset_count(index, product=product, time=str(year)))
         for year in range(min_year, max_year + 1)
     )
 
-    return {year: c for year, c in ll if c > 0}
+    return {year: c for year, c in year_count if c > 0}
 
 
 def count_by_month(index, product, year):
-    """Return 12 integer tuple
+    """
+    Return 12 integer tuple
     counts for January, February ... December
     """
     return tuple(
@@ -131,11 +147,11 @@ def count_by_month(index, product, year):
 
 
 def time_range(begin, end, freq="m"):
-    """Return tuples of datetime objects aligned to boundaries of requested period
+    """
+    Return tuples of datetime objects aligned to boundaries of requested period
     (month is default).
 
     """
-    from pandas import Period
 
     tzinfo = begin.tzinfo
     t = Period(begin, freq)
@@ -155,7 +171,8 @@ def time_range(begin, end, freq="m"):
 def month_range(
     year: int, month: int, n: int
 ) -> Tuple[datetime.datetime, datetime.datetime]:
-    """Return time range covering n months starting from year, month
+    """
+    Return time range covering n months starting from year, month
     month 1..12
     month can also be negative
     2020, -1 === 2019, 12
@@ -177,7 +194,8 @@ def month_range(
 
 
 def season_range(year: int, season: str) -> Tuple[datetime.datetime, datetime.datetime]:
-    """Season is one of djf, mam, jja, son.
+    """
+    Season is one of djf, mam, jja, son.
 
     DJF for year X starts in Dec X-1 and ends in Feb X.
     """
@@ -190,7 +208,8 @@ def season_range(year: int, season: str) -> Tuple[datetime.datetime, datetime.da
 
 
 def chop_query_by_time(q: Query, freq: str = "m") -> Iterator[Query]:
-    """Given a query over longer period of time, chop it up along the time dimension
+    """
+    Given a query over longer period of time, chop it up along the time dimension
     into smaller queries each covering a shorter time period (year, month, week or day).
     """
     qq = dict(**q.search_terms)
@@ -203,7 +222,8 @@ def chop_query_by_time(q: Query, freq: str = "m") -> Iterator[Query]:
 
 
 def ordered_dss(dc: Datacube, freq: str = "m", key=None, **query):
-    """Emulate "order by time" streaming interface for datacube queries.
+    """
+    Emulate "order by time" streaming interface for datacube queries.
 
         Basic idea is to perform a lot of smaller queries (shorter time
         periods), sort results then yield them to the calling code.
@@ -226,7 +246,8 @@ def ordered_dss(dc: Datacube, freq: str = "m", key=None, **query):
 
 
 def chopped_dss(dc: Datacube, freq: str = "m", **query):
-    """Emulate streaming interface for datacube queries.
+    """
+    Emulate streaming interface for datacube queries.
 
     Basic idea is to perform a lot of smaller queries (shorter time
     periods)
@@ -317,9 +338,6 @@ def all_datasets(
     """
     Like dc.find_datasets_lazy(product=product) but actually lazy, using db cursors
     """
-    import psycopg2
-    from random import randint
-
     assert isinstance(limit, (int, type(None)))
 
     db = psycopg2.connect(str(dc.index.url))
@@ -363,8 +381,6 @@ def product_from_yaml(path: str, dc: Optional[Datacube] = None) -> DatasetType:
     :param dc: Optional datacube instance (used to query MetadataType, only
                used if non-standard metadata type is used in the product)
     """
-    from datacube.index.index import default_metadata_type_docs
-    from datacube.utils.documents import load_documents
 
     standard_metadata_types = {
         d["name"]: metadata_from_doc(d) for d in default_metadata_type_docs()

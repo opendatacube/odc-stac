@@ -1,3 +1,6 @@
+"""
+Determenistic UUID generation for Datasets
+"""
 import uuid
 from uuid import UUID
 from typing import Sequence
@@ -24,11 +27,11 @@ def odc_uuid(
     """
     tags = ["{key}={value}".format(key=k, value=str(v)) for k, v in other_tags.items()]
 
-    ss = (
+    stringified_sources = (
         [str(algorithm), str(algorithm_version), str(deployment_id)]
         + sorted(tags)
         + [str(u) for u in sorted(sources)]
     )
 
-    srcs_hashes = "\n".join(s.lower() for s in ss)
+    srcs_hashes = "\n".join(s.lower() for s in stringified_sources)
     return uuid.uuid5(ODC_NS, srcs_hashes)

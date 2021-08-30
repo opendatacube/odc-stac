@@ -1,3 +1,6 @@
+"""
+Tools for dealing with UTM grids
+"""
 from types import SimpleNamespace
 from typing import Tuple, Union, Optional
 from datacube.utils.geometry import CRS
@@ -10,10 +13,13 @@ def mk_utm_gs(
     pixels_per_cell: int = 10_000,
     origin: Tuple[float, float] = (0, 0),
 ) -> GridSpec:
+    """
+    Construct GridSpec
+    """
     if not isinstance(resolution, tuple):
         resolution = (-resolution, resolution)
 
-    tile_size = tuple([abs(r) * pixels_per_cell for r in resolution])
+    tile_size = tuple(abs(r) * pixels_per_cell for r in resolution)
 
     return GridSpec(
         crs=CRS(f"epsg:{epsg}"),
@@ -79,7 +85,8 @@ def utm_zone_to_epsg(zone):
 
 
 def utm_tile_dss(dss, **gridspec_options):
-    """Given a sequence of Dataset objects each using UTM projection bin them into tiles.
+    """
+    Given a sequence of Dataset objects each using UTM projection bin them into tiles.
 
     Equivalent to:
 

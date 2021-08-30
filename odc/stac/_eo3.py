@@ -8,7 +8,6 @@ from copy import deepcopy
 from warnings import warn
 import uuid
 
-import toolz
 from affine import Affine
 import pystac.asset
 import pystac.item
@@ -71,6 +70,18 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
 
 
 def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
+    """
+    Compute GeoBox from STAC Asset.
+
+    This only works if ProjectionExtension is used with the
+    following properties populated:
+
+    - shape
+    - transform
+    - CRS
+
+    :raises ValueError: when transform is not Affine.
+    """
     _proj = ProjectionExtension.ext(asset)
     assert _proj.shape is not None
     assert _proj.transform is not None
@@ -126,12 +137,12 @@ def compute_eo3_grids(
     # locate default grid
     g_default, *_ = sorted(grids, key=gbox_score)
 
-    named_grids: Dict[str, Geobox] = {}
+    named_grids: Dict[str, GeoBox] = {}
     band2grid: Dict[str, str] = {}
     for grid, bands in grids.items():
         grid_name = "default" if grid is g_default else gbox_name(grid)
         if grid_name in named_grids:
-            raise NotImplemented(
+            raise NotImplementedError(
                 "TODO: deal with multiple grids with same sampling distance"
             )
 
@@ -226,15 +237,19 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
     _, band2grid = compute_eo3_grids(data_bands)
     cfg["band2grid"] = band2grid
 
-    product._stac_cfg = cfg
+    product._stac_cfg = cfg  # pylint: disable=protected-access
     return product
 
 
 def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
+    """
+    Construct Dataset object from STAC Item and previosuly constructed Product.
+
+    :raises ValueError: when not all assets share the same CRS
+    """
     _cfg = getattr(product, "_stac_cfg", {})
 
     _assets = item.assets
-    data_bands = {name: _assets[name] for name in product.measurements}
 
     measurements: Dict[str, Dict[str, Any]] = {}
     grids: Dict[str, Dict[str, Any]] = {}

@@ -1,11 +1,14 @@
+"""
+Tools for STAC to EO3 translation
+"""
 import math
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
+from toolz import get_in
 
 from datacube.utils.geometry import Geometry
 from odc.index import odc_uuid
-from toolz import get_in
 
 Document = Dict[str, Any]
 
@@ -136,6 +139,7 @@ def _get_stac_bands(
     proj_shape: Optional[str] = None,
     proj_transform: Optional[str] = None,
 ) -> Tuple[Document, Document, Document]:
+    # pylint: disable=too-many-locals
     bands = {}
     grids = {}
     accessories = {}
@@ -264,6 +268,7 @@ def _check_valid_uuid(uuid_string: str) -> bool:
 
 def stac_transform(input_stac: Document, relative: bool = True) -> Document:
     """Takes in a raw STAC 1.0 dictionary and returns an ODC dictionary"""
+    # pylint: disable=too-many-locals
 
     (
         dataset_id,
