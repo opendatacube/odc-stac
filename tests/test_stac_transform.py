@@ -5,7 +5,7 @@ from functools import partial
 from pprint import pformat
 import pytest
 from deepdiff import DeepDiff
-from odc.index.stac import stac_transform
+from odc.stac.transform import stac_transform
 
 
 deep_diff = partial(
