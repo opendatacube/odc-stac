@@ -9,10 +9,13 @@ from ._eo3 import (
     stac2ds,
 )
 
+from ._dcload import dc_load
+
 
 __all__ = (
     "BandMetadata",
     "ConversionConfig",
     "stac2ds",
+    "dc_load",
     "__version__",
 )
