@@ -3,7 +3,7 @@ STAC -> EO3 utilities
 """
 
 from collections import namedtuple
-from typing import Any, Dict, Iterable, List, Tuple, Iterator
+from typing import Any, Dict, Iterable, List, Set, Tuple, Iterator, Optional
 from copy import deepcopy
 from warnings import warn
 import uuid
@@ -11,6 +11,7 @@ import uuid
 from affine import Affine
 import pystac.asset
 import pystac.item
+from pystac.extensions.eo import EOExtension
 from pystac.extensions.projection import ProjectionExtension
 from datacube.index.eo3 import prep_eo3
 from datacube.index.index import default_metadata_type_docs
@@ -90,8 +91,7 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
     h, w = _proj.shape
     if len(_proj.transform) == 9:
         if _proj.transform[6:] != [0, 0, 1]:
-            raise ValueError(
-                f"Asset transform is not affine: {_proj.transform}")
+            raise ValueError(f"Asset transform is not affine: {_proj.transform}")
         transform = _proj.transform[0:6]
     else:
         transform = _proj.transform
@@ -153,6 +153,38 @@ def compute_eo3_grids(
     return named_grids, band2grid
 
 
+def alias_map_from_eo(item: pystac.Item, quiet: bool = False) -> Dict[str, str]:
+    """
+    Generate mapping ``common name -> canonical name`` for all unique common names defined on the Item eo extension.
+
+    :param item: STAC Item to process
+    :type item: pystac.Item
+    :param quiet: Do not print warning if duplicate common names are found, defaults to False
+    :type quiet: bool, optional
+    :return: common name to canonical name mapping
+    :rtype: Dict[str, str]
+    """
+    try:
+        bands = EOExtension.ext(item, add_if_missing=False).bands
+    except pystac.ExtensionNotImplemented:
+        return {}
+
+    common_names: Dict[str, Set[str]] = {}
+    for band in bands:
+        if common_name := band.common_name:
+            common_names.setdefault(common_name, set()).add(band.name)
+
+    def _aliases(common_names):
+        for alias, bands in common_names.items():
+            if len(bands) == 1:
+                (band,) = bands
+                yield (alias, band)
+            elif not quiet:
+                warn(f"Common name `{alias}` is repeated, skipping")
+
+    return dict(_aliases(common_names))
+
+
 def normalise_product_name(name: str) -> str:
     """
     Create valid product name from arbitrary string
@@ -162,11 +194,29 @@ def normalise_product_name(name: str) -> str:
     return name.replace("-", "_").replace(" ", "_")
 
 
-def mk_product(name: str, bands: Iterable[str], cfg: Dict[str, Any]) -> DatasetType:
+def mk_product(
+    name: str,
+    bands: Iterable[str],
+    cfg: Dict[str, Any],
+    aliases: Optional[Dict[str, str]] = None,
+) -> DatasetType:
     """
-    Given a product name, list of bands and band metadata rules create EO3
-    Datacube Product.
+    Generate ODC Product from simplified config.
+
+    :param name: Product name
+    :type name: str
+    :param bands: List of band names
+    :type bands: Iterable[str]
+    :param cfg: Band configuration, band_name -> Config mapping
+    :type cfg: Dict[str, Any]
+    :param aliases: Map of aliases ``alias -> band name``
+    :type aliases: Optional[Dict[str, str]], optional
+    :return: Constructed ODC Product with EO3 metadata type
+    :rtype: DatasetType
     """
+
+    if aliases is None:
+        aliases = {}
 
     def _norm(meta) -> BandMetadata:
         if isinstance(meta, BandMetadata):
@@ -174,21 +224,30 @@ def mk_product(name: str, bands: Iterable[str], cfg: Dict[str, Any]) -> DatasetT
         return BandMetadata(**meta)
 
     _cfg: Dict[str, BandMetadata] = {name: _norm(meta) for name, meta in cfg.items()}
+    band_aliases: Dict[str, List[str]] = {}
+    for alias, canonical_name in aliases.items():
+        band_aliases.setdefault(canonical_name, []).append(alias)
 
-    def make_band(name: str, cfg: Dict[str, BandMetadata]) -> Dict[str, Any]:
+    def make_band(
+        name: str, cfg: Dict[str, BandMetadata], band_aliases: Dict[str, List[str]]
+    ) -> Dict[str, Any]:
         info = cfg.get(name, cfg.get("*", BandMetadata("uint16", 0, "1")))
+        aliases = band_aliases.get(name)
 
-        return {
+        doc = {
             "name": name,
             "dtype": info.dtype,
             "nodata": info.nodata,
             "units": info.units,
         }
+        if aliases is not None:
+            doc["aliases"] = aliases
+        return doc
 
     doc = {
         "name": normalise_product_name(name),
-        "metadatat_type": "eo3",
-        "measurements": [make_band(band, _cfg) for band in bands],
+        "metadata_type": "eo3",
+        "measurements": [make_band(band, _cfg, band_aliases) for band in bands],
     }
     return DatasetType(_eo3, doc)
 
@@ -210,6 +269,11 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
              dtype: uint8
              nodata: 0
              units: "1"
+         aliases:  #< unique alias -> canonical map
+            rededge: B05
+            rededge1: B05
+            rededge2: B06
+            rededge3: B07
          uuid:   # Rules for constructing UUID for Datasets
              random:
              from_key: "location.of.unique.property"
@@ -229,7 +293,10 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
         if is_raster_data(asset, check_proj=True)
     }
 
-    product = mk_product(collection_id, data_bands, cfg.get("measurements", {}))
+    aliases = alias_map_from_eo(item)
+    aliases.update(cfg.get("aliases", {}))
+
+    product = mk_product(collection_id, data_bands, cfg.get("measurements", {}), aliases)
 
     # We assume that grouping of data bands into grids is consistent across
     # entire collection, so we compute it once and keep it on a product object

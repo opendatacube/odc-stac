@@ -1,6 +1,14 @@
-from odc.stac._eo3 import (mk_product, BandMetadata, compute_eo3_grids,
-                           infer_dc_product, is_raster_data, item_to_ds,
-                           stac2ds, asset_geobox)
+import pytest
+from odc.stac._eo3 import (
+    mk_product,
+    BandMetadata,
+    compute_eo3_grids,
+    infer_dc_product,
+    is_raster_data,
+    item_to_ds,
+    stac2ds,
+    asset_geobox,
+)
 import pystac
 
 STAC_CFG = {
@@ -9,7 +17,13 @@ STAC_CFG = {
             "*": BandMetadata("uint16", 0, "1"),
             "SCL": BandMetadata("uint8", 0, "1"),
             "visual": dict(dtype="uint8", nodata=0, units="1"),
-        }
+        },
+        "aliases": {  # Work around duplicate rededge common_name
+            "rededge": "B05",
+            "rededge1": "B05",
+            "rededge2": "B06",
+            "rededge3": "B07",
+        },
     }
 }
 
@@ -19,6 +33,7 @@ def test_mk_product():
         "some-product",
         ["a", "b"],
         {"*": BandMetadata("uint8", 0, "1"), "b": BandMetadata("int16", -999, "BB")},
+        {"A": "a", "B": "b", "bb": "b"},
     )
 
     assert p.name == "some_product"
@@ -27,10 +42,13 @@ def test_mk_product():
     assert p.measurements["a"].dtype == "uint8"
     assert p.measurements["a"].nodata == 0
     assert p.measurements["a"].units == "1"
+    assert p.measurements["a"].aliases == ["A"]
 
     assert p.measurements["b"].dtype == "int16"
     assert p.measurements["b"].nodata == -999
     assert p.measurements["b"].units == "BB"
+    assert p.canonical_measurement("B") == "b"
+    assert p.canonical_measurement("bb") == "b"
 
     p = mk_product("Some Product", ["a", "b", "c"], {},)
 
@@ -65,9 +83,20 @@ def test_infer_product(sentinel_stac_ms):
 
     assert item.collection_id in STAC_CFG
 
-    product = infer_dc_product(item, STAC_CFG)
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        product = infer_dc_product(item, STAC_CFG)
+
     assert product.measurements["SCL"].dtype == "uint8"
     assert product.measurements["visual"].dtype == "uint8"
+    # check aliases from eo extension
+    assert product.canonical_measurement("red") == "B04"
+    assert product.canonical_measurement("green") == "B03"
+    assert product.canonical_measurement("blue") == "B02"
+    # check aliases from config
+    assert product.canonical_measurement("rededge") == "B05"
+    assert product.canonical_measurement("rededge1") == "B05"
+    assert product.canonical_measurement("rededge2") == "B06"
+    assert product.canonical_measurement("rededge3") == "B07"
 
     assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
 
