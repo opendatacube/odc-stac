@@ -8,6 +8,7 @@ from odc.stac._eo3 import (
     item_to_ds,
     stac2ds,
     asset_geobox,
+    has_proj_ext,
 )
 import pystac
 
@@ -124,3 +125,8 @@ def test_asset_geobox(sentinel_stac):
     item = pystac.Item.from_dict(sentinel_stac)
     asset = item.assets["B01"]
     asset_geobox(asset)
+
+
+def test_has_proj_ext(sentinel_stac_ms_no_ext):
+    item = pystac.Item.from_dict(sentinel_stac_ms_no_ext)
+    assert has_proj_ext(item) is False
