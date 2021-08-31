@@ -170,7 +170,8 @@ def alias_map_from_eo(item: pystac.Item, quiet: bool = False) -> Dict[str, str]:
 
     common_names: Dict[str, Set[str]] = {}
     for band in bands:
-        if common_name := band.common_name:
+        common_name = band.common_name
+        if common_name is not None:
             common_names.setdefault(common_name, set()).add(band.name)
 
     def _aliases(common_names):
