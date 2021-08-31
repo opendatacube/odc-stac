@@ -84,18 +84,17 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
     :raises ValueError: when transform is not Affine.
     """
     _proj = ProjectionExtension.ext(asset)
-    assert _proj.shape is not None
-    assert _proj.transform is not None
-    assert _proj.crs_string is not None
+    if _proj.shape is None or _proj.transform is None or _proj.crs_string is None:
+        raise ValueError("Missing proj data")
 
     h, w = _proj.shape
-    if len(_proj.transform) == 9:
-        if _proj.transform[6:] != [0, 0, 1]:
-            raise ValueError(f"Asset transform is not affine: {_proj.transform}")
-        transform = _proj.transform[0:6]
-    else:
-        transform = _proj.transform
-    affine = Affine(*transform)
+    if len(_proj.transform) not in (6, 9):
+        raise ValueError("Asset transform must be 6 or 9 elements in size")
+
+    if len(_proj.transform) == 9 and _proj.transform[-3:] != [0, 0, 1]:
+        raise ValueError(f"Asset transform is not affine: {_proj.transform}")
+
+    affine = Affine(*_proj.transform[:6])
     return GeoBox(w, h, affine, _proj.crs_string)
 
 
@@ -296,7 +295,9 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
     aliases = alias_map_from_eo(item)
     aliases.update(cfg.get("aliases", {}))
 
-    product = mk_product(collection_id, data_bands, cfg.get("measurements", {}), aliases)
+    product = mk_product(
+        collection_id, data_bands, cfg.get("measurements", {}), aliases
+    )
 
     # We assume that grouping of data bands into grids is consistent across
     # entire collection, so we compute it once and keep it on a product object
@@ -336,9 +337,10 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
             grids[grid] = dict(shape=geobox.shape, transform=geobox.transform)
             if crs is None:
                 crs = geobox.crs
-            else:
-                if crs != geobox.crs:
-                    raise ValueError("Expect all assets to share common CRS")
+            elif crs != geobox.crs:
+                raise ValueError(
+                    "Expect all assets to share common CRS"
+                )  # pragma: no cover
 
     assert crs is not None
 

@@ -11,6 +11,7 @@ from odc.stac._eo3 import (
     has_proj_ext,
 )
 import pystac
+from pystac.extensions.projection import ProjectionExtension
 
 STAC_CFG = {
     "sentinel-2-l2a": {
@@ -63,6 +64,18 @@ def test_mk_product():
         assert m.units == "1"
 
 
+def test_is_raster_data(sentinel_stac_ms):
+    item = pystac.Item.from_dict(sentinel_stac_ms)
+    assert "B01" in item.assets
+    assert "B02" in item.assets
+
+    assert is_raster_data(item.assets["B01"])
+
+    # check case when roles are missing
+    item.assets["B02"].roles = None
+    assert is_raster_data(item.assets["B02"])
+
+
 def test_eo3_grids(sentinel_stac_ms):
     item = pystac.Item.from_dict(sentinel_stac_ms)
     assert item.collection_id == "sentinel-2-l2a"
@@ -77,6 +90,11 @@ def test_eo3_grids(sentinel_stac_ms):
     assert set(grids) == set("default g20 g60".split(" "))
     assert set(grids) == set(b2g.values())
     assert set(b2g) == set(data_bands)
+
+    # test the case where there are different shapes for the same gsd
+    ProjectionExtension.ext(item.assets["B01"]).shape = (100, 200)
+    with pytest.raises(NotImplementedError):
+        compute_eo3_grids(data_bands)
 
 
 def test_infer_product(sentinel_stac_ms):
@@ -103,11 +121,13 @@ def test_infer_product(sentinel_stac_ms):
 
 
 def test_item_to_ds(sentinel_stac_ms):
-    item = pystac.Item.from_dict(sentinel_stac_ms)
+    item0 = pystac.Item.from_dict(sentinel_stac_ms)
+    item = item0.full_copy()
 
     assert item.collection_id in STAC_CFG
 
-    product = infer_dc_product(item, STAC_CFG)
+    with pytest.warns(UserWarning, match="`rededge`"):
+        product = infer_dc_product(item, STAC_CFG)
     ds = item_to_ds(item, product)
 
     assert set(ds.measurements) == set(product.measurements)
@@ -116,15 +136,47 @@ def test_item_to_ds(sentinel_stac_ms):
     assert ds.metadata.lon is not None
     assert ds.center_time is not None
 
-    dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
+    with pytest.warns(UserWarning, match="`rededge`"):
+        dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
     assert len(dss) == 3
     assert len(set(id(ds.type) for ds in dss)) == 1
+
+    # Test missing band case
+    item = item0.full_copy()
+    item.assets.pop("B01")
+    with pytest.warns(UserWarning, match="Missing asset"):
+        ds = item_to_ds(item, product)
+
+    # Test no eo extension case
+    item = item0.full_copy()
+    item.stac_extensions.remove(
+        "https://stac-extensions.github.io/eo/v1.0.0/schema.json"
+    )
+    product = infer_dc_product(item, STAC_CFG)
+    with pytest.raises(ValueError):
+        product.canonical_measurement("green")
 
 
 def test_asset_geobox(sentinel_stac):
     item = pystac.Item.from_dict(sentinel_stac)
     asset = item.assets["B01"]
-    asset_geobox(asset)
+    geobox = asset_geobox(asset)
+    assert geobox.shape == (1830, 1830)
+
+    # Tests non-affine transofrm ValueError
+    ProjectionExtension.ext(asset).transform[-1] = 2
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
+
+    # Tests wrong-sized transform transofrm ValueError
+    ProjectionExtension.ext(asset).transform = [1, 1, 2]
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
+
+    # Test missing transform transofrm ValueError
+    ProjectionExtension.ext(asset).transform = None
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
 
 
 def test_has_proj_ext(sentinel_stac_ms_no_ext):
