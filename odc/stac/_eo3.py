@@ -85,7 +85,7 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
     """
     _proj = ProjectionExtension.ext(asset)
     if _proj.shape is None or _proj.transform is None or _proj.crs_string is None:
-        raise ValueError("Missing proj data")
+        raise ValueError("The asset must have the following fields (from the projection extension): shape, transform, and one of an epsg, wkt2, or projjson")
 
     h, w = _proj.shape
     if len(_proj.transform) not in (6, 9):
