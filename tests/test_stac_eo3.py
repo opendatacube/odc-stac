@@ -77,7 +77,9 @@ def test_is_raster_data(sentinel_stac_ms):
 
 
 def test_eo3_grids(sentinel_stac_ms):
-    item = pystac.Item.from_dict(sentinel_stac_ms)
+    item0 = pystac.Item.from_dict(sentinel_stac_ms)
+
+    item = item0.full_copy()
     assert item.collection_id == "sentinel-2-l2a"
 
     data_bands = {
@@ -94,6 +96,12 @@ def test_eo3_grids(sentinel_stac_ms):
     # test the case where there are different shapes for the same gsd
     ProjectionExtension.ext(item.assets["B01"]).shape = (100, 200)
     with pytest.raises(NotImplementedError):
+        compute_eo3_grids(data_bands)
+
+    # More than 1 CRS is not supported
+    item = item0.full_copy()
+    ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
+    with pytest.raises(ValueError):
         compute_eo3_grids(data_bands)
 
 
@@ -156,24 +164,40 @@ def test_item_to_ds(sentinel_stac_ms):
     with pytest.raises(ValueError):
         product.canonical_measurement("green")
 
+    # Test multiple CRS unhappy path
+    item = item0.full_copy()
+    ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
+    assert ProjectionExtension.ext(item.assets["B01"]).crs_string == "EPSG:3857"
+    with pytest.raises(ValueError):
+        with pytest.warns(UserWarning, match="`rededge`"):
+            infer_dc_product(item, STAC_CFG)
+
 
 def test_asset_geobox(sentinel_stac):
-    item = pystac.Item.from_dict(sentinel_stac)
+    item0 = pystac.Item.from_dict(sentinel_stac)
+
+    item = item0.full_copy()
     asset = item.assets["B01"]
     geobox = asset_geobox(asset)
     assert geobox.shape == (1830, 1830)
 
     # Tests non-affine transofrm ValueError
+    item = item0.full_copy()
+    asset = item.assets["B01"]
     ProjectionExtension.ext(asset).transform[-1] = 2
     with pytest.raises(ValueError):
         asset_geobox(asset)
 
     # Tests wrong-sized transform transofrm ValueError
+    item = item0.full_copy()
+    asset = item.assets["B01"]
     ProjectionExtension.ext(asset).transform = [1, 1, 2]
     with pytest.raises(ValueError):
         asset_geobox(asset)
 
     # Test missing transform transofrm ValueError
+    item = item0.full_copy()
+    asset = item.assets["B01"]
     ProjectionExtension.ext(asset).transform = None
     with pytest.raises(ValueError):
         asset_geobox(asset)

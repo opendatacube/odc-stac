@@ -16,7 +16,7 @@ from pystac.extensions.projection import ProjectionExtension
 from datacube.index.eo3 import prep_eo3
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, metadata_from_doc
-from datacube.utils.geometry import GeoBox
+from datacube.utils.geometry import GeoBox, CRS
 
 BandMetadata = namedtuple("BandMetadata", ["dtype", "nodata", "units"])
 ConversionConfig = Dict[str, Any]
@@ -127,6 +127,7 @@ def compute_eo3_grids(
 
     # GeoBox to list of bands that share same footprint
     grids: Dict[GeoBox, List[str]] = {}
+    crs: Optional[CRS] = None
 
     for k, geobox in geoboxes.items():
         grids.setdefault(geobox, []).append(k)
@@ -142,6 +143,11 @@ def compute_eo3_grids(
     named_grids: Dict[str, GeoBox] = {}
     band2grid: Dict[str, str] = {}
     for grid, bands in grids.items():
+        if crs is None:
+            crs = grid.crs
+        elif grid.crs != crs:
+            raise ValueError("Expect all assets to share common CRS")
+
         grid_name = "default" if grid is g_default else gbox_name(grid)
         if grid_name in named_grids:
             raise NotImplementedError(
