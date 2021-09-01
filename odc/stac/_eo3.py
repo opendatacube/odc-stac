@@ -3,7 +3,18 @@ STAC -> EO3 utilities
 """
 
 from collections import namedtuple
-from typing import Any, Dict, Iterable, List, Set, Tuple, Iterator, Optional
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Set,
+    Tuple,
+    Iterator,
+    Optional,
+    TypeVar,
+    Union,
+)
 from copy import deepcopy
 from warnings import warn
 import uuid
@@ -12,18 +23,60 @@ from affine import Affine
 import pystac.asset
 import pystac.item
 from pystac.extensions.eo import EOExtension
+from pystac.extensions.raster import RasterExtension
 from pystac.extensions.projection import ProjectionExtension
 from datacube.index.eo3 import prep_eo3
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, metadata_from_doc
 from datacube.utils.geometry import GeoBox, CRS
 
+T = TypeVar("T")
 BandMetadata = namedtuple("BandMetadata", ["dtype", "nodata", "units"])
 ConversionConfig = Dict[str, Any]
 
 (_eo3,) = [
     metadata_from_doc(d) for d in default_metadata_type_docs() if d.get("name") == "eo3"
 ]
+
+
+def with_default(v: Optional[T], default_value: T) -> T:
+    """
+    Replace None with default value
+
+    :param v: Value that might be None
+    :param default_value: Default value of the same type as v
+    :return: ``v`` unles it is ``None`` then return ``default_value`` instead
+    """
+    if v is None:
+        return default_value
+    return v
+
+
+def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetadata:
+    """
+    Compute band metadata from Asset raster extension with defaults from default.
+
+    :param asset: Asset with raster extension
+    :param default: Values to use for fallback
+    :return: BandMetadata tuple constructed from raster:bands metadata 
+    """
+    try:
+        rext = RasterExtension.ext(asset)
+    except pystac.ExtensionNotImplemented:
+        return default
+
+    if rext.bands is None or len(rext.bands) == 0:
+        return default
+
+    if len(rext.bands) > 1:
+        warn(f"Defaulting to first band of {len(rext.bands)}")
+    band = rext.bands[0]
+
+    return BandMetadata(
+        with_default(band.data_type, default.dtype),
+        with_default(band.nodata, default.nodata),
+        with_default(band.unit, default.units),
+    )
 
 
 def has_proj_ext(item: pystac.Item) -> bool:
@@ -203,6 +256,14 @@ def normalise_product_name(name: str) -> str:
     return name.replace("-", "_").replace(" ", "_")
 
 
+def _band_metadata(v: Union[BandMetadata, Dict[str, Any]]) -> BandMetadata:
+    if isinstance(v, BandMetadata):
+        return v
+    return BandMetadata(
+        v.get("dtype", "uint16"), v.get("nodata", 0), v.get("units", "1")
+    )
+
+
 def mk_product(
     name: str,
     bands: Iterable[str],
@@ -227,12 +288,9 @@ def mk_product(
     if aliases is None:
         aliases = {}
 
-    def _norm(meta) -> BandMetadata:
-        if isinstance(meta, BandMetadata):
-            return meta
-        return BandMetadata(**meta)
-
-    _cfg: Dict[str, BandMetadata] = {name: _norm(meta) for name, meta in cfg.items()}
+    _cfg: Dict[str, BandMetadata] = {
+        name: _band_metadata(meta) for name, meta in cfg.items()
+    }
     band_aliases: Dict[str, List[str]] = {}
     for alias, canonical_name in aliases.items():
         band_aliases.setdefault(canonical_name, []).append(alias)
@@ -296,7 +354,7 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
 
     cfg = deepcopy(cfg.get(collection_id, {}))
 
-    data_bands = {
+    data_bands: Dict[str, pystac.asset.Asset] = {
         name: asset
         for name, asset in item.assets.items()
         if is_raster_data(asset, check_proj=True)
@@ -305,9 +363,18 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
     aliases = alias_map_from_eo(item)
     aliases.update(cfg.get("aliases", {}))
 
-    product = mk_product(
-        collection_id, data_bands, cfg.get("measurements", {}), aliases
-    )
+    # 1. If band in user config -- use that
+    # 2. Use data from raster extension (with fallback to "*" config)
+    # 3. Use config for "*" from user config as fallback
+    band_cfg = cfg.get("measurements", {})
+    band_defaults = _band_metadata(band_cfg.get("*", {}))
+    for name, asset in data_bands.items():
+        if name not in band_cfg:
+            bm = band_metadata(asset, band_defaults)
+            if bm is not band_defaults:
+                band_cfg[name] = bm
+
+    product = mk_product(collection_id, data_bands, band_cfg, aliases)
 
     # We assume that grouping of data bands into grids is consistent across
     # entire collection, so we compute it once and keep it on a product object

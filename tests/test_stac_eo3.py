@@ -9,8 +9,10 @@ from odc.stac._eo3 import (
     stac2ds,
     asset_geobox,
     has_proj_ext,
+    band_metadata,
 )
 import pystac
+from pystac.asset import Asset
 from pystac.extensions.projection import ProjectionExtension
 
 STAC_CFG = {
@@ -128,6 +130,21 @@ def test_infer_product(sentinel_stac_ms):
     assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
 
 
+def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.Item):
+    item = sentinel_stac_ms_with_raster_ext.full_copy()
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        product = infer_dc_product(item, {})
+
+    assert product.measurements["SCL"].dtype == "uint8"
+    assert product.measurements["visual"].dtype == "uint8"
+
+    # check aliases from eo extension
+    assert product.canonical_measurement("red") == "B04"
+    assert product.canonical_measurement("green") == "B03"
+    assert product.canonical_measurement("blue") == "B02"
+    assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
+
+
 def test_item_to_ds(sentinel_stac_ms):
     item0 = pystac.Item.from_dict(sentinel_stac_ms)
     item = item0.full_copy()
@@ -206,3 +223,16 @@ def test_asset_geobox(sentinel_stac):
 def test_has_proj_ext(sentinel_stac_ms_no_ext):
     item = pystac.Item.from_dict(sentinel_stac_ms_no_ext)
     assert has_proj_ext(item) is False
+
+
+def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.Item):
+    item = sentinel_stac_ms_with_raster_ext.full_copy()
+    asset = item.assets["SCL"]
+    bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
+    assert bm == BandMetadata("uint8", 0, "1")
+
+    # Test multiple bands per asset cause a warning
+    asset.extra_fields["raster:bands"].append({"nodata": -10})
+    with pytest.warns(UserWarning, match="Defaulting to first band of 2"):
+        bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
+    assert bm == BandMetadata("uint8", 0, "1")
