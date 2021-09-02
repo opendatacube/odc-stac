@@ -2,33 +2,36 @@
 STAC -> EO3 utilities
 """
 
+import datetime
+import uuid
 from collections import namedtuple
+from copy import deepcopy
+from functools import singledispatch
 from typing import (
     Any,
     Dict,
     Iterable,
+    Iterator,
     List,
+    Optional,
     Set,
     Tuple,
-    Iterator,
-    Optional,
     TypeVar,
     Union,
 )
-from copy import deepcopy
 from warnings import warn
-import uuid
 
-from affine import Affine
 import pystac.asset
 import pystac.item
-from pystac.extensions.eo import EOExtension
-from pystac.extensions.raster import RasterExtension
-from pystac.extensions.projection import ProjectionExtension
+from affine import Affine
 from datacube.index.eo3 import prep_eo3
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, metadata_from_doc
-from datacube.utils.geometry import GeoBox, CRS
+from datacube.utils.geometry import CRS, GeoBox
+from pystac.extensions.eo import EOExtension
+from pystac.extensions.item_assets import ItemAssetsExtension
+from pystac.extensions.projection import ProjectionExtension
+from pystac.extensions.raster import RasterExtension
 
 T = TypeVar("T")
 BandMetadata = namedtuple("BandMetadata", ["dtype", "nodata", "units"])
@@ -58,7 +61,7 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
 
     :param asset: Asset with raster extension
     :param default: Values to use for fallback
-    :return: BandMetadata tuple constructed from raster:bands metadata 
+    :return: BandMetadata tuple constructed from raster:bands metadata
     """
     try:
         rext = RasterExtension.ext(asset)
@@ -138,9 +141,14 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
     - transform
     - CRS
 
+    :raises ValueError: when transform,shape or crs are missing
     :raises ValueError: when transform is not Affine.
     """
-    _proj = ProjectionExtension.ext(asset)
+    try:
+        _proj = ProjectionExtension.ext(asset)
+    except pystac.ExtensionNotImplemented:
+        raise ValueError("No projection extension defined") from None
+
     if _proj.shape is None or _proj.transform is None or _proj.crs_string is None:
         raise ValueError(
             "The asset must have the following fields (from the projection extension):"
@@ -323,7 +331,15 @@ def mk_product(
     return DatasetType(_eo3, doc)
 
 
-def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
+@singledispatch
+def infer_dc_product(x: Any, cfg: Optional[ConversionConfig]) -> DatasetType:
+    raise TypeError("Invalid type, must be one of: pystac.Item, pyctac.Collection")
+
+
+@infer_dc_product.register(pystac.Item)
+def infer_dc_product_from_item(
+    item: pystac.Item, cfg: Optional[ConversionConfig] = None
+) -> DatasetType:
     """
     :param item: Sample STAC Item from a collection
     :param cfg: Dictionary of configuration, see below
@@ -354,6 +370,9 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
          measurements:
          #...
     """
+    if cfg is None:
+        cfg = {}
+
     collection_id = item.collection_id
 
     cfg = deepcopy(cfg.get(collection_id, {}))
@@ -383,8 +402,11 @@ def infer_dc_product(item: pystac.Item, cfg: ConversionConfig) -> DatasetType:
     # We assume that grouping of data bands into grids is consistent across
     # entire collection, so we compute it once and keep it on a product object
     # at least for now.
-    _, band2grid = compute_eo3_grids(data_bands)
-    cfg["band2grid"] = band2grid
+    if has_proj_ext(item):
+        _, band2grid = compute_eo3_grids(data_bands)
+        cfg["band2grid"] = band2grid
+    else:
+        warn("No proj extension enabled")
 
     product._stac_cfg = cfg  # pylint: disable=protected-access
     return product
@@ -402,20 +424,23 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
 
     measurements: Dict[str, Dict[str, Any]] = {}
     grids: Dict[str, Dict[str, Any]] = {}
+    band2grid: Dict[str, str] = _cfg.get("band2grid", {})
     crs = None
 
-    for band, grid in _cfg["band2grid"].items():
+    for band in product.measurements:
         asset = _assets.get(band, None)
         if asset is None:
             warn(f"Missing asset with name: {band}")
             continue
         measurements[band] = {"path": asset.href}
-        if grid != "default":
-            measurements[band]["grid"] = grid
 
-        if grid not in grids:
+        grid_name = band2grid.get(band, "default")
+        if grid_name != "default":
+            measurements[band]["grid"] = grid_name
+
+        if grid_name not in grids:
             geobox = asset_geobox(_assets[band])
-            grids[grid] = dict(shape=geobox.shape, transform=geobox.transform)
+            grids[grid_name] = dict(shape=geobox.shape, transform=geobox.transform)
             if crs is None:
                 crs = geobox.crs
             elif crs != geobox.crs:
@@ -455,3 +480,38 @@ def stac2ds(items: Iterable[pystac.Item], cfg: ConversionConfig) -> Iterator[Dat
             products[item.collection_id] = product
 
         yield item_to_ds(item, product)
+
+
+def _mk_sample_item(collection: pystac.Collection) -> pystac.Item:
+    try:
+        item_assets = ItemAssetsExtension.ext(collection).item_assets
+    except pystac.ExtensionNotImplemented:
+        raise ValueError(
+            "This only works on Collections with ItemAssets extension"
+        ) from None
+
+    item = pystac.Item(
+        "sample",
+        None,
+        None,
+        datetime.datetime(2020, 1, 1),
+        {},
+        stac_extensions=collection.stac_extensions,
+        collection=collection,
+    )
+
+    for name, asset in item_assets.items():
+        _asset = dict(href="")
+        _asset.update(asset.to_dict())
+        item.add_asset(name, pystac.asset.Asset.from_dict(_asset))
+
+    return item
+
+
+@infer_dc_product.register(pystac.Collection)
+def infer_dc_product_from_collection(
+    collection: pystac.Collection, cfg: Optional[ConversionConfig] = None
+) -> DatasetType:
+    if cfg is None:
+        cfg = {}
+    return infer_dc_product(_mk_sample_item(collection), cfg)

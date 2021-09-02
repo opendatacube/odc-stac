@@ -107,7 +107,17 @@ def test_eo3_grids(sentinel_stac_ms):
         compute_eo3_grids(data_bands)
 
 
-def test_infer_product(sentinel_stac_ms):
+def test_infer_product_collection(sentinel_stac_collection):
+    with pytest.warns(UserWarning):
+        product = infer_dc_product(sentinel_stac_collection)
+    assert product.measurements['SCL'].dtype == "uint8"
+    # check aliases from eo extension
+    assert product.canonical_measurement("red") == "B04"
+    assert product.canonical_measurement("green") == "B03"
+    assert product.canonical_measurement("blue") == "B02"
+ 
+
+def test_infer_product_item(sentinel_stac_ms):
     item = pystac.Item.from_dict(sentinel_stac_ms)
 
     assert item.collection_id in STAC_CFG
@@ -133,7 +143,7 @@ def test_infer_product(sentinel_stac_ms):
 def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.Item):
     item = sentinel_stac_ms_with_raster_ext.full_copy()
     with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
-        product = infer_dc_product(item, {})
+        product = infer_dc_product(item)
 
     assert product.measurements["SCL"].dtype == "uint8"
     assert product.measurements["visual"].dtype == "uint8"
@@ -216,6 +226,13 @@ def test_asset_geobox(sentinel_stac):
     item = item0.full_copy()
     asset = item.assets["B01"]
     ProjectionExtension.ext(asset).transform = None
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
+
+    # Test no proj extension case
+    item = item0.full_copy()
+    item.stac_extensions = []
+    asset = item.assets["B01"]
     with pytest.raises(ValueError):
         asset_geobox(asset)
 
