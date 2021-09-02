@@ -115,7 +115,11 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
        projection data as "raster data" bands.
     """
     if check_proj:
-        if has_proj_ext(asset.owner) and not has_proj_data(asset):
+        if (
+            asset.owner is not None
+            and has_proj_ext(asset.owner)
+            and not has_proj_data(asset)
+        ):
             return False
 
     if asset.roles is not None and len(asset.roles) > 0:
