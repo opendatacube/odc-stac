@@ -369,7 +369,7 @@ def mk_product(
 
 
 @singledispatch
-def infer_dc_product(x: Any, cfg: Optional[ConversionConfig]) -> DatasetType:
+def infer_dc_product(x: Any, cfg: Optional[ConversionConfig] = None) -> DatasetType:
     raise TypeError("Invalid type, must be one of: pystac.Item, pystac.Collection")
 
 
