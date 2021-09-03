@@ -87,7 +87,7 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
 
 def has_proj_ext(item: pystac.Item) -> bool:
     """
-    Check if STAC Item has prjection extension
+    Check if STAC Item has projection extension
     """
     try:
         ProjectionExtension.validate_has_extension(item, add_if_missing=False)
@@ -370,7 +370,7 @@ def mk_product(
 
 @singledispatch
 def infer_dc_product(x: Any, cfg: Optional[ConversionConfig]) -> DatasetType:
-    raise TypeError("Invalid type, must be one of: pystac.Item, pyctac.Collection")
+    raise TypeError("Invalid type, must be one of: pystac.Item, pystac.Collection")
 
 
 @infer_dc_product.register(pystac.Item)

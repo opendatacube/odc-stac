@@ -1,17 +1,19 @@
+import pystac
 import pytest
+from datacube.testutils.io import native_geobox
+from datacube.utils.geometry import Geometry
 from odc.stac._eo3 import (
-    mk_product,
     BandMetadata,
+    asset_geobox,
+    band_metadata,
     compute_eo3_grids,
+    has_proj_ext,
     infer_dc_product,
     is_raster_data,
     item_to_ds,
+    mk_product,
     stac2ds,
-    asset_geobox,
-    has_proj_ext,
-    band_metadata,
 )
-import pystac
 from pystac.asset import Asset
 from pystac.extensions.projection import ProjectionExtension
 
@@ -107,15 +109,46 @@ def test_eo3_grids(sentinel_stac_ms):
         compute_eo3_grids(data_bands)
 
 
-def test_infer_product_collection(sentinel_stac_collection):
+def test_infer_product_collection(
+    sentinel_stac_collection: pystac.Collection,
+    sentinel_stac_ms_with_raster_ext: pystac.Item,
+):
+
     with pytest.warns(UserWarning):
         product = infer_dc_product(sentinel_stac_collection)
-    assert product.measurements['SCL'].dtype == "uint8"
+    assert product.measurements["SCL"].dtype == "uint8"
     # check aliases from eo extension
     assert product.canonical_measurement("red") == "B04"
     assert product.canonical_measurement("green") == "B03"
     assert product.canonical_measurement("blue") == "B02"
- 
+
+    # check band2grid
+    b2g = product._stac_cfg["band2grid"]
+    assert b2g["B02"] == "default"
+    assert b2g["B01"] == "g60"
+    assert set(b2g.values()) == set("default g20 g60".split(" "))
+    assert set(b2g) == set(product.measurements)
+
+    # Check that we can use product derived this way on an Item
+    item = sentinel_stac_ms_with_raster_ext.clone()
+    ds = item_to_ds(item, product)
+    geobox = native_geobox(ds, basis="B02")
+    assert geobox.shape == (10980, 10980)
+    assert geobox.crs == "EPSG:32606"
+    assert native_geobox(ds, basis="B01").shape == (1830, 1830)
+
+    # Check unhappy path
+    collection = sentinel_stac_collection.clone()
+    collection.stac_extensions.remove(
+        "https://stac-extensions.github.io/item-assets/v1.0.0/schema.json"
+    )
+    with pytest.raises(ValueError):
+        infer_dc_product(collection)
+
+    # Test bad overload
+    with pytest.raises(TypeError):
+        infer_dc_product([])
+
 
 def test_infer_product_item(sentinel_stac_ms):
     item = pystac.Item.from_dict(sentinel_stac_ms)
@@ -198,6 +231,24 @@ def test_item_to_ds(sentinel_stac_ms):
     with pytest.raises(ValueError):
         with pytest.warns(UserWarning, match="`rededge`"):
             infer_dc_product(item, STAC_CFG)
+
+
+def test_item_to_ds_no_proj(sentinel_stac_ms):
+    item0 = pystac.Item.from_dict(sentinel_stac_ms)
+    item = item0.full_copy()
+    item.stac_extensions.remove(
+        "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
+    )
+    assert has_proj_ext(item) is False
+
+    with pytest.warns(UserWarning, match="`rededge`"):
+        product = infer_dc_product(item, STAC_CFG)
+
+    geom = Geometry(item.geometry, "EPSG:4326")
+    ds = item_to_ds(item, product)
+    assert ds.crs == "EPSG:4326"
+    assert ds.extent.contains(geom)
+    assert native_geobox(ds).shape == (1, 1)
 
 
 def test_asset_geobox(sentinel_stac):
