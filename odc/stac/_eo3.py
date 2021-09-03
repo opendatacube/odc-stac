@@ -243,6 +243,26 @@ def compute_eo3_grids(
     return named_grids, band2grid
 
 
+def _band2grid_from_gsd(assets: Dict[str, pystac.asset.Asset]) -> Dict[str, str]:
+    grids: Dict[float, List[str]] = {}
+    for name, asset in assets.items():
+        gsd = asset.common_metadata.gsd
+        gsd = 0 if gsd is None else gsd
+        gsd_normed = float(f"{gsd:g}")
+        grids.setdefault(gsd_normed, []).append(name)
+
+    # Default grid is one with largest number of bands
+    # .. and lowest gsd when there is a tie
+    (_, default_gsd), *_ = sorted((-len(bands), gsd) for gsd, bands in grids.items())
+    band2grid = {}
+    for gsd, bands in grids.items():
+        grid_name = "default" if gsd == default_gsd else f"g{gsd:g}"
+        for band in bands:
+            band2grid[band] = grid_name
+
+    return band2grid
+
+
 def alias_map_from_eo(item: pystac.Item, quiet: bool = False) -> Dict[str, str]:
     """
     Generate mapping ``common name -> canonical name`` for all unique common names defined on the Item eo extension.
@@ -418,10 +438,10 @@ def infer_dc_product_from_item(
     # at least for now.
     if has_proj_ext(item):
         _, band2grid = compute_eo3_grids(data_bands)
-        cfg["band2grid"] = band2grid
     else:
-        warn("No proj extension enabled")
+        band2grid = _band2grid_from_gsd(data_bands)
 
+    cfg["band2grid"] = band2grid
     product._stac_cfg = cfg  # pylint: disable=protected-access
     return product
 
