@@ -6,7 +6,7 @@ import datetime
 import uuid
 from collections import namedtuple
 from copy import deepcopy
-from functools import singledispatch
+from functools import partial, singledispatch
 from typing import (
     Any,
     Dict,
@@ -27,15 +27,18 @@ from affine import Affine
 from datacube.index.eo3 import prep_eo3
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, metadata_from_doc
-from datacube.utils.geometry import CRS, GeoBox
+from datacube.utils.geometry import CRS, GeoBox, Geometry
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
+from toolz import dicttoolz
 
 T = TypeVar("T")
 BandMetadata = namedtuple("BandMetadata", ["dtype", "nodata", "units"])
 ConversionConfig = Dict[str, Any]
+
+EPSG4326 = CRS("EPSG:4326")
 
 (_eo3,) = [
     metadata_from_doc(d) for d in default_metadata_type_docs() if d.get("name") == "eo3"
@@ -130,6 +133,20 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
     return "image/" in asset.media_type
 
 
+def _mk_1x1_geobox(geom: Geometry) -> GeoBox:
+    """
+    Construct 1x1 pixels GeoBox tightly enclosing supplied geometry.
+
+    :param geom: Geometry in whatever projection
+    :return: GeoBox object such that geobox.extent.contains(geom) is True, geobox.shape == (1,1)
+    """
+    x1, y1, x2, y2 = (*geom.boundingbox,)
+    # note that Y axis is inverted
+    #   0,0 -> X_min, Y_max
+    #   1,1 -> X_max, Y_min
+    return GeoBox(1, 1, Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), geom.crs)
+
+
 def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
     """
     Compute GeoBox from STAC Asset.
@@ -188,7 +205,7 @@ def compute_eo3_grids(
         gsd = geobox_gsd(geobox)
         return f"g{gsd:g}"
 
-    geoboxes = {k: asset_geobox(asset) for k, asset in assets.items()}
+    geoboxes = dicttoolz.valmap(asset_geobox, assets)
 
     # GeoBox to list of bands that share same footprint
     grids: Dict[GeoBox, List[str]] = {}
@@ -361,7 +378,7 @@ def infer_dc_product_from_item(
             rededge1: B05
             rededge2: B06
             rededge3: B07
-         uuid:   # Rules for constructing UUID for Datasets
+         uuid:   # Rules for constructing UUID for Datasets (PLANNED, not implemented yet)
              random:
              from_key: "location.of.unique.property"
              native: "location.of.key.with_actual_UUID"
@@ -374,14 +391,11 @@ def infer_dc_product_from_item(
         cfg = {}
 
     collection_id = item.collection_id
-
     cfg = deepcopy(cfg.get(collection_id, {}))
 
-    data_bands: Dict[str, pystac.asset.Asset] = {
-        name: asset
-        for name, asset in item.assets.items()
-        if is_raster_data(asset, check_proj=True)
-    }
+    data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.valfilter(
+        partial(is_raster_data, check_proj=True), item.assets
+    )
 
     aliases = alias_map_from_eo(item)
     aliases.update(cfg.get("aliases", {}))
@@ -419,13 +433,13 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
     :raises ValueError: when not all assets share the same CRS
     """
     _cfg = getattr(product, "_stac_cfg", {})
+    band2grid: Dict[str, str] = _cfg.get("band2grid", {})
 
-    _assets = item.assets
-
+    has_proj = has_proj_ext(item)
     measurements: Dict[str, Dict[str, Any]] = {}
     grids: Dict[str, Dict[str, Any]] = {}
-    band2grid: Dict[str, str] = _cfg.get("band2grid", {})
     crs = None
+    _assets = item.assets
 
     for band in product.measurements:
         asset = _assets.get(band, None)
@@ -433,6 +447,10 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
             warn(f"Missing asset with name: {band}")
             continue
         measurements[band] = {"path": asset.href}
+
+        # Only compute grids when proj extension is enabled
+        if not has_proj:
+            continue
 
         grid_name = band2grid.get(band, "default")
         if grid_name != "default":
@@ -447,6 +465,13 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
                 raise ValueError(
                     "Expect all assets to share common CRS"
                 )  # pragma: no cover
+
+    # No proj metadata make up 1x1 Grid in EPSG4326 instead
+    if not has_proj:
+        geom = Geometry(item.geometry, EPSG4326)
+        geobox = _mk_1x1_geobox(geom)
+        crs = geobox.crs
+        grids["default"] = dict(shape=geobox.shape, transform=geobox.transform)
 
     assert crs is not None
 
