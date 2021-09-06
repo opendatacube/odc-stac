@@ -34,6 +34,7 @@ def dc_load(
     """
     Load data given a collection of datacube.Dataset objects.
     """
+    datasets = list(datasets)
     assert len(datasets) > 0
 
     # dask_chunks is a backward-compatibility alias for chunks

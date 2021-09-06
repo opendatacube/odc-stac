@@ -11,6 +11,8 @@ from ._eo3 import (
 )
 
 from ._dcload import dc_load
+from ._load import load
+stac_load = load
 
 
 __all__ = (
@@ -19,5 +21,7 @@ __all__ = (
     "stac2ds",
     "infer_dc_product",
     "dc_load",
+    "load",
+    "stac_load",
     "__version__",
 )

@@ -511,7 +511,9 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
     return Dataset(product, prep_eo3(ds_doc), uris=[ds_doc.get("location", "")])
 
 
-def stac2ds(items: Iterable[pystac.Item], cfg: ConversionConfig) -> Iterator[Dataset]:
+def stac2ds(
+    items: Iterable[pystac.Item], cfg: Optional[ConversionConfig] = None
+) -> Iterator[Dataset]:
     """
     Given a lazy sequence of STAC Items turn it into a lazy sequence of ``Dataset`` objects
     """
