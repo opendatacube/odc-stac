@@ -1,3 +1,4 @@
+from mock import MagicMock
 import pytest
 import pystac
 
@@ -46,3 +47,12 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     assert "red" in xx.data_vars
     assert "green" in xx.data_vars
     assert xx.red.shape == xx.green.shape
+
+    # Test dc.load name for bands, and alias support
+    patch_url = MagicMock(return_value="https://example.com/f.tif")
+    with pytest.warns(UserWarning, match="`rededge`"):
+        xx = stac_load(
+            [item], measurements=["red", "green"], patch_url=patch_url, **params
+        )
+    # expect patch_url to be called 2 times, 1 for red and 1 for green band
+    assert patch_url.call_count == 2

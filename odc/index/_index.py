@@ -6,19 +6,19 @@ import json
 import sys
 from random import randint
 from types import SimpleNamespace
-from typing import Iterator, Optional, Tuple
+from typing import Callable, Iterable, Iterator, Optional, Tuple
 from warnings import warn
 
 import psycopg2
-from pandas import Period
-
 from datacube import Datacube
 from datacube.api.query import Query
 from datacube.index.hl import Doc2Dataset
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, Range, metadata_from_doc
+from datacube.storage import measurement_paths
 from datacube.utils.documents import load_documents
 from odc.io.text import parse_yaml
+from pandas import Period
 
 from ._grouper import solar_offset
 
@@ -398,3 +398,27 @@ def product_from_yaml(path: str, dc: Optional[Datacube] = None) -> DatasetType:
         dc = Datacube()
 
     return dc.index.products.from_doc(product)
+
+
+def patch_urls(
+    ds: Dataset, edit: Callable[[str], str], bands: Optional[Iterable[str]] = None
+) -> Dataset:
+    """
+    Map function over dataset measurement urls
+
+    :param ds: Dataset to edit in place
+    :param edit: Function that returns modified url from input url
+    :param bands: Only edit specified bands, default is to edit all
+    :return: Input dataset
+    """
+    resolved_paths = measurement_paths(ds)
+    if bands is None:
+        bands = list(resolved_paths)
+    else:
+        # remap aliases if present to their canonical name
+        bands = list(map(ds.type.canonical_measurement, bands))
+
+    mm = ds.metadata_doc["measurements"]
+    for band in bands:
+        mm[band]["path"] = edit(resolved_paths[band])
+    return ds

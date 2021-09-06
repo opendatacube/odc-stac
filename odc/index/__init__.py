@@ -1,7 +1,5 @@
 """ Indexing related helper methods.
 """
-from ..stac._version import __version__
-
 from ._index import (
     from_metadata_stream,
     from_yaml_doc_stream,
@@ -19,6 +17,7 @@ from ._index import (
     chopped_dss,
     all_datasets,
     product_from_yaml,
+    patch_urls,
 )
 
 from ._uuid import (
@@ -58,6 +57,7 @@ __all__ = (
     "chopped_dss",
     "all_datasets",
     "product_from_yaml",
+    "patch_urls",
     "odc_uuid",
     "utm_region_code",
     "utm_zone_to_epsg",
