@@ -14,6 +14,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Set,
     Tuple,
     TypeVar,
@@ -32,6 +33,7 @@ from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
+from odc.index import odc_uuid
 from toolz import dicttoolz
 
 T = TypeVar("T")
@@ -454,12 +456,35 @@ def infer_dc_product_from_item(
     return product
 
 
+def _compute_uuid(
+    item: pystac.Item, mode: str = "auto", extras: Optional[Sequence[str]] = None
+) -> uuid.UUID:
+    if mode == "native":
+        return uuid.UUID(item.id)
+    if mode == "random":
+        return uuid.uuid4()
+
+    assert mode == "auto"
+    # 1. see if .id is already a UUID
+    try:
+        return uuid.UUID(item.id)
+    except ValueError:
+        pass
+
+    # 2. .id, .collection_id, [extras]
+    _extras = (
+        {} if extras is None else {key: item.properties.get(key, "") for key in extras}
+    )
+    return odc_uuid(item.collection_id, "stac", [], stac_id=item.id, **_extras)
+
+
 def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
     """
     Construct Dataset object from STAC Item and previosuly constructed Product.
 
     :raises ValueError: when not all assets share the same CRS
     """
+    # pylint: disable=too-many-locals
     _cfg = getattr(product, "_stac_cfg", {})
     band2grid: Dict[str, str] = _cfg.get("band2grid", {})
 
@@ -503,10 +528,13 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
 
     assert crs is not None
 
-    ds_uuid = str(uuid.uuid4())  # TODO: stop being so random
+    uuid_cfg = _cfg.get("uuid", {})
+    ds_uuid = _compute_uuid(
+        item, mode=uuid_cfg.get("mode", "auto"), extras=uuid_cfg.get("extras", [])
+    )
 
     ds_doc = {
-        "id": ds_uuid,
+        "id": str(ds_uuid),
         "$schema": "https://schemas.opendatacube.org/dataset",
         "crs": str(crs),
         "grids": grids,

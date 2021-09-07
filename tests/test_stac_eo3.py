@@ -1,3 +1,4 @@
+import uuid
 import pystac
 import pytest
 from datacube.testutils.io import native_geobox
@@ -13,9 +14,10 @@ from odc.stac._eo3 import (
     item_to_ds,
     mk_product,
     stac2ds,
+    _compute_uuid,
 )
-from pystac.asset import Asset
 from pystac.extensions.projection import ProjectionExtension
+from common import mk_stac_item
 
 STAC_CFG = {
     "sentinel-2-l2a": {
@@ -304,3 +306,31 @@ def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.Item):
     with pytest.warns(UserWarning, match="Defaulting to first band of 2"):
         bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
     assert bm == BandMetadata("uint8", 0, "1")
+
+
+def test_item_uuid():
+    item1 = mk_stac_item("id1", custom_property=1)
+    item2 = mk_stac_item("id2")
+
+    # Check determinism
+    assert _compute_uuid(item1) == _compute_uuid(item1)
+    assert _compute_uuid(item2) == _compute_uuid(item2)
+    assert _compute_uuid(item1) != _compute_uuid(item2)
+
+    # Check random case
+    assert _compute_uuid(item1, "random").version == 4
+    assert _compute_uuid(item1, "random") != _compute_uuid(item1, "random")
+
+    # Check "native" mode
+    _id = uuid.uuid4()
+    assert _compute_uuid(mk_stac_item(str(_id)), "native") == _id
+    assert _compute_uuid(mk_stac_item(str(_id)), "auto") == _id
+
+    # Check that extras are used
+    id1 = _compute_uuid(item1, extras=["custom_property", "missing_property"])
+    id2 = _compute_uuid(item1)
+
+    assert id1.version == 5
+    assert id2.version == 5
+    assert id1 != id2
+
