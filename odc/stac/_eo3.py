@@ -394,36 +394,44 @@ def infer_dc_product_from_item(
              nodata: 0
              units: "1"
          aliases:  #< unique alias -> canonical map
-            rededge: B05
-            rededge1: B05
-            rededge2: B06
-            rededge3: B07
+           rededge: B05
+           rededge1: B05
+           rededge2: B06
+           rededge3: B07
          uuid:   # Rules for constructing UUID for Datasets (PLANNED, not implemented yet)
-             random:
-             from_key: "location.of.unique.property"
-             native: "location.of.key.with_actual_UUID"
+           mode: auto   # auto|random|native(expect .id to contain valid UUID string)
+           extras:      # List of extra keys from properties to include (mode=auto)
+           - "s2:generation_time"
+
+         warnings: ignore  # ignore|all  (default all)
 
        some-other-collection:
          measurements:
          #...
+       "*": # Applies to all collections if not defined on a collection
+         warnings: ignore
     """
     if cfg is None:
         cfg = {}
 
     collection_id = item.collection_id
-    cfg = deepcopy(cfg.get(collection_id, {}))
+    _cfg = cfg.get("*", {})
+    _cfg.update(cfg.get(collection_id, {}))
+
+    warnings: str = _cfg.get("warnings", "all")
+    quiet = warnings == "ignore"
 
     data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.valfilter(
         partial(is_raster_data, check_proj=True), item.assets
     )
 
-    aliases = alias_map_from_eo(item)
-    aliases.update(cfg.get("aliases", {}))
+    aliases = alias_map_from_eo(item, quiet=quiet)
+    aliases.update(_cfg.get("aliases", {}))
 
     # 1. If band in user config -- use that
     # 2. Use data from raster extension (with fallback to "*" config)
     # 3. Use config for "*" from user config as fallback
-    band_cfg = cfg.get("measurements", {})
+    band_cfg = _cfg.get("measurements", {})
     band_defaults = _band_metadata(band_cfg.get("*", {}))
     for name, asset in data_bands.items():
         if name not in band_cfg:
@@ -441,8 +449,8 @@ def infer_dc_product_from_item(
     else:
         band2grid = _band2grid_from_gsd(data_bands)
 
-    cfg["band2grid"] = band2grid
-    product._stac_cfg = cfg  # pylint: disable=protected-access
+    _cfg["band2grid"] = band2grid
+    product._stac_cfg = _cfg  # pylint: disable=protected-access
     return product
 
 
