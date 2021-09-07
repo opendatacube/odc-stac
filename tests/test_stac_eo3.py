@@ -206,6 +206,10 @@ def test_item_to_ds(sentinel_stac_ms):
     assert ds.metadata.lon is not None
     assert ds.center_time is not None
 
+    # this checks property remap, without changing
+    # key names .platform would be None
+    assert ds.metadata.platform == "Sentinel-2B"
+
     with pytest.warns(UserWarning, match="`rededge`"):
         dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
     assert len(dss) == 3

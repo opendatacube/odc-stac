@@ -42,6 +42,23 @@ ConversionConfig = Dict[str, Any]
 
 EPSG4326 = CRS("EPSG:4326")
 
+# Mapping between EO3 field names and STAC properties object field names
+# EO3 metadata was defined before STAC 1.0, so we used some extensions
+# that are now part of the standard instead
+STAC_TO_EO3_RENAMES = {
+    "end_datetime": "dtr:end_datetime",
+    "start_datetime": "dtr:start_datetime",
+    "gsd": "eo:gsd",
+    "instruments": "eo:instrument",
+    "platform": "eo:platform",
+    "constellation": "eo:constellation",
+    "view:off_nadir": "eo:off_nadir",
+    "view:azimuth": "eo:azimuth",
+    "view:sun_azimuth": "eo:sun_azimuth",
+    "view:sun_elevation": "eo:sun_elevation",
+}
+
+
 (_eo3,) = [
     metadata_from_doc(d) for d in default_metadata_type_docs() if d.get("name") == "eo3"
 ]
@@ -540,7 +557,9 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
         "grids": grids,
         "location": "",
         "measurements": measurements,
-        "properties": deepcopy(item.properties),
+        "properties": dicttoolz.keymap(
+            lambda k: STAC_TO_EO3_RENAMES.get(k, k), item.properties
+        ),
         "lineage": {},
     }
 
