@@ -1,0 +1,83 @@
+# Conda environment for running tests in odc-tools
+#   conda env create -f test-env-py38.yml
+#   conda activate odc-tests-py38
+
+name: odc-tests-py38
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+
+  # Datacube
+  - datacube>=1.8.5
+
+  # odc.dscache
+  - python-lmdb
+  - zstandard
+
+  # odc.algo
+  - dask-image
+  - numexpr
+  - scikit-image
+  - scipy
+  - toolz
+
+  # odc.ui
+  - ipywidgets
+  - ipyleaflet
+  - tqdm
+
+  # odc-apps-dc-tools
+  - pystac>=1.1.0
+  - pystac-client>=0.2.0
+  - azure-storage-blob
+  - fsspec
+  - lxml  # needed for thredds-crawler
+
+  # odc.{aws,aio}: aiobotocore/boto3
+  #  pin aiobotocore for easier resolution of dependencies
+  - aiobotocore==1.3.3
+  - boto3
+
+  # eodatasets3 (for odc-stats)
+  - boltons
+  - ciso8601
+  - python-rapidjson
+  - requests-cache==0.7.4  # 0.8.0 broke eodatasets3
+  - ruamel.yaml
+  - structlog
+  - url-normalize
+
+  # For tests
+  - pytest
+  - pytest-httpserver
+  - pytest-cov
+  - pytest-timeout
+  - moto
+  - mock
+  - deepdiff
+
+  # for pytest-depends
+  - future_fstrings
+  - networkx
+  - colorama
+
+  # for docs
+  - sphinx
+
+  - pip=20
+  - pip:
+      # odc.apps.dc-tools
+      - thredds-crawler
+
+      # odc.stats
+      - eodatasets3
+
+      # odc.algo optional dependency
+      - hdstats
+
+      # odc.ui
+      - jupyter-ui-poll>=0.2.0a
+
+      # tests
+      - pytest-depends
