@@ -55,7 +55,7 @@ def load(
 
     :param chunks:
        Rather than loading pixel data directly construct
-       a Dask backed arrays. ``chunks={'x': 2048, 'y': 2048}``
+       Dask backed arrays. ``chunks={'x': 2048, 'y': 2048}``
 
     :param progress_cbk:
        Get data loading progress via callback, ignored when
