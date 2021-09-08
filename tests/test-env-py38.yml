@@ -64,6 +64,8 @@ dependencies:
 
   # for docs
   - sphinx
+  - sphinx_rtd_theme
+  - sphinx-autodoc-typehints
 
   - pip=20
   - pip:
