@@ -66,7 +66,7 @@ STAC_TO_EO3_RENAMES = {
 
 def with_default(v: Optional[T], default_value: T) -> T:
     """
-    Replace None with default value
+    Replace ``None`` with default value
 
     :param v: Value that might be None
     :param default_value: Default value of the same type as v
@@ -570,7 +570,8 @@ def stac2ds(
     items: Iterable[pystac.Item], cfg: Optional[ConversionConfig] = None
 ) -> Iterator[Dataset]:
     """
-    Given a lazy sequence of STAC Items turn it into a lazy sequence of ``Dataset`` objects
+    Given a lazy sequence of STAC :class:`pystac.Item` turn it into a lazy
+    sequence of :class:`datacube.model.Dataset` objects
     """
     products: Dict[str, DatasetType] = {}
     for item in items:
