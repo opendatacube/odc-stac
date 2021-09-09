@@ -13,7 +13,7 @@ odc.stac
 
 .. currentmodule:: odc.stac
 .. autosummary::
-   :toctree: _generated/
+   :toctree: _api/
 
    load
    stac2ds

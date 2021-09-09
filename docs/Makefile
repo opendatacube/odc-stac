@@ -21,4 +21,4 @@ help:
 
 clean:
 	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
-	rm -rf _generated
+	rm -rf _generated _api
