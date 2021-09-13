@@ -37,7 +37,7 @@ from odc.index import odc_uuid
 from toolz import dicttoolz
 
 T = TypeVar("T")
-BandMetadata = namedtuple("BandMetadata", ["dtype", "nodata", "units"])
+BandMetadata = namedtuple("BandMetadata", ["data_type", "nodata", "unit"])
 ConversionConfig = Dict[str, Any]
 
 EPSG4326 = CRS("EPSG:4326")
@@ -98,9 +98,9 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
     band = rext.bands[0]
 
     return BandMetadata(
-        with_default(band.data_type, default.dtype),
+        with_default(band.data_type, default.data_type),
         with_default(band.nodata, default.nodata),
-        with_default(band.unit, default.units),
+        with_default(band.unit, default.unit),
     )
 
 
@@ -328,7 +328,7 @@ def _band_metadata(v: Union[BandMetadata, Dict[str, Any]]) -> BandMetadata:
     if isinstance(v, BandMetadata):
         return v
     return BandMetadata(
-        v.get("dtype", "uint16"), v.get("nodata", 0), v.get("units", "1")
+        v.get("data_type", "uint16"), v.get("nodata", 0), v.get("unit", "1")
     )
 
 
@@ -369,11 +369,12 @@ def mk_product(
         info = cfg.get(name, cfg.get("*", BandMetadata("uint16", 0, "1")))
         aliases = band_aliases.get(name)
 
+        # map to ODC names for raster:bands
         doc = {
             "name": name,
-            "dtype": info.dtype,
+            "dtype": info.data_type,
             "nodata": info.nodata,
-            "units": info.units,
+            "units": info.unit,
         }
         if aliases is not None:
             doc["aliases"] = aliases
@@ -403,15 +404,15 @@ def infer_dc_product_from_item(
     .. code-block:: yaml
 
        sentinel-2-l2a:  # < name of the collection, i.e. ``.collection_id``
-         measurements:
+         assets:
            "*":  # Band named "*" contains band info for "most" bands
-             dtype: uint16
+             data_type: uint16
              nodata: 0
-             units: "1"
+             unit: "1"
            SCL:  # Those bands that are different than "most"
-             dtype: uint8
+             data_type: uint8
              nodata: 0
-             units: "1"
+             unit: "1"
          aliases:  #< unique alias -> canonical map
            rededge: B05
            rededge1: B05
@@ -425,8 +426,9 @@ def infer_dc_product_from_item(
          warnings: ignore  # ignore|all  (default all)
 
        some-other-collection:
-         measurements:
+         assets:
          #...
+
        "*": # Applies to all collections if not defined on a collection
          warnings: ignore
     """
@@ -450,7 +452,7 @@ def infer_dc_product_from_item(
     # 1. If band in user config -- use that
     # 2. Use data from raster extension (with fallback to "*" config)
     # 3. Use config for "*" from user config as fallback
-    band_cfg = _cfg.get("measurements", {})
+    band_cfg = _cfg.get("assets", {})
     band_defaults = _band_metadata(band_cfg.get("*", {}))
     for name, asset in data_bands.items():
         if name not in band_cfg:

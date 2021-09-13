@@ -21,10 +21,10 @@ from common import mk_stac_item
 
 STAC_CFG = {
     "sentinel-2-l2a": {
-        "measurements": {
+        "assets": {
             "*": BandMetadata("uint16", 0, "1"),
             "SCL": BandMetadata("uint8", 0, "1"),
-            "visual": dict(dtype="uint8", nodata=0, units="1"),
+            "visual": dict(data_type="uint8", nodata=0, unit="1"),
         },
         "aliases": {  # Work around duplicate rededge common_name
             "rededge": "B05",

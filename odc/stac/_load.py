@@ -138,15 +138,15 @@ def load(
     .. code-block:: yaml
 
        sentinel-2-l2a:  # < name of the collection, i.e. ``.collection_id``
-         measurements:
+         assets:
            "*":  # Band named "*" contains band info for "most" bands
-             dtype: uint16
+             data_type: uint16
              nodata: 0
-             units: "1"
+             unit: "1"
            SCL:  # Those bands that are different than "most"
-             dtype: uint8
+             data_type: uint8
              nodata: 0
-             units: "1"
+             unit: "1"
          aliases:  #< unique alias -> canonical map
            rededge: B05
            rededge1: B05
@@ -160,8 +160,9 @@ def load(
          warnings: ignore  # ignore|all  (default all)
 
        some-other-collection:
-         measurements:
+         assets:
          #...
+
        "*": # Applies to all collections if not defined on a collection
          warnings: ignore
 
