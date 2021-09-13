@@ -19,7 +19,7 @@ from odc.stac._version import __version__ as _odc_stac_version
 
 # -- Project information -----------------------------------------------------
 
-project = "STAC.load"
+project = "odc-stac"
 copyright = "2021, ODC"
 author = "ODC"
 

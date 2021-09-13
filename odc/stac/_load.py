@@ -58,7 +58,7 @@ def load(
     **Parameters**
 
     :param items:
-       Collection of STAC :class:`stac.Item` to load
+       Iterable of STAC :class:`stac.Item` to load
 
     :param bands:
        List of band names to load, defaults to All. Also accepts
@@ -95,7 +95,7 @@ def load(
 
     :param stac_cfg:
        Controls :class:`pystac.Item` ``->`` :class:`datacube.model.Dataset`
-       conversion, mostly used to specify"missing" metadata like pixel
+       conversion, mostly used to specify "missing" metadata like pixel
        data types.
 
        See :func:`odc.stac.stac2ds` and section below for more details.
