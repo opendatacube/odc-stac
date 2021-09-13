@@ -58,7 +58,7 @@ def load(
     **Parameters**
 
     :param items:
-       Iterable of STAC :class:`stac.Item` to load
+       Iterable of STAC :class:`~pystac.Item` to load
 
     :param bands:
        List of band names to load, defaults to All. Also accepts
