@@ -63,7 +63,8 @@ def load(
        single band name as input
 
     :param geobox:
-       Allows to specify exact region/resolution/projection
+       Allows to specify exact region/resolution/projection using
+       :class:`~datacube.utils.geometry.GeoBox` object
 
     :param groupby:
        Controls what items get placed in to the same pixel plane,
