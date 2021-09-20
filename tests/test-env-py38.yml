@@ -66,6 +66,7 @@ dependencies:
   - sphinx
   - sphinx_rtd_theme
   - sphinx-autodoc-typehints
+  - nbsphinx
 
   - pip=20
   - pip:

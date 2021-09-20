@@ -16,6 +16,7 @@ odc-stac
    :maxdepth: 2
 
    api.rst
+   examples.rst
 
 .. toctree::
    :caption: Index

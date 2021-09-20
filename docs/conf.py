@@ -12,10 +12,28 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
-from odc.stac._version import __version__ as _odc_stac_version
-#print(sys.path)
 
+sys.path.insert(0, os.path.abspath(".."))
+from odc.stac._version import __version__ as _odc_stac_version
+
+
+def ensure_notebooks(git_url, dst_folder):
+    """
+    Download pre-rendered notebooks from a gist for now
+    """
+    from pathlib import Path
+
+    dst_folder = Path(dst_folder)
+    if dst_folder.exists():
+        print(f"Found pre-rendered notebooks in {dst_folder}")
+        return
+
+    print(f"Cloning: {git_url} to {dst_folder}")
+    os.system(f"git clone --depth=1 '{git_url}' '{dst_folder}'")
+
+ensure_notebooks(
+    "https://gist.github.com/4845c9f33509650e4a7a6e751d377fb6.git", "notebooks"
+)
 
 # -- Project information -----------------------------------------------------
 
@@ -41,6 +59,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.extlinks",
     "sphinx.ext.mathjax",
+    "nbsphinx",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -49,8 +68,7 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
-
+exclude_patterns = ["_build"]
 
 # If true, '()' will be appended to :func: etc. cross-reference text.
 add_function_parentheses = True
@@ -90,8 +108,8 @@ html_theme_options = {
     "logo_only": True,
 }
 
-#html_logo = '_static/logo.svg'
-html_last_updated_fmt = '%b %d, %Y'
+# html_logo = '_static/logo.svg'
+html_last_updated_fmt = "%b %d, %Y"
 html_show_sphinx = False
 
 
