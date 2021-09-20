@@ -7,4 +7,5 @@ Example Notebooks
 .. toctree::
    :maxdepth: 2
 
+   notebooks/odc-stac-load-e84-aws
    notebooks/odc-stac-load-example
