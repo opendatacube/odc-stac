@@ -1,28 +1,25 @@
-.. STAC.load documentation master file, created by
-   sphinx-quickstart on Wed Sep  8 12:43:50 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 odc-stac
 ========
 
+.. include:: intro.rst
+
 .. toctree::
+   :caption: Introduction
+   :hidden:
    :maxdepth: 2
-   :caption: Introduction:
 
    intro.rst
 
 .. toctree::
+   :caption: Developer Guide
+   :hidden:
    :maxdepth: 2
-   :caption: API:
 
    api.rst
 
+.. toctree::
+   :caption: Index
+   :hidden:
+   :maxdepth: 2
 
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   tocs.rst

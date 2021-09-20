@@ -1,6 +1,6 @@
 .. _api-reference:
 
-Reference
+API Reference
 #############
 
 .. currentmodule:: odc.stac
@@ -9,7 +9,7 @@ Reference
 
 
 odc.stac
-========
+********
 
 .. currentmodule:: odc.stac
 .. autosummary::

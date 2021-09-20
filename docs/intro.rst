@@ -1,3 +1,5 @@
+.. highlight:: python
+
 Overview
 ########
 
@@ -23,14 +25,14 @@ Installation
 ############
 
 Using pip
-~~~~~~~~~
+*********
 
 .. code-block:: bash
 
    pip install odc-stac
 
 Using Conda
-~~~~~~~~~~~
+***********
 
 Currently conda package is not done yet. It's best to install dependencies
 using conda then install ``odc-stac`` with pip. Sample ``environment.yml`` is
