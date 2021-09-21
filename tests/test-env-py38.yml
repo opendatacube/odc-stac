@@ -84,3 +84,6 @@ dependencies:
 
       # tests
       - pytest-depends
+
+      # for odc-stats
+      - datacube_ows==1.8.19
