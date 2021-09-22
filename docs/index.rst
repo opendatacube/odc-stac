@@ -19,6 +19,13 @@ odc-stac
    examples.rst
 
 .. toctree::
+   :caption: STAC
+   :hidden:
+   :maxdepth: 2
+
+   stac-best-practice.rst
+
+.. toctree::
    :caption: Index
    :hidden:
    :maxdepth: 2
