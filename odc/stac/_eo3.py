@@ -418,7 +418,7 @@ def infer_dc_product_from_item(
            rededge1: B05
            rededge2: B06
            rededge3: B07
-         uuid:   # Rules for constructing UUID for Datasets (PLANNED, not implemented yet)
+         uuid:          # Rules for constructing UUID for Datasets
            mode: auto   # auto|random|native(expect .id to contain valid UUID string)
            extras:      # List of extra keys from properties to include (mode=auto)
            - "s2:generation_time"
@@ -592,40 +592,42 @@ def stac2ds(
     :param cfg:
        Supply metadata missing from STAC, configure aliases, control warnings
 
-       .. code-block:: yaml
-
-           sentinel-2-l2a:  # < name of the collection, i.e. ``.collection_id``
-             assets:
-               "*":  # Band named "*" contains band info for "most" bands
-                 data_type: uint16
-                 nodata: 0
-                 unit: "1"
-               SCL:  # Those bands that are different than "most"
-                 data_type: uint8
-                 nodata: 0
-                 unit: "1"
-             aliases:  #< unique alias -> canonical map
-               rededge: B05
-               rededge1: B05
-               rededge2: B06
-               rededge3: B07
-             uuid:   # Rules for constructing UUID for Datasets (PLANNED, not implemented yet)
-               mode: auto   # auto|random|native(expect .id to contain valid UUID string)
-               extras:      # List of extra keys from properties to include (mode=auto)
-               - "s2:generation_time"
-
-             warnings: ignore  # ignore|all  (default all)
-
-           some-other-collection:
-             assets:
-             #...
-
-           "*": # Applies to all collections if not defined on a collection
-             warnings: ignore
-
     :param product_cache:
        Input/Output parameter, contains mapping from collection name to deduced product definition,
        i.e. :py:class:`datacube.model.DatasetType` object.
+
+    .. rubric: Sample Configuration
+
+    .. code-block:: yaml
+
+       sentinel-2-l2a:  # < name of the collection, i.e. `.collection_id`
+         assets:
+           "*":  # Band named "*" contains band info for "most" bands
+             data_type: uint16
+             nodata: 0
+             unit: "1"
+           SCL:  # Those bands that are different than "most"
+             data_type: uint8
+             nodata: 0
+             unit: "1"
+         aliases:  #< unique alias -> canonical map
+           rededge: B05
+           rededge1: B05
+           rededge2: B06
+           rededge3: B07
+         uuid:          # Rules for constructing UUID for Datasets
+           mode: auto   # auto|random|native(expect .id to contain valid UUID string)
+           extras:      # List of extra keys from properties to include (mode=auto)
+           - "s2:generation_time"
+
+         warnings: ignore  # ignore|all  (default all)
+
+       some-other-collection:
+         assets:
+         #...
+
+       "*": # Applies to all collections if not defined on a collection
+         warnings: ignore
 
     """
     products: Dict[str, DatasetType] = {} if product_cache is None else product_cache
