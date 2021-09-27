@@ -43,6 +43,7 @@ def load(
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
+    product_cache: Optional[Dict[str, datacube.model.DatasetType]] = None,
     # dc.load pass-through args
     skip_broken_datasets: bool = False,
     progress_cbk: Optional[Callable[[int, int], Any]] = None,
@@ -173,10 +174,13 @@ def load(
        conversion, mostly used to specify "missing" metadata like pixel
        data types.
 
-       See :func:`odc.stac.stac2ds` and section below for more details.
+       See :func:`~odc.stac.stac2ds` and section below for more details.
 
     :param patch_url:
        Optionally transform url of every band before loading
+
+    :param product_cache:
+       Passed on to :func:`~odc.stac.stac2ds`
 
     .. rubric:: Pass-through to :py:meth:`datacube.Datacube.load`
 
@@ -312,7 +316,7 @@ def load(
         ),
     )
 
-    dss = stac2ds(items, stac_cfg)
+    dss = stac2ds(items, stac_cfg, product_cache=product_cache)
 
     if patch_url is not None:
         dss = map(partial(patch_urls, edit=patch_url, bands=bands), dss)

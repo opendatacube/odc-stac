@@ -51,15 +51,19 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
 
     # Test dc.load name for bands, and alias support
     patch_url = MagicMock(return_value="https://example.com/f.tif")
+    product_cache = {}
     xx = stac_load(
         [item],
         measurements=["red", "green"],
         patch_url=patch_url,
         stac_cfg={"*": {"warnings": "ignore"}},
+        product_cache=product_cache,
         **params
     )
     # expect patch_url to be called 2 times, 1 for red and 1 for green band
     assert patch_url.call_count == 2
+    # expect product cache to contain 1 product
+    assert len(product_cache) == 1
 
     yy = stac_load([item], ["nir"], like=xx, chunks={})
     assert yy.nir.geobox == xx.geobox
