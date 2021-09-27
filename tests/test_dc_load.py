@@ -80,3 +80,28 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
         stac_load(
             [item], ["nir"], bbox=[0, 0, 1, 1], x=(0, 1000), y=(0, 1000), chunks={}
         )
+
+    bbox = (0, 0, 1, 1)
+    x1, y1, x2, y2 = bbox
+
+    assert (
+        stac_load(
+            [item],
+            ["nir"],
+            crs="epsg:3857",
+            resolution=10,
+            chunks={},
+            lon=(x1, x2),
+            lat=(y1, y2),
+            product_cache=product_cache,
+        ).nir.geobox
+        == stac_load(
+            [item],
+            ["nir"],
+            crs="epsg:3857",
+            resolution=10,
+            chunks={},
+            bbox=bbox,
+            product_cache=product_cache,
+        ).nir.geobox
+    )
