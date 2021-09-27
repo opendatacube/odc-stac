@@ -37,7 +37,6 @@ def load(
     x: Optional[Tuple[float, float]] = None,
     y: Optional[Tuple[float, float]] = None,
     align: Optional[Union[float, int, Tuple[float, float]]] = None,
-    output_crs: MaybeCRS = None,
     like: Optional[Any] = None,
     geopolygon: Optional[datacube.utils.geometry.Geometry] = None,
     # stac related
@@ -132,10 +131,6 @@ def load(
 
     :param crs:
        Load data in a given CRS
-
-    :param output_crs:
-       Same as ``crs``, name used by the underlying
-       :py:meth:`~datacube.Datacube.load` method.
 
     :param resolution:
        Set resolution of output in ``Y, X`` order, it is common for ``Y`` to be negative,
@@ -252,10 +247,6 @@ def load(
            rededge1: B05
            rededge2: B06
            rededge3: B07
-         uuid:   # Rules for constructing UUID for Datasets (PLANNED, not implemented yet)
-           mode: auto   # auto|random|native(expect .id to contain valid UUID string)
-           extras:      # List of extra keys from properties to include (mode=auto)
-           - "s2:generation_time"
 
          warnings: ignore  # ignore|all  (default all)
 
@@ -296,6 +287,7 @@ def load(
     # dc.load has distinction between query crs and output_crs
     # but output_crs name can be confusing, especially that resolution is not output_resolution,
     # so we treat crs same as output_crs
+    output_crs: MaybeCRS = kw.pop("output_crs", None)
     if output_crs is None and crs is not None:
         output_crs, crs = crs, None
 
