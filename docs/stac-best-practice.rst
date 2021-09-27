@@ -2,22 +2,24 @@ Best Practices
 ##############
 
 :mod:`odc.stac` can operate on STAC items with only minimal information present,
-however user experience is best when following information is included
+however user experience is best when following information is included:
+``data_type`` and ``nodata`` from `Raster Extension`_, ``proj:{shape,transform,epsg}``
+from `Projection Extension`_.
+
+For a full list of understood extension elements see table below.
 
 .. list-table::
 
    * - `Raster Extension`_
      -
-   * - ``nodata``
-     - used when combining multiple items into one raster plane
    * - ``data_type``
      - used to determine output pixel type
+   * - ``nodata``
+     - used when combining multiple items into one raster plane
    * - ``unit``
      - passed on as an attribute
        (can be useful for further processing)
-   * - ``scale``
-     - currently ignored, but will be supported in the future
-   * - ``offset``
+   * - *[planned]* ``scale``, ``offset``
      - currently ignored, but will be supported in the future
 
    * - `Projection Extension`_
@@ -28,11 +30,8 @@ however user experience is best when following information is included
      - contains geo-registration per asset
    * - ``proj:epsg``
      - contains native CRS
-   * - ``proj:wkt2``
+   * - ``proj:wkt2``, ``proj:projjson``
      - can be used instead of ``proj:epsg`` for CRS without EPSG code
-   * - ``proj:projjson``
-     - yet another way to specify projection
-
    * - `Electro Optical Extension`_
      -
    * - ``eo:bands.common_name``
