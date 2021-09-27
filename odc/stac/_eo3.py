@@ -499,7 +499,7 @@ def _compute_uuid(
 
 def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
     """
-    Construct Dataset object from STAC Item and previosuly constructed Product.
+    Construct Dataset object from STAC Item and previously constructed Product.
 
     :raises ValueError: when not all assets share the same CRS
     """
@@ -569,13 +569,66 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
 
 
 def stac2ds(
-    items: Iterable[pystac.Item], cfg: Optional[ConversionConfig] = None
+    items: Iterable[pystac.Item],
+    cfg: Optional[ConversionConfig] = None,
+    product_cache: Optional[Dict[str, DatasetType]] = None,
 ) -> Iterator[Dataset]:
     """
-    Given a lazy sequence of STAC :class:`pystac.Item` turn it into a lazy
-    sequence of :class:`datacube.model.Dataset` objects
+    Given a lazy sequence of STAC :class:`~pystac.Item` objects turn it into a lazy sequence of
+    :class:`~datacube.model.Dataset` objects.
+
+    .. rubric:: Assumptions
+
+    First observed :py:class:`~pystac.Item` for a given collection is used to construct
+    :py:mod:`datacube` product definition. After that, all subsequent items from the same collection
+    are interpreted according to that product spec. Specifically this means that every item is
+    expected to have the same set of bands. If product contains bands with different resolutions, it
+    is assumed that the same set of bands share common resolution across all items in the
+    collection.
+
+    :param items:
+       Lazy sequence of :class:`~pystac.Item` objects
+
+    :param cfg:
+       Supply metadata missing from STAC, configure aliases, control warnings
+
+       .. code-block:: yaml
+
+           sentinel-2-l2a:  # < name of the collection, i.e. ``.collection_id``
+             assets:
+               "*":  # Band named "*" contains band info for "most" bands
+                 data_type: uint16
+                 nodata: 0
+                 unit: "1"
+               SCL:  # Those bands that are different than "most"
+                 data_type: uint8
+                 nodata: 0
+                 unit: "1"
+             aliases:  #< unique alias -> canonical map
+               rededge: B05
+               rededge1: B05
+               rededge2: B06
+               rededge3: B07
+             uuid:   # Rules for constructing UUID for Datasets (PLANNED, not implemented yet)
+               mode: auto   # auto|random|native(expect .id to contain valid UUID string)
+               extras:      # List of extra keys from properties to include (mode=auto)
+               - "s2:generation_time"
+
+             warnings: ignore  # ignore|all  (default all)
+
+           some-other-collection:
+             assets:
+             #...
+
+           "*": # Applies to all collections if not defined on a collection
+             warnings: ignore
+
+    :param product_cache:
+       Input/Output parameter, contains mapping from collection name to deduced product definition,
+       i.e. :py:class:`datacube.model.DatasetType` object.
+
     """
-    products: Dict[str, DatasetType] = {}
+    products: Dict[str, DatasetType] = {} if product_cache is None else product_cache
     for item in items:
         product = products.get(item.collection_id)
 
