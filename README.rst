@@ -19,8 +19,8 @@ odc.stac.load
    xx = odc.stac.load(
        query.get_items(),
        bands=["red", "green", "blue"],
-       output_crs="EPSG:32606",
-       resolution=(100, -100),
+       crs="EPSG:32606",
+       resolution=(-100, 100),
    )
    xx.red.plot.imshow(col="time")
 

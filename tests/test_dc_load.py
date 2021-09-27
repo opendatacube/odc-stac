@@ -1,3 +1,4 @@
+from datacube.model import Measurement
 from mock import MagicMock
 import pytest
 import pystac
@@ -33,7 +34,7 @@ def test_dc_load_smoketest(sentinel_stac_ms):
 def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
 
-    params = dict(output_crs="EPSG:3857", resolution=(-100, 100), chunks={})
+    params = dict(crs="EPSG:3857", resolution=100, align=0, chunks={})
     with pytest.warns(UserWarning, match="`rededge`"):
         xx = stac_load([item], "B02", **params)
 
@@ -59,3 +60,19 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     )
     # expect patch_url to be called 2 times, 1 for red and 1 for green band
     assert patch_url.call_count == 2
+
+    yy = stac_load([item], ["nir"], like=xx, chunks={})
+    assert yy.nir.geobox == xx.geobox
+
+    yy = stac_load([item], ["nir"], geobox=xx.geobox, chunks={})
+    assert yy.nir.geobox == xx.geobox
+
+    # test bbox overlaping with lon/lat
+    with pytest.raises(ValueError):
+        stac_load([item], ["nir"], bbox=[0, 0, 1, 1], lon=(0, 1), lat=(0, 1), chunks={})
+
+    # test bbox overlaping with x/y
+    with pytest.raises(ValueError):
+        stac_load(
+            [item], ["nir"], bbox=[0, 0, 1, 1], x=(0, 1000), y=(0, 1000), chunks={}
+        )
