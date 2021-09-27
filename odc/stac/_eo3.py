@@ -70,7 +70,7 @@ def with_default(v: Optional[T], default_value: T) -> T:
 
     :param v: Value that might be None
     :param default_value: Default value of the same type as v
-    :return: ``v`` unles it is ``None`` then return ``default_value`` instead
+    :return: ``v`` unless it is ``None`` then return ``default_value`` instead
     """
     if v is None:
         return default_value
