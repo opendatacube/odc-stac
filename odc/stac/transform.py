@@ -68,14 +68,10 @@ def _stac_product_lookup(
     dataset_id: str = item["id"]
     dataset_label = item.get("title")
 
+    # Get the simplest version of a product name
     product_name = properties.get("odc:product", None)
-    if product_name is None:
-        # If there's no odc:product or collection, then fail.
-        product_name = get_in(["collection"], item, no_default=True)
-    # Product names can't have dashes in them, for some reason
-    product_name = product_name.replace("-", "_")
 
-    # Try to get some region_codes
+    # Try to get a known region_code
     region_code = _get_region_code(properties)
 
     default_grid = None
@@ -85,10 +81,13 @@ def _stac_product_lookup(
     if constellation is not None:
         constellation = constellation.lower().replace(" ", "-")
 
-    if constellation in KNOWN_CONSTELLATIONS:
-        # This handles the Element 84 and  Microsft PC docs
+    # Let's check for Sentinel-2, which is a special case
+    # The below section handles the Element 84 and Microsft PC STAC documents
+    if product_name is None and constellation in KNOWN_CONSTELLATIONS:
         if constellation == "sentinel-2":
-            dataset_id = properties.get("sentinel:product_id") or properties.get("s2:granule_id")
+            # The third option here shouldn't actually be encountered. If we're parsing
+            # a document that isn't from E84 of M PC, then we're in trouble.
+            dataset_id = properties.get("sentinel:product_id") or properties.get("s2:granule_id", dataset_id)
             product_name = "s2_l2a"
             if region_code is None:
                 # Let this throw an exception if there's something missing
@@ -98,6 +97,15 @@ def _stac_product_lookup(
                     properties["sentinel:grid_square"],
                 )
             default_grid = "g10m"
+
+    # If we still don't have a product name, use collection
+    if product_name is None:
+        product_name = item.get("collection")
+        if product_name is None:
+            raise ValueError("Can't find product name from odc:product or collection.")
+
+    # Product names can't have dashes in them
+    product_name = product_name.replace("-", "_")
 
     if product_name in DEA_LANDSAT_PRODUCTS:
         self_href = _find_self_href(item)
