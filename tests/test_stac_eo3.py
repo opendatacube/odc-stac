@@ -85,7 +85,7 @@ def test_is_raster_data(sentinel_stac_ms):
 def test_eo3_grids(sentinel_stac_ms):
     item0 = pystac.Item.from_dict(sentinel_stac_ms)
 
-    item = item0.full_copy()
+    item = item0.clone()
     assert item.collection_id == "sentinel-2-l2a"
 
     data_bands = {
@@ -105,7 +105,7 @@ def test_eo3_grids(sentinel_stac_ms):
         compute_eo3_grids(data_bands)
 
     # More than 1 CRS is not supported
-    item = item0.full_copy()
+    item = item0.clone()
     ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
     with pytest.raises(ValueError):
         compute_eo3_grids(data_bands)
@@ -176,7 +176,7 @@ def test_infer_product_item(sentinel_stac_ms):
 
 
 def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.Item):
-    item = sentinel_stac_ms_with_raster_ext.full_copy()
+    item = sentinel_stac_ms_with_raster_ext.clone()
     with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
         product = infer_dc_product(item)
 
@@ -192,7 +192,7 @@ def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.Item)
 
 def test_item_to_ds(sentinel_stac_ms):
     item0 = pystac.Item.from_dict(sentinel_stac_ms)
-    item = item0.full_copy()
+    item = item0.clone()
 
     assert item.collection_id in STAC_CFG
 
@@ -216,13 +216,13 @@ def test_item_to_ds(sentinel_stac_ms):
     assert len(set(id(ds.type) for ds in dss)) == 1
 
     # Test missing band case
-    item = item0.full_copy()
+    item = item0.clone()
     item.assets.pop("B01")
     with pytest.warns(UserWarning, match="Missing asset"):
         ds = item_to_ds(item, product)
 
     # Test no eo extension case
-    item = item0.full_copy()
+    item = item0.clone()
     item.stac_extensions.remove(
         "https://stac-extensions.github.io/eo/v1.0.0/schema.json"
     )
@@ -231,7 +231,7 @@ def test_item_to_ds(sentinel_stac_ms):
         product.canonical_measurement("green")
 
     # Test multiple CRS unhappy path
-    item = item0.full_copy()
+    item = item0.clone()
     ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
     assert ProjectionExtension.ext(item.assets["B01"]).crs_string == "EPSG:3857"
     with pytest.raises(ValueError):
@@ -241,7 +241,7 @@ def test_item_to_ds(sentinel_stac_ms):
 
 def test_item_to_ds_no_proj(sentinel_stac_ms):
     item0 = pystac.Item.from_dict(sentinel_stac_ms)
-    item = item0.full_copy()
+    item = item0.clone()
     item.stac_extensions.remove(
         "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
     )
@@ -260,34 +260,34 @@ def test_item_to_ds_no_proj(sentinel_stac_ms):
 def test_asset_geobox(sentinel_stac):
     item0 = pystac.Item.from_dict(sentinel_stac)
 
-    item = item0.full_copy()
+    item = item0.clone()
     asset = item.assets["B01"]
     geobox = asset_geobox(asset)
     assert geobox.shape == (1830, 1830)
 
     # Tests non-affine transofrm ValueError
-    item = item0.full_copy()
+    item = item0.clone()
     asset = item.assets["B01"]
     ProjectionExtension.ext(asset).transform[-1] = 2
     with pytest.raises(ValueError):
         asset_geobox(asset)
 
     # Tests wrong-sized transform transofrm ValueError
-    item = item0.full_copy()
+    item = item0.clone()
     asset = item.assets["B01"]
     ProjectionExtension.ext(asset).transform = [1, 1, 2]
     with pytest.raises(ValueError):
         asset_geobox(asset)
 
     # Test missing transform transofrm ValueError
-    item = item0.full_copy()
+    item = item0.clone()
     asset = item.assets["B01"]
     ProjectionExtension.ext(asset).transform = None
     with pytest.raises(ValueError):
         asset_geobox(asset)
 
     # Test no proj extension case
-    item = item0.full_copy()
+    item = item0.clone()
     item.stac_extensions = []
     asset = item.assets["B01"]
     with pytest.raises(ValueError):
@@ -300,7 +300,7 @@ def test_has_proj_ext(sentinel_stac_ms_no_ext):
 
 
 def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.Item):
-    item = sentinel_stac_ms_with_raster_ext.full_copy()
+    item = sentinel_stac_ms_with_raster_ext.clone()
     asset = item.assets["SCL"]
     bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
     assert bm == BandMetadata("uint8", 0, "1")
@@ -337,4 +337,3 @@ def test_item_uuid():
     assert id1.version == 5
     assert id2.version == 5
     assert id1 != id2
-
