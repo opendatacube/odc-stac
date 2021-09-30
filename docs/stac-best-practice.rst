@@ -40,7 +40,7 @@ For a full list of understood extension elements see table below.
 
 
 Assumptions
-###########
+===========
 
 Items from the same collection are assumed to have the same number and names of
 bands, and bands are assumed to use the same ``data_type`` across the
