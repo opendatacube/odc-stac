@@ -23,8 +23,8 @@ odc-stac
    :hidden:
    :maxdepth: 2
 
-   stac-best-practice.rst
    stac-vs-odc.rst
+   stac-best-practice.rst
 
 .. toctree::
    :caption: Index
