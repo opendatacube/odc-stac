@@ -24,7 +24,7 @@ similar concepts.
    * - Band_
      - :class:`~datacube.model.Measurement`
      - Pixel plane within a multi-plane asset
-   * - Common Name
+   * - `Common Name`_
      - Alias
      - Refer to the same band by different names
 
@@ -87,3 +87,4 @@ contained within.
 .. _`Raster Extension`: https://github.com/stac-extensions/eo
 .. _`Item Assets`: https://github.com/stac-extensions/item-assets
 .. _Band: https://github.com/stac-extensions/eo#band-object
+.. _`Common Name`: https://github.com/stac-extensions/eo#common-band-names
