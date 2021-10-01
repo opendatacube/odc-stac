@@ -40,8 +40,7 @@ Multiple Bands per File
 
 Multiple bands in a single file are supported by both ODC and STAC, but
 representation differs. In STAC another level of hierarchy is added below an
-*Asset* via the [bands attribute of the EO
-extension](https://github.com/stac-extensions/eo#band-object). Resources pointed
+*Asset* via the `bands attribute of the EO extension`_. Resources pointed
 to by an *Asset* may contain more than one band of pixels, and an *Asset*
 contains descriptions of those bands. In ODC, *Asset* is not modelled
 explicitly, instead resource path and potential location within this resource
@@ -88,3 +87,4 @@ contained within.
 .. _`Item Assets`: https://github.com/stac-extensions/item-assets
 .. _Band: https://github.com/stac-extensions/eo#band-object
 .. _`Common Name`: https://github.com/stac-extensions/eo#common-band-names
+.. _`bands attribute of the EO extension`: https://github.com/stac-extensions/eo#band-object
