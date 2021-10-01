@@ -1,7 +1,7 @@
 STAC vs Open Datacube
 #####################
 
-`Open Datacube`_ project on which this library is based started before `STAC`_
+The `Open Datacube`_ (ODC) project, on which this library is based, started before `STAC`_
 spec existed. As a result ODC uses different terminology for otherwise very
 similar concepts.
 
@@ -40,22 +40,22 @@ Multiple Bands per File
 
 Multiple bands in a single file are supported by both ODC and STAC, but
 representation differs. In STAC another level of hierarchy is added below an
-*Asset*. Resource pointed by an *Asset* may contain more than one band of
-pixels, and *Asset* contains description of those bands. In ODC, *Asset* is not
+*Asset* via the [bands attribute of the EO extension](https://github.com/stac-extensions/eo#band-object). Resources pointed to by an *Asset* may contain more than one band of
+pixels, and an *Asset* contains descriptions of those bands. In ODC, *Asset* is not
 modelled explicitly, instead resource path and potential location within this
-resource is just a property of a *Measurement* object. It is common in STAC to
-have one to one mapping between band and asset, in that scenario ODC
+resource are properties of a *Measurement* object. It is common in STAC to
+have one to one mapping between band and asset, and in that scenario ODC
 *Measurement* and STAC *Asset* can be seen as equivalent.
 
 Geo Referencing Metadata
 ========================
 
-Precise geo referencing metadata is stored within a file pointed by
+Precise geo referencing metadata is stored within a file pointed to by
 *Asset*/*Measurement*, but it can also be recorded within a STAC *Item*/ODC
 *Dataset* document. Having geo-referencing information at this level can enable
-more efficient data access.
+more efficient data access by providing spatial information without needing to access the source (data file) itself.
 
-In STAC `Projection Extension`_ is used to bring this metadata from file to
+In STAC, the `Projection Extension`_ is used to bring this metadata from file to
 *Item* document. In STAC each band might have different projection, but in ODC
 projection is a *Dataset* level property and has to be shared across all
 *Measurements*. In ODC individual bands can be of different resolution and have
