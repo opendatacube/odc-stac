@@ -21,7 +21,7 @@ similar concepts.
    * - :class:`~pystac.Asset`
      - :class:`~datacube.model.Measurement`
      - Component of a single observation
-   * - Band
+   * - Band_
      - :class:`~datacube.model.Measurement`
      - Pixel plane within a multi-plane asset
    * - Common Name
@@ -40,12 +40,14 @@ Multiple Bands per File
 
 Multiple bands in a single file are supported by both ODC and STAC, but
 representation differs. In STAC another level of hierarchy is added below an
-*Asset* via the [bands attribute of the EO extension](https://github.com/stac-extensions/eo#band-object). Resources pointed to by an *Asset* may contain more than one band of
-pixels, and an *Asset* contains descriptions of those bands. In ODC, *Asset* is not
-modelled explicitly, instead resource path and potential location within this
-resource are properties of a *Measurement* object. It is common in STAC to
-have one to one mapping between band and asset, and in that scenario ODC
-*Measurement* and STAC *Asset* can be seen as equivalent.
+*Asset* via the [bands attribute of the EO
+extension](https://github.com/stac-extensions/eo#band-object). Resources pointed
+to by an *Asset* may contain more than one band of pixels, and an *Asset*
+contains descriptions of those bands. In ODC, *Asset* is not modelled
+explicitly, instead resource path and potential location within this resource
+are properties of a *Measurement* object. It is common in STAC to have one to
+one mapping between band and asset, and in that scenario ODC *Measurement* and
+STAC *Asset* can be seen as equivalent.
 
 Geo Referencing Metadata
 ========================
@@ -53,7 +55,8 @@ Geo Referencing Metadata
 Precise geo referencing metadata is stored within a file pointed to by
 *Asset*/*Measurement*, but it can also be recorded within a STAC *Item*/ODC
 *Dataset* document. Having geo-referencing information at this level can enable
-more efficient data access by providing spatial information without needing to access the source (data file) itself.
+more efficient data access by providing spatial information without needing to
+access the source (data file) itself.
 
 In STAC, the `Projection Extension`_ is used to bring this metadata from file to
 *Item* document. In STAC each band might have different projection, but in ODC
@@ -83,3 +86,4 @@ contained within.
 .. _`Projection Extension`: https://github.com/stac-extensions/projection
 .. _`Raster Extension`: https://github.com/stac-extensions/eo
 .. _`Item Assets`: https://github.com/stac-extensions/item-assets
+.. _Band: https://github.com/stac-extensions/eo#band-object
