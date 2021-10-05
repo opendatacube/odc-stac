@@ -1,6 +1,7 @@
 import uuid
 import pystac
 import pytest
+from toolz import dicttoolz
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
 from odc.stac._eo3 import (
@@ -173,6 +174,14 @@ def test_infer_product_item(sentinel_stac_ms):
     assert product.canonical_measurement("rededge3") == "B07"
 
     assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
+
+    _stac = dicttoolz.dissoc(sentinel_stac_ms, "collection")
+    item_no_collection = pystac.Item.from_dict(_stac)
+    assert item_no_collection.collection_id is None
+
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        product = infer_dc_product(item_no_collection)
+    print(product)
 
 
 def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.Item):

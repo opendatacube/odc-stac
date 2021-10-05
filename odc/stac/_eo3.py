@@ -436,6 +436,10 @@ def infer_dc_product_from_item(
         cfg = {}
 
     collection_id = item.collection_id
+    if collection_id is None:
+        # workaround for some early ODC data
+        collection_id = item.properties.get("odc:product", "_")
+
     _cfg = cfg.get("*", {})
     _cfg.update(cfg.get(collection_id, {}))
 
