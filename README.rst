@@ -40,9 +40,12 @@ Using pip
 Using Conda
 ~~~~~~~~~~~
 
+This will be available on ``conda-forge`` channel soon, but in the meantime it
+can be installed like this:
+
 .. code-block:: bash
 
-   conda -c conda-forge install odc-stac
+   conda install -c kirill-odc odc-stac
 
 To use development version of ``odc-stac`` install dependencies from conda, then
 install ``odc-stac`` with ``pip``.
