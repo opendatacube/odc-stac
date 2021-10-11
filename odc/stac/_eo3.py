@@ -106,7 +106,7 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
 
 def has_proj_ext(item: Union[pystac.Item, pystac.Collection]) -> bool:
     """
-    Check if STAC Item has projection extension
+    Check if STAC Item or Collection has projection extension
     """
     try:
         ProjectionExtension.validate_has_extension(item, add_if_missing=False)
