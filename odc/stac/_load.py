@@ -7,6 +7,7 @@ from datacube.model import Dataset
 
 import numpy as np
 import pyproj
+from pyproj.crs.crs import CRS
 import pystac
 from affine import Affine
 from toolz import dicttoolz
@@ -42,15 +43,16 @@ def eo3_geoboxes(
     if _grids is None:
         raise ValueError("Missing grids, is this EO3 style Dataset?")
     if bands is not None:
-        grids: Set[str] = set()
+        relevant_grids: Set[str] = set()
         for band in bands:
             band = ds.type.canonical_measurement(band)
-            grids.add(ds.measurements[band].get("grid", "default"))
+            relevant_grids.add(ds.measurements[band].get("grid", "default"))
+        grids = list(relevant_grids)
 
     if grids is not None:
         _grids = dicttoolz.keyfilter(lambda k: k in grids, _grids)
 
-    def to_geobox(grid: str) -> datacube.utils.geometry.GeoBox:
+    def to_geobox(grid: Dict[str, Any]) -> datacube.utils.geometry.GeoBox:
         shape = grid.get("shape")
         transform = grid.get("transform")
         if shape is None or transform is None:
@@ -65,6 +67,42 @@ def eo3_geoboxes(
         return datacube.utils.geometry.GeoBox(w, h, Affine(*transform[:6]), crs)
 
     return dicttoolz.valmap(to_geobox, _grids)
+
+
+def most_common_crs(crss: Iterable[CRS]) -> CRS:
+    _cc: Dict[CRS, int] = {}
+    for crs in crss:
+        _cc.setdefault(crs, 0)
+        _cc[crs] += 1
+
+    assert len(_cc) > 0
+
+    # get CRS with highest count
+    crs, _ = sorted(_cc.items(), reverse=True, key=(lambda kv: kv[1]))[0]
+    return crs
+
+
+def pick_best_resolution(
+    dss: Sequence[Dataset], bands: Optional[Sequence[str]] = None
+) -> Optional[Tuple[float, float]]:
+    def best(
+        a: Tuple[float, float], b: Optional[Tuple[float, float]]
+    ) -> Tuple[float, float]:
+        if b is None:
+            return a
+        a_min: float = min(map(abs, a))  # type: ignore
+        b_min: float = min(map(abs, b))  # type: ignore
+
+        return a if a_min <= b_min else b
+
+    res_best = None
+
+    for ds in dss:
+        for geobox in eo3_geoboxes(ds, bands=bands).values():
+            if geobox.shape != (1, 1):
+                res_best = best(geobox.resolution, res_best)
+
+    return res_best
 
 
 # pylint: disable=too-many-arguments,too-many-locals
@@ -115,12 +153,6 @@ def load(
            resolution=(-100, 100),
        )
        xx.red.plot.imshow(col="time");
-
-
-    .. note::
-
-       At the moment one must specify desired projection and resolution of
-       the result. The plan is to make this choice automatic if not configured.
 
 
     :param items:
@@ -356,7 +388,22 @@ def load(
         ),
     )
 
-    dss = stac2ds(items, stac_cfg, product_cache=product_cache)
+    def auto_fill_geo(geo, dss, bands):
+        if "geobox" in geo:
+            return
+        if "like" in geo:
+            return
+
+        if "output_crs" not in geo:
+            # Need to pick CRS
+            geo["output_crs"] = most_common_crs(ds.crs for ds in dss)
+
+        if "resolution" not in geo:
+            # Need to pick resolution
+            geo["resolution"] = pick_best_resolution(dss, bands)
+
+    dss = list(stac2ds(items, stac_cfg, product_cache=product_cache))
+    auto_fill_geo(geo, dss, bands)
 
     if patch_url is not None:
         dss = map(partial(patch_urls, edit=patch_url, bands=bands), dss)

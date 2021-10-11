@@ -1,10 +1,12 @@
 from datacube.model import Dataset, Measurement
 from mock import MagicMock
+from pyproj.crs.crs import CRS
 import pytest
 import pystac
 from copy import deepcopy
 
 from odc.stac import dc_load, stac2ds, stac_load, eo3_geoboxes
+from odc.stac._load import most_common_crs
 
 
 def test_dc_load_smoketest(sentinel_stac_ms):
@@ -80,6 +82,13 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     )
     assert yy.nir.geobox == xx.geobox
 
+    # Check automatic CRS/resolution
+    yy = stac_load(
+        [item], ["nir", "coastal"], chunks={}, stac_cfg={"*": {"warnings": "ignore"}},
+    )
+    assert yy.nir.geobox.crs == CRS("EPSG:32606")
+    assert yy.nir.geobox.resolution == (-10, 10)
+
     # test bbox overlaping with lon/lat
     with pytest.raises(ValueError):
         stac_load([item], ["nir"], bbox=[0, 0, 1, 1], lon=(0, 1), lat=(0, 1), chunks={})
@@ -154,3 +163,11 @@ def test_eo3_geoboxes(s2_dataset):
     ds = Dataset(s2_dataset.type, doc, [])
     with pytest.raises(ValueError, match="Invalid `transform` specified, .*"):
         eo3_geoboxes(ds)
+
+
+def test_most_common_crs():
+    epsg4326 = CRS("epsg:4326")
+    epsg3857 = CRS("epsg:3857")
+
+    assert most_common_crs([epsg3857, epsg4326, epsg4326]) is epsg4326
+    assert most_common_crs([epsg3857, epsg3857, epsg4326]) is epsg3857
