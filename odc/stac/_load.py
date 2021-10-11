@@ -2,11 +2,13 @@
 stac.load - dc.load from STAC Items
 """
 from functools import partial
-from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Set, Tuple, Union
+from datacube.model import Dataset
 
 import numpy as np
 import pyproj
 import pystac
+from affine import Affine
 from toolz import dicttoolz
 import xarray
 import datacube.utils.geometry
@@ -17,6 +19,52 @@ from ._eo3 import ConversionConfig, stac2ds
 
 SomeCRS = Union[str, datacube.utils.geometry.CRS, pyproj.CRS, Dict[str, Any]]
 MaybeCRS = Optional[SomeCRS]
+
+
+def eo3_geoboxes(
+    ds: Dataset,
+    bands: Optional[Sequence[str]] = None,
+    grids: Optional[Sequence[str]] = None,
+) -> Dict[str, datacube.utils.geometry.GeoBox]:
+    """
+    Extract EO3 grids in GeoBox format.
+
+    :param dataset: EO3 Dataset
+    :param bands: Optional list of bands of interest
+    :param grids: Optional list of grids of interest
+
+    :returns: a dictionary mapping grid names to a corresponding
+              :class:`~datacube.utils.geometry.GeoBox`
+    """
+    crs = ds.crs
+    _grids = ds.metadata_doc.get("grids", None)
+
+    if _grids is None:
+        raise ValueError("Missing grids, is this EO3 style Dataset?")
+    if bands is not None:
+        grids: Set[str] = set()
+        for band in bands:
+            band = ds.type.canonical_measurement(band)
+            grids.add(ds.measurements[band].get("grid", "default"))
+
+    if grids is not None:
+        _grids = dicttoolz.keyfilter(lambda k: k in grids, _grids)
+
+    def to_geobox(grid: str) -> datacube.utils.geometry.GeoBox:
+        shape = grid.get("shape")
+        transform = grid.get("transform")
+        if shape is None or transform is None:
+            raise ValueError("Each grid must have .shape and .transform")
+        if len(shape) != 2:
+            raise ValueError("Shape must contain `(height, width)`")
+        if len(transform) not in (6, 9):
+            raise ValueError(
+                "Invalid `transform` specified, expect 6 or 9 element array"
+            )
+        h, w = shape
+        return datacube.utils.geometry.GeoBox(w, h, Affine(*transform[:6]), crs)
+
+    return dicttoolz.valmap(to_geobox, _grids)
 
 
 # pylint: disable=too-many-arguments,too-many-locals

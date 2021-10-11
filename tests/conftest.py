@@ -2,10 +2,12 @@
 Test for SQS to DC tool
 """
 import json
+from logging import warning
 from pathlib import Path
 import pystac
 import pytest
 from datacube.utils import documents
+from odc.stac import stac2ds
 
 
 TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
@@ -18,6 +20,8 @@ SENTINEL_STAC_MS_RASTER_EXT: str = "S2B_MSIL2A_20190629T212529_R043_T06VVN_20201
 SENTINEL_ODC: str = "S2A_28QCH_20200714_0_L2A.odc-metadata.json"
 USGS_LANDSAT_STAC: str = "LC08_L2SR_081119_20200101_20200823_02_T2.json"
 LIDAR_STAC: str = "lidar_dem.json"
+
+# pylint: disable=redefined-outer-name
 
 
 @pytest.fixture
@@ -89,3 +93,11 @@ def sentinel_odc():
     with TEST_DATA_FOLDER.joinpath(SENTINEL_ODC).open("r") as f:
         metadata = json.load(f)
     return metadata
+
+
+@pytest.fixture
+def s2_dataset(sentinel_stac_ms_with_raster_ext):
+    (ds,) = stac2ds(
+        [sentinel_stac_ms_with_raster_ext], cfg={"*": {"warnings": "ignore"}}
+    )
+    yield ds

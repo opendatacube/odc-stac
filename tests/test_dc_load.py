@@ -1,9 +1,10 @@
-from datacube.model import Measurement
+from datacube.model import Dataset, Measurement
 from mock import MagicMock
 import pytest
 import pystac
+from copy import deepcopy
 
-from odc.stac import dc_load, stac2ds, stac_load
+from odc.stac import dc_load, stac2ds, stac_load, eo3_geoboxes
 
 
 def test_dc_load_smoketest(sentinel_stac_ms):
@@ -65,10 +66,18 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     # expect product cache to contain 1 product
     assert len(product_cache) == 1
 
-    yy = stac_load([item], ["nir"], like=xx, chunks={})
+    yy = stac_load(
+        [item], ["nir"], like=xx, chunks={}, stac_cfg={"*": {"warnings": "ignore"}}
+    )
     assert yy.nir.geobox == xx.geobox
 
-    yy = stac_load([item], ["nir"], geobox=xx.geobox, chunks={})
+    yy = stac_load(
+        [item],
+        ["nir"],
+        geobox=xx.geobox,
+        chunks={},
+        stac_cfg={"*": {"warnings": "ignore"}},
+    )
     assert yy.nir.geobox == xx.geobox
 
     # test bbox overlaping with lon/lat
@@ -78,7 +87,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     # test bbox overlaping with x/y
     with pytest.raises(ValueError):
         stac_load(
-            [item], ["nir"], bbox=[0, 0, 1, 1], x=(0, 1000), y=(0, 1000), chunks={}
+            [item], ["nir"], bbox=[0, 0, 1, 1], x=(0, 1000), y=(0, 1000), chunks={},
         )
 
     bbox = (0, 0, 1, 1)
@@ -105,3 +114,43 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
             product_cache=product_cache,
         ).nir.geobox
     )
+
+
+def test_eo3_geoboxes(s2_dataset):
+    geoboxes = eo3_geoboxes(s2_dataset)
+    assert len(geoboxes) == 3
+
+    geoboxes = eo3_geoboxes(s2_dataset, grids=["default"])
+    assert len(geoboxes) == 1
+    assert list(geoboxes) == ["default"]
+    assert geoboxes["default"].crs == s2_dataset.crs
+    assert geoboxes["default"].resolution == (-10, 10)
+    assert geoboxes["default"].alignment == (0, 0)
+
+    geoboxes = eo3_geoboxes(s2_dataset, bands=["red", "B02"])
+    assert len(geoboxes) == 1
+    assert list(geoboxes) == ["default"]
+
+    doc = deepcopy(s2_dataset.metadata_doc)
+    doc.pop("grids")
+    ds = Dataset(s2_dataset.type, doc, [])
+    with pytest.raises(ValueError, match="Missing grids, .*"):
+        eo3_geoboxes(ds)
+
+    doc = deepcopy(s2_dataset.metadata_doc)
+    doc["grids"]["default"].pop("shape")
+    ds = Dataset(s2_dataset.type, doc, [])
+    with pytest.raises(ValueError, match="Each grid must have \.shape and \.transform"):
+        eo3_geoboxes(ds)
+
+    doc = deepcopy(s2_dataset.metadata_doc)
+    doc["grids"]["default"]["shape"] = (1, 1, 3)
+    ds = Dataset(s2_dataset.type, doc, [])
+    with pytest.raises(ValueError, match="Shape must contain.*"):
+        eo3_geoboxes(ds)
+
+    doc = deepcopy(s2_dataset.metadata_doc)
+    doc["grids"]["default"]["transform"] = [1, 2, 3]
+    ds = Dataset(s2_dataset.type, doc, [])
+    with pytest.raises(ValueError, match="Invalid `transform` specified, .*"):
+        eo3_geoboxes(ds)

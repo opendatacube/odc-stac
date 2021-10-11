@@ -11,7 +11,7 @@ from ._eo3 import (
 )
 
 from ._dcload import dc_load
-from ._load import load
+from ._load import load, eo3_geoboxes
 stac_load = load
 
 
@@ -21,6 +21,7 @@ __all__ = (
     "stac2ds",
     "infer_dc_product",
     "dc_load",
+    "eo3_geoboxes",
     "load",
     "stac_load",
     "__version__",
