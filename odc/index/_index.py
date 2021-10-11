@@ -6,7 +6,8 @@ import json
 import sys
 from random import randint
 from types import SimpleNamespace
-from typing import Callable, Iterable, Iterator, Optional, Tuple
+from typing import Callable, Iterable, Iterator, Optional, Tuple, Set
+from uuid import UUID
 from warnings import warn
 
 import psycopg2
@@ -238,8 +239,12 @@ def ordered_dss(dc: Datacube, freq: str = "m", key=None, **query):
     if key is None:
         key = lambda ds: ds.center_time
 
+    _last_uuids: Set[UUID] = set()
+
     for q in chop_query_by_time(qq, freq=freq):
-        dss = dc.find_datasets(**q.search_terms)
+        _dss = dc.find_datasets(**q.search_terms)
+        dss = [ds for ds in _dss if ds.id not in _last_uuids]
+        _last_uuids = set(ds.id for ds in _dss)
         dss.sort(key=key)
         yield from dss
 
@@ -252,9 +257,12 @@ def chopped_dss(dc: Datacube, freq: str = "m", **query):
     periods)
     """
     qq = Query(**query)
+    _last_uuids: Set[UUID] = set()
 
     for q in chop_query_by_time(qq, freq=freq):
-        dss = dc.find_datasets_lazy(**q.search_terms)
+        _dss = dc.find_datasets(**q.search_terms)
+        dss = [ds for ds in _dss if ds.id not in _last_uuids]
+        _last_uuids = set(ds.id for ds in _dss)
         yield from dss
 
 
