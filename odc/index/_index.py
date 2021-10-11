@@ -16,8 +16,7 @@ from datacube.index.hl import Doc2Dataset
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, Range, metadata_from_doc
 from datacube.storage import measurement_paths
-from datacube.utils.documents import load_documents
-from odc.io.text import parse_yaml
+from datacube.utils.documents import load_documents, parse_yaml
 from pandas import Period
 
 from ._grouper import solar_offset
