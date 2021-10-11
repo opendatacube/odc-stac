@@ -299,7 +299,7 @@ def alias_map_from_eo(item: pystac.Item, quiet: bool = False) -> Dict[str, str]:
         return {}
 
     if bands is None:
-        return {}
+        return {}  # pragma: no cover
 
     common_names: Dict[str, Set[str]] = {}
     for band in bands:
