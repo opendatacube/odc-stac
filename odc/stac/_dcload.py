@@ -4,6 +4,7 @@ Wrapper for Datacube.load_data
 """
 from typing import (
     Any,
+    Iterable,
     Optional,
     Union,
     Dict,
@@ -20,7 +21,7 @@ from datacube.api.core import output_geobox
 
 
 def dc_load(
-    datasets: Sequence[Dataset],
+    datasets: Iterable[Dataset],
     measurements: Optional[Union[str, Sequence[str]]] = None,
     geobox: Optional[GeoBox] = None,
     groupby: Optional[str] = None,

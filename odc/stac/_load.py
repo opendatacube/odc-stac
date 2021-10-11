@@ -367,9 +367,9 @@ def load(
         groupby=groupby,
         resampling=resampling,
         chunks=chunks,
-        **geo,
         progress_cbk=progress_cbk,
         skip_broken_datasets=skip_broken_datasets,
         fuse_func=fuse_func,
+        **geo,
         **kw,
     )

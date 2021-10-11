@@ -104,7 +104,7 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
     )
 
 
-def has_proj_ext(item: pystac.Item) -> bool:
+def has_proj_ext(item: Union[pystac.Item, pystac.Collection]) -> bool:
     """
     Check if STAC Item has projection extension
     """
@@ -149,7 +149,7 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
 
     if asset.roles is not None and len(asset.roles) > 0:
         return "data" in asset.roles
-    return "image/" in asset.media_type
+    return asset.media_type is not None and "image/" in asset.media_type
 
 
 def _mk_1x1_geobox(geom: Geometry) -> GeoBox:
@@ -159,11 +159,11 @@ def _mk_1x1_geobox(geom: Geometry) -> GeoBox:
     :param geom: Geometry in whatever projection
     :return: GeoBox object such that geobox.extent.contains(geom) is True, geobox.shape == (1,1)
     """
-    x1, y1, x2, y2 = (*geom.boundingbox,)
+    x1, y1, x2, y2 = (*geom.boundingbox,)  # type: ignore
     # note that Y axis is inverted
     #   0,0 -> X_min, Y_max
     #   1,1 -> X_max, Y_min
-    return GeoBox(1, 1, Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), geom.crs)
+    return GeoBox(1, 1, Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), geom.crs)  # type: ignore
 
 
 def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
@@ -206,7 +206,7 @@ def geobox_gsd(geobox: GeoBox) -> float:
     """
     Compute ground sampling distance of a given GeoBox.
     """
-    return min(map(abs, [geobox.transform.a, geobox.transform.e]))
+    return min(map(abs, [geobox.transform.a, geobox.transform.e]))  # type: ignore
 
 
 def compute_eo3_grids(
@@ -296,6 +296,9 @@ def alias_map_from_eo(item: pystac.Item, quiet: bool = False) -> Dict[str, str]:
     try:
         bands = EOExtension.ext(item, add_if_missing=False).bands
     except pystac.ExtensionNotImplemented:
+        return {}
+
+    if bands is None:
         return {}
 
     common_names: Dict[str, Set[str]] = {}
@@ -439,6 +442,7 @@ def infer_dc_product_from_item(
     if collection_id is None:
         # workaround for some early ODC data
         collection_id = item.properties.get("odc:product", "_")
+    collection_id = str(collection_id)
 
     _cfg = cfg.get("*", {})
     _cfg.update(cfg.get(collection_id, {}))
@@ -636,12 +640,14 @@ def stac2ds(
     """
     products: Dict[str, DatasetType] = {} if product_cache is None else product_cache
     for item in items:
-        product = products.get(item.collection_id)
+        collection_id = item.collection_id or "_"
+        collection_id = str(collection_id)
+        product = products.get(collection_id)
 
         # Have not seen this collection yet, figure it out
         if product is None:
             product = infer_dc_product(item, cfg)
-            products[item.collection_id] = product
+            products[collection_id] = product
 
         yield item_to_ds(item, product)
 
