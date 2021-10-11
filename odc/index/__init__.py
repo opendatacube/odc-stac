@@ -31,10 +31,6 @@ from ._utm import (
     mk_utm_gs,
 )
 
-from ._yaml import (
-    render_eo3_yaml,
-)
-
 from ._grouper import (
     group_by_nothing,
     solar_offset,
@@ -63,7 +59,6 @@ __all__ = (
     "utm_zone_to_epsg",
     "utm_tile_dss",
     "mk_utm_gs",
-    "render_eo3_yaml",
     "group_by_nothing",
     "solar_offset",
 )
