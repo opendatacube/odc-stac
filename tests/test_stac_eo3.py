@@ -1,11 +1,16 @@
 import uuid
+
 import pystac
 import pytest
-from toolz import dicttoolz
+from common import mk_stac_item
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
+from pystac.extensions.projection import ProjectionExtension
+from toolz import dicttoolz
+
 from odc.stac._eo3 import (
     BandMetadata,
+    _compute_uuid,
     asset_geobox,
     band_metadata,
     compute_eo3_grids,
@@ -15,10 +20,7 @@ from odc.stac._eo3 import (
     item_to_ds,
     mk_product,
     stac2ds,
-    _compute_uuid,
 )
-from pystac.extensions.projection import ProjectionExtension
-from common import mk_stac_item
 
 STAC_CFG = {
     "sentinel-2-l2a": {
@@ -47,7 +49,7 @@ def test_mk_product():
 
     assert p.name == "some_product"
     assert p.metadata_type.name == "eo3"
-    assert set(p.measurements) == set(["a", "b"])
+    assert set(p.measurements) == {"a", "b"}
     assert p.measurements["a"].dtype == "uint8"
     assert p.measurements["a"].nodata == 0
     assert p.measurements["a"].units == "1"
@@ -59,10 +61,14 @@ def test_mk_product():
     assert p.canonical_measurement("B") == "b"
     assert p.canonical_measurement("bb") == "b"
 
-    p = mk_product("Some Product", ["a", "b", "c"], {},)
+    p = mk_product(
+        "Some Product",
+        ["a", "b", "c"],
+        {},
+    )
 
     assert p.name == "Some_Product"
-    assert set(p.measurements) == set(["a", "b", "c"])
+    assert set(p.measurements) == {"a", "b", "c"}
     assert p.metadata_type.name == "eo3"
 
     for m in p.measurements.values():
@@ -222,7 +228,7 @@ def test_item_to_ds(sentinel_stac_ms):
     with pytest.warns(UserWarning, match="`rededge`"):
         dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
     assert len(dss) == 3
-    assert len(set(id(ds.type) for ds in dss)) == 1
+    assert len({id(ds.type) for ds in dss}) == 1
 
     # Test missing band case
     item = item0.clone()

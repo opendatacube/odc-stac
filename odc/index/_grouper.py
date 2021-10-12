@@ -1,8 +1,9 @@
 from datetime import timedelta
-from typing import List, Dict, Any, Optional, Iterator, Hashable, Iterable
-import xarray as xr
-import pandas as pd
+from typing import Any, Dict, Hashable, Iterable, Iterator, List, Optional
+
 import numpy as np
+import pandas as pd
+import xarray as xr
 from datacube.model import Dataset
 from datacube.utils.dates import normalise_dt
 from datacube.utils.geometry import Geometry

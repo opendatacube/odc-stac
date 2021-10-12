@@ -12,7 +12,10 @@ def mk_stac_item(
             "type": "Feature",
             "stac_version": "1.0.0",
             "id": str(_id),
-            "properties": {"datetime": datetime, **props,},
+            "properties": {
+                "datetime": datetime,
+                **props,
+            },
             "geometry": geometry,
             "links": [],
             "assets": {},

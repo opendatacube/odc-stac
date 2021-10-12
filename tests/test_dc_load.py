@@ -1,11 +1,12 @@
-from datacube.model import Dataset, Measurement
-from mock import MagicMock
-from pyproj.crs.crs import CRS
-import pytest
-import pystac
 from copy import deepcopy
+from unittest.mock import MagicMock
 
-from odc.stac import dc_load, stac2ds, stac_load, eo3_geoboxes
+import pystac
+import pytest
+from datacube.model import Dataset
+from pyproj.crs.crs import CRS
+
+from odc.stac import dc_load, eo3_geoboxes, stac2ds, stac_load
 from odc.stac._load import most_common_crs
 
 
@@ -61,7 +62,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
         patch_url=patch_url,
         stac_cfg={"*": {"warnings": "ignore"}},
         product_cache=product_cache,
-        **params
+        **params,
     )
     # expect patch_url to be called 2 times, 1 for red and 1 for green band
     assert patch_url.call_count == 2
@@ -84,7 +85,10 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
 
     # Check automatic CRS/resolution
     yy = stac_load(
-        [item], ["nir", "coastal"], chunks={}, stac_cfg={"*": {"warnings": "ignore"}},
+        [item],
+        ["nir", "coastal"],
+        chunks={},
+        stac_cfg={"*": {"warnings": "ignore"}},
     )
     assert yy.nir.geobox.crs == CRS("EPSG:32606")
     assert yy.nir.geobox.resolution == (-10, 10)
@@ -96,7 +100,12 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     # test bbox overlaping with x/y
     with pytest.raises(ValueError):
         stac_load(
-            [item], ["nir"], bbox=[0, 0, 1, 1], x=(0, 1000), y=(0, 1000), chunks={},
+            [item],
+            ["nir"],
+            bbox=[0, 0, 1, 1],
+            x=(0, 1000),
+            y=(0, 1000),
+            chunks={},
         )
 
     bbox = (0, 0, 1, 1)
@@ -149,7 +158,9 @@ def test_eo3_geoboxes(s2_dataset):
     doc = deepcopy(s2_dataset.metadata_doc)
     doc["grids"]["default"].pop("shape")
     ds = Dataset(s2_dataset.type, doc, [])
-    with pytest.raises(ValueError, match="Each grid must have \.shape and \.transform"):
+    with pytest.raises(
+        ValueError, match=r"Each grid must have \.shape and \.transform"
+    ):
         eo3_geoboxes(ds)
 
     doc = deepcopy(s2_dataset.metadata_doc)

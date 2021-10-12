@@ -5,7 +5,6 @@ STAC -> EO3 utilities
 import datetime
 import uuid
 from collections import namedtuple
-from copy import deepcopy
 from functools import partial, singledispatch
 from typing import (
     Any,
@@ -33,8 +32,9 @@ from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
-from odc.index import odc_uuid
 from toolz import dicttoolz
+
+from odc.index import odc_uuid
 
 T = TypeVar("T")
 BandMetadata = namedtuple("BandMetadata", ["data_type", "nodata", "unit"])
@@ -59,9 +59,9 @@ STAC_TO_EO3_RENAMES = {
 }
 
 
-(_eo3,) = [
+(_eo3,) = (
     metadata_from_doc(d) for d in default_metadata_type_docs() if d.get("name") == "eo3"
-]
+)
 
 
 def with_default(v: Optional[T], default_value: T) -> T:

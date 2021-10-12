@@ -2,22 +2,14 @@
 Wrapper for Datacube.load_data
 
 """
-from typing import (
-    Any,
-    Iterable,
-    Optional,
-    Union,
-    Dict,
-    Callable,
-    Sequence,
-)
+from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Union
 from warnings import warn
-import xarray as xr
 
+import xarray as xr
 from datacube import Datacube
+from datacube.api.core import output_geobox
 from datacube.model import Dataset
 from datacube.utils.geometry import GeoBox
-from datacube.api.core import output_geobox
 
 
 def dc_load(
