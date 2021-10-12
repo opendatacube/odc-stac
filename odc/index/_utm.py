@@ -2,9 +2,10 @@
 Tools for dealing with UTM grids
 """
 from types import SimpleNamespace
-from typing import Tuple, Union, Optional
-from datacube.utils.geometry import CRS
+from typing import Optional, Tuple, Union
+
 from datacube.model import GridSpec
+from datacube.utils.geometry import CRS
 
 
 def mk_utm_gs(

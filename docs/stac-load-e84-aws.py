@@ -22,8 +22,9 @@
 import odc.ui
 import yaml
 from odc.algo import to_rgba
-from odc.stac import stac2ds, stac_load
 from pystac_client import Client
+
+from odc.stac import stac2ds, stac_load
 
 # %%
 cfg = """---

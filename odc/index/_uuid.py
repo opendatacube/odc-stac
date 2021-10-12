@@ -2,8 +2,8 @@
 Determenistic UUID generation for Datasets
 """
 import uuid
-from uuid import UUID
 from typing import Sequence
+from uuid import UUID
 
 # Some random UUID to be ODC namespace
 ODC_NS = UUID("6f34c6f4-13d6-43c0-8e4e-42b6c13203af")
@@ -14,7 +14,7 @@ def odc_uuid(
     algorithm_version: str,
     sources: Sequence[UUID],
     deployment_id: str = "",
-    **other_tags
+    **other_tags,
 ) -> UUID:
     """Generate deterministic UUID for a derived Dataset
 
@@ -25,7 +25,7 @@ def odc_uuid(
                           the run, for example Docker image hash, or dea module version on NCI.
     :param **other_tags: Any other identifiers necessary to uniquely identify dataset
     """
-    tags = ["{key}={value}".format(key=k, value=str(v)) for k, v in other_tags.items()]
+    tags = [f"{k}={str(v)}" for k, v in other_tags.items()]
 
     stringified_sources = (
         [str(algorithm), str(algorithm_version), str(deployment_id)]

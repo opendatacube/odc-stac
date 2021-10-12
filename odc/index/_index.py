@@ -6,7 +6,7 @@ import json
 import sys
 from random import randint
 from types import SimpleNamespace
-from typing import Callable, Iterable, Iterator, Optional, Tuple, Set
+from typing import Callable, Iterable, Iterator, Optional, Set, Tuple
 from uuid import UUID
 from warnings import warn
 
@@ -44,13 +44,13 @@ def from_metadata_stream(metadata_stream, index, **kwargs):
 
     for uri, metadata in metadata_stream:
         if metadata is None:
-            yield (None, "Error: empty doc %s" % (uri))
+            yield (None, f"Error: empty doc {uri}")
         else:
             ds, err = doc2ds(metadata, uri)
             if ds is not None:
                 yield (ds, None)
             else:
-                yield (None, "Error: %s, %s" % (uri, err))
+                yield (None, f"Error: {uri}, {err}")
 
 
 def parse_doc_stream(doc_stream, on_error=None, transform=None):
@@ -141,7 +141,7 @@ def count_by_month(index, product, year):
     counts for January, February ... December
     """
     return tuple(
-        dataset_count(index, product=product, time="{}-{:02d}".format(year, month))
+        dataset_count(index, product=product, time=f"{year}-{month:02d}")
         for month in range(1, 12 + 1)
     )
 
@@ -244,7 +244,7 @@ def ordered_dss(dc: Datacube, freq: str = "m", key=None, **query):
     for q in chop_query_by_time(qq, freq=freq):
         _dss = dc.find_datasets(**q.search_terms)
         dss = [ds for ds in _dss if ds.id not in _last_uuids]
-        _last_uuids = set(ds.id for ds in _dss)
+        _last_uuids = {ds.id for ds in _dss}
         dss.sort(key=key)
         yield from dss
 
@@ -262,7 +262,7 @@ def chopped_dss(dc: Datacube, freq: str = "m", **query):
     for q in chop_query_by_time(qq, freq=freq):
         _dss = dc.find_datasets(**q.search_terms)
         dss = [ds for ds in _dss if ds.id not in _last_uuids]
-        _last_uuids = set(ds.id for ds in _dss)
+        _last_uuids = {ds.id for ds in _dss}
         yield from dss
 
 
@@ -304,7 +304,7 @@ def bin_dataset_stream(gridspec, dss, cells, persist=None):
         ds_val = persist(ds)
 
         if ds.extent is None:
-            warn("Dataset without extent info: %s" % str(ds.id))
+            warn(f"Dataset without extent info: {str(ds.id)}")
             continue
 
         for tile, geobox in gridspec.tiles_from_geopolygon(
@@ -365,7 +365,7 @@ where archived is null
 and dataset_type_ref = (select id from agdc.dataset_type where name = %(product)s)
 {_limit};
 """
-    cursor_name = "c{:04X}".format(randint(0, 0xFFFF))
+    cursor_name = f"c{randint(0, 0xFFFF):04X}"
     with db.cursor(name=cursor_name) as cursor:
         cursor.execute(query, dict(product=product))
 

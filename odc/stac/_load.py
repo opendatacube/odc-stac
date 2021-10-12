@@ -3,16 +3,17 @@ stac.load - dc.load from STAC Items
 """
 from functools import partial
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Set, Tuple, Union
-from datacube.model import Dataset
 
+import datacube.utils.geometry
 import numpy as np
 import pyproj
-from pyproj.crs.crs import CRS
 import pystac
-from affine import Affine
-from toolz import dicttoolz
 import xarray
-import datacube.utils.geometry
+from affine import Affine
+from datacube.model import Dataset
+from pyproj.crs.crs import CRS
+from toolz import dicttoolz
+
 from odc.index import patch_urls
 
 from ._dcload import dc_load
@@ -152,7 +153,7 @@ def load(
            crs="EPSG:32606",
            resolution=(-100, 100),
        )
-       xx.red.plot.imshow(col="time");
+       xx.red.plot.imshow(col="time")
 
 
     :param items:
@@ -286,8 +287,9 @@ def load(
     .. code-block:: python
 
        import planetary_computer as pc
-       from odc import stac
        from pystac_client import Client
+
+       from odc import stac
 
        catalog = Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")
        query = catalog.search(
@@ -303,7 +305,7 @@ def load(
            resolution=100,
            patch_url=pc.sign,
        )
-       xx.red.plot.imshow(col="time", size=8, aspect=1);
+       xx.red.plot.imshow(col="time", size=8, aspect=1)
 
 
     .. rubric:: Example Configuration

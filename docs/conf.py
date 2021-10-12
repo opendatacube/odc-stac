@@ -31,6 +31,7 @@ def ensure_notebooks(git_url, dst_folder):
     print(f"Cloning: {git_url} to {dst_folder}")
     os.system(f"git clone --depth=1 '{git_url}' '{dst_folder}'")
 
+
 ensure_notebooks(
     "https://gist.github.com/4845c9f33509650e4a7a6e751d377fb6.git", "notebooks"
 )
