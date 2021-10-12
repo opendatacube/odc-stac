@@ -83,15 +83,17 @@ pygments_style = "friendly"
 autosummary_generate = True
 
 extlinks = {
-    "issue": ("https://github.com/opendatacube/odc-tools/issues/%s", "issue "),
-    "pull": ("https://github.com/opendatacube/odc-tools/pulls/%s", "PR "),
+    "issue": ("https://github.com/opendatacube/odc-stac/issues/%s", "issue "),
+    "pull": ("https://github.com/opendatacube/odc-stac/pulls/%s", "PR "),
 }
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
     "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "np": ("https://docs.scipy.org/doc/numpy/", None),
     "xarray": ("https://xarray.pydata.org/en/stable/", None),
+    "xr": ("https://xarray.pydata.org/en/stable/", None),
     "datacube": ("https://datacube-core.readthedocs.io/en/latest/", None),
     "pystac": ("https://pystac.readthedocs.io/en/latest/", None),
 }

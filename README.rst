@@ -40,12 +40,11 @@ Using pip
 Using Conda
 ~~~~~~~~~~~
 
-This will be available on ``conda-forge`` channel soon, but in the meantime it
-can be installed like this:
+This package is be available on ``conda-forge`` channel:
 
 .. code-block:: bash
 
-   conda install -c kirill-odc odc-stac
+   conda install -c conda-forge odc-stac
 
 To use development version of ``odc-stac`` install dependencies from conda, then
 install ``odc-stac`` with ``pip``.
@@ -77,6 +76,6 @@ Sample ``environment.yml`` is provided below.
    :target: https://odc-stac.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
-.. |Test Status| image:: https://github.com/opendatacube/odc-tools/actions/workflows/main.yml/badge.svg
-   :target: https://github.com/opendatacube/odc-tools/actions/workflows/main.yml
+.. |Test Status| image:: https://github.com/opendatacube/odc-stac/actions/workflows/main.yml/badge.svg
+   :target: https://github.com/opendatacube/odc-stac/actions/workflows/main.yml
    :alt: Test Status
