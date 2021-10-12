@@ -34,9 +34,14 @@ Using pip
 Using Conda
 ***********
 
-Currently conda package is not done yet. It's best to install dependencies
-using conda then install ``odc-stac`` with pip. Sample ``environment.yml`` is
-provided below.
+.. code-block:: bash
+
+   conda install -c conda-forge odc-stac
+
+
+Using latest unreleased code in ``conda`` is also possible. It's best to install
+dependencies using conda then install ``odc-stac`` with pip. Sample
+``environment.yml`` is provided below.
 
 
 .. code-block:: yaml
@@ -44,7 +49,7 @@ provided below.
    channels:
      - conda-forge
    dependencies:
-     - datacube>=1.8.5
+     - datacube >=1.8.5
      - xarray
      - numpy
      - pandas
@@ -53,6 +58,6 @@ provided below.
      - toolz
      - jinja2
      - pystac
-     - pip=20
+     - pip =20
      - pip:
-       - odc-stac
+       - git+https://github.com/opendatacube/odc-stac/
