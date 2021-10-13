@@ -59,9 +59,7 @@ jobs:
     - uses: actions/cache@v2
       id: conda_cache
       with:
-        path: |
-          _test_env
-
+        path: /tmp/test_env
         key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
     - uses: conda-incubator/setup-miniconda@v2
@@ -88,13 +86,13 @@ jobs:
       shell: bash -l {0}
       if: steps.conda_cache.outputs.cache-hit != 'true'
       run: |
-        mamba env create -f tests/test-env-py38.yml -p _test_env
+        mamba env create -f tests/test-env-py38.yml -p /tmp/test_env
 
     - name: Check Python Env
       shell: bash -l {0}
       if: steps.conda_cache.outputs.cache-hit != 'true'
       run: |
-        mamba env export -p _test_env
+        mamba env export -p /tmp/test_env
 
 
   run-black-check:
@@ -108,13 +106,13 @@ jobs:
       uses: actions/cache@v2
       id: conda_cache
       with:
-        path:  _test_env
+        path:  /tmp/test_env
         key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
     - name: Update PATH
       shell: bash
       run: |
-        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+        echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
     - name: Check formatting (black)
       shell: bash
@@ -134,13 +132,13 @@ jobs:
       uses: actions/cache@v2
       id: conda_cache
       with:
-        path:  _test_env
+        path:  /tmp/test_env
         key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
     - name: Update PATH
       shell: bash
       run: |
-        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+        echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
     - name: Install in Edit mode
       shell: bash
@@ -165,13 +163,13 @@ jobs:
       uses: actions/cache@v2
       id: conda_cache
       with:
-        path:  _test_env
+        path:  /tmp/test_env
         key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
     - name: Update PATH
       shell: bash
       run: |
-        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+        echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
     - name: Check with mypy
       shell: bash
@@ -193,15 +191,14 @@ jobs:
       uses: actions/cache@v2
       id: conda_cache
       with:
-        path: |
-          _test_env
+        path: /tmp/test_env
 
         key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
     - name: Update PATH
       shell: bash
       run: |
-        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+        echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
     - name: Install in Edit mode
       shell: bash
@@ -271,15 +268,13 @@ jobs:
       uses: actions/cache@v2
       id: conda_cache
       with:
-        path: |
-          _test_env
-
+        path: /tmp/test_env
         key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
     - name: Update PATH
       shell: bash
       run: |
-        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+        echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
     - name: Install wheels for testing
       shell: bash
@@ -434,14 +429,13 @@ jobs:
       uses: actions/cache@v2
       id: conda_cache
       with:
-        path: |
-          _test_env
+        path: /tmp/test_env
         key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
     - name: Update PATH
       shell: bash
       run: |
-        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+        echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
     - name: Install in Edit mode
       shell: bash
