@@ -1,7 +1,6 @@
 """
 stac.load - dc.load from STAC Items
 """
-from functools import partial
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Set, Tuple, Union
 
 import datacube.utils.geometry
@@ -408,7 +407,7 @@ def load(
     auto_fill_geo(geo, dss, bands)
 
     if patch_url is not None:
-        dss = map(partial(patch_urls, edit=patch_url, bands=bands), dss)
+        dss = [patch_urls(ds, edit=patch_url, bands=bands) for ds in dss]
 
     return dc_load(
         dss,
