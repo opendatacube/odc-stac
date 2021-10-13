@@ -34,6 +34,7 @@ dependencies:
   - sphinx-autodoc-typehints
   - nbsphinx
   - ipywidgets
+  - jupytext
 
   # dev (shed dependencies)
   - autoflake
