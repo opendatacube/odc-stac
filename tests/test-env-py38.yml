@@ -8,26 +8,25 @@ channels:
 dependencies:
   - python =3.8
 
-  # Datacube
+  # odc-stac dependencies
+  - affine
   - datacube >=1.8.5
-
-  # odc-apps-dc-tools
+  - jinja2
+  - numpy
+  - pandas
   - pystac >=1.1.0
-  - pystac-client >=0.2.0
+  - toolz
+  - xarray
 
   # For tests
   - pytest
   - pytest-httpserver
   - pytest-cov
   - pytest-timeout
-  - moto
+  - pytest-vcr
   - mock
   - deepdiff
-
-  # for pytest-depends
-  - future_fstrings
-  - networkx
-  - colorama
+  - pystac-client >=0.2.0
 
   # for docs
   - sphinx
@@ -36,7 +35,16 @@ dependencies:
   - nbsphinx
   - ipywidgets
 
+  # dev (shed dependencies)
+  - autoflake
+  - black
+  - isort
+  - pyupgrade
+  - libcst
+  - mypy
+  - pylint
+
   - pip=20
   - pip:
-      # tests
-      - pytest-depends
+      # dev
+      - shed
