@@ -97,11 +97,94 @@ jobs:
         mamba env export -p _test_env
 
 
+  run-black-check:
+    runs-on: ubuntu-latest
+    needs:
+      - build-test-env-base
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Get Conda Environment from Cache
+      uses: actions/cache@v2
+      id: conda_cache
+      with:
+        path:  _test_env
+        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+
+    - name: Update PATH
+      shell: bash
+      run: |
+        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+
+    - name: Check formatting (black)
+      shell: bash
+      run: |
+       black --check .
+
+
+  run-pylint:
+    runs-on: ubuntu-latest
+    needs:
+      - build-test-env-base
+      - run-black-check
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Get Conda Environment from Cache
+      uses: actions/cache@v2
+      id: conda_cache
+      with:
+        path:  _test_env
+        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+
+    - name: Update PATH
+      shell: bash
+      run: |
+        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+
+    - name: Install in Edit mode
+      shell: bash
+      run: |
+        pip install -e . --no-deps
+
+    - name: Check with pylint
+      shell: bash
+      run: |
+        pylint -v odc
+
+
+  run-mypy:
+    runs-on: ubuntu-latest
+    needs:
+      - build-test-env-base
+      - run-black-check
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Get Conda Environment from Cache
+      uses: actions/cache@v2
+      id: conda_cache
+      with:
+        path:  _test_env
+        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+
+    - name: Update PATH
+      shell: bash
+      run: |
+        echo "$(pwd)/_test_env/bin" >> $GITHUB_PATH
+
+    - name: Check with mypy
+      shell: bash
+      run: |
+        mypy odc
+
+
   test-with-coverage:
     runs-on: ubuntu-latest
 
     needs:
       - build-test-env-base
+      - run-black-check
 
     steps:
     - uses: actions/checkout@v2
@@ -123,10 +206,6 @@ jobs:
     - name: Install in Edit mode
       shell: bash
       run: |
-        which python
-        which createdb
-        which datacube
-
         pip install -e . --no-deps
 
 
@@ -175,6 +254,7 @@ jobs:
 
     needs:
       - build-test-env-base
+      - run-black-check
       - build-wheels
 
     steps:
@@ -345,6 +425,7 @@ jobs:
 
     needs:
       - build-test-env-base
+      - run-black-check
 
     steps:
     - uses: actions/checkout@v2
