@@ -11,7 +11,7 @@ from datacube.api.core import output_geobox
 from datacube.model import Dataset
 from datacube.utils.geometry import GeoBox
 
-
+# pylint: disable=too-many-arguments
 def dc_load(
     datasets: Iterable[Dataset],
     measurements: Optional[Union[str, Sequence[str]]] = None,

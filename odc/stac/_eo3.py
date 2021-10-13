@@ -219,6 +219,7 @@ def compute_eo3_grids(
     Assets must have ProjectionExtension with shape, transform and crs information
     populated.
     """
+    # pylint: disable=too-many-locals
 
     def gbox_name(geobox: GeoBox) -> str:
         gsd = geobox_gsd(geobox)
@@ -447,8 +448,7 @@ def infer_dc_product_from_item(
     _cfg = cfg.get("*", {})
     _cfg.update(cfg.get(collection_id, {}))
 
-    warnings: str = _cfg.get("warnings", "all")
-    quiet = warnings == "ignore"
+    quiet = _cfg.get("warnings", "all") == "ignore"
 
     data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.valfilter(
         partial(is_raster_data, check_proj=True), item.assets
