@@ -1,3 +1,6 @@
+"""
+Methods for grouping Datasets spatialy and otherwise
+"""
 from datetime import timedelta
 from typing import Any, Dict, Hashable, Iterable, Iterator, List, Optional
 
@@ -10,6 +13,9 @@ from datacube.utils.geometry import Geometry
 
 
 def mid_longitude(geom: Geometry) -> float:
+    """
+    Returns longitude of the middle point of the geomtry
+    """
     ((lon,), _) = geom.centroid.to_crs("epsg:4326").xy
     return lon
 
