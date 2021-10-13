@@ -3,7 +3,11 @@ requires = ["setuptools>=51.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.mypy]
-python_version = 3.8
+python_version = "3.8"
 ignore_missing_imports = true
 allow_redefinition = true
 
+[tool.coverage.run]
+omit = [
+  "tests/*"
+]
