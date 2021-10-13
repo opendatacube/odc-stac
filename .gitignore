@@ -79,3 +79,6 @@ docs/notebooks/
 
 # used to cache dev install cache
 .run/
+
+# emacs virtual env link
+.venv
