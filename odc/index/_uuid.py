@@ -1,6 +1,4 @@
-"""
-Determenistic UUID generation for Datasets
-"""
+"""Determenistic UUID generation for Datasets."""
 import uuid
 from typing import Sequence
 from uuid import UUID
@@ -16,7 +14,8 @@ def odc_uuid(
     deployment_id: str = "",
     **other_tags,
 ) -> UUID:
-    """Generate deterministic UUID for a derived Dataset
+    """
+    Generate deterministic UUID for a derived Dataset.
 
     :param algorithm: Name of the algorithm
     :param algorithm_version: Version string of the algorithm

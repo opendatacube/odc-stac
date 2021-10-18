@@ -1,6 +1,4 @@
-"""
-Tools for dealing with UTM grids
-"""
+"""Tools for dealing with UTM grids."""
 from types import SimpleNamespace
 from typing import Optional, Tuple, Union
 
@@ -14,18 +12,16 @@ def mk_utm_gs(
     pixels_per_cell: int = 10_000,
     origin: Tuple[float, float] = (0, 0),
 ) -> GridSpec:
-    """
-    Construct GridSpec
-    """
+    """Construct GridSpec."""
     if not isinstance(resolution, tuple):
         resolution = (-resolution, resolution)
 
-    tile_size = tuple(abs(r) * pixels_per_cell for r in resolution)
+    ty, tx = (abs(r) * pixels_per_cell for r in resolution)
 
     return GridSpec(
         crs=CRS(f"epsg:{epsg}"),
         resolution=resolution,
-        tile_size=tile_size,
+        tile_size=(ty, tx),
         origin=origin,
     )
 
@@ -34,6 +30,8 @@ def utm_region_code(
     epsg: Union[int, Tuple[int, int, int]], tidx: Optional[Tuple[int, int]] = None
 ) -> str:
     """
+    Construct UTM gridspec identifier.
+
     Examples:
     - 32751          -> "51S"
     - 32633, 10, 2   -> "33N_10_02"
@@ -60,6 +58,8 @@ def utm_region_code(
 
 def utm_zone_to_epsg(zone):
     """
+    Convert UTM zone string to EPSG code.
+
     56S -> 32756
     55N -> 32655
     """
@@ -76,7 +76,7 @@ def utm_zone_to_epsg(zone):
     except ValueError:
         i = None
 
-    if i < 0 or i > 60:
+    if i is not None and (i < 0 or i > 60):
         i = None
 
     if i is None:
@@ -116,10 +116,12 @@ def utm_tile_dss(dss, **gridspec_options):
 
     for ds in dss:
         epsg = ds.crs.epsg
-        if epsg not in grid_specs:
-            grid_specs[epsg] = (mk_utm_gs(epsg, **gridspec_options), {})
-
-        gs, g_cache = grid_specs.get(epsg)
+        _cached = grid_specs.get(epsg)
+        if _cached is None:
+            gs, g_cache = (mk_utm_gs(epsg, **gridspec_options), {})
+            grid_specs[epsg] = (gs, g_cache)
+        else:
+            gs, g_cache = _cached
 
         for tidx, geobox in gs.tiles_from_geopolygon(ds.extent, geobox_cache=g_cache):
             region = (epsg, *tidx)

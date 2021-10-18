@@ -1,5 +1,4 @@
-""" Indexing related helper methods.
-"""
+"""Indexing related helper methods."""
 from ._grouper import group_by_nothing, solar_offset
 from ._index import (
     all_datasets,
