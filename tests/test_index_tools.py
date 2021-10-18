@@ -1,7 +1,9 @@
+import datetime
 import pytest
 from datacube.utils import geometry as geom
 
 from odc.index._grouper import group_by_nothing, key2num, mid_longitude, solar_offset
+from odc.index._index import month_range, season_range
 
 
 @pytest.mark.parametrize("lon,lat", [(0, 10), (100, -10), (-120, 30)])
@@ -52,3 +54,21 @@ def test_grouper(s2_dataset):
     assert xx.values[0] == (s2_dataset,)
     assert xx.uuid.values[1] == s2_dataset.id
     assert xx.uuid.values[1] == s2_dataset.id
+
+
+def test_month_range():
+    m1, m2 = month_range(2019, 1, 3)
+    assert m1.year == 2019
+    assert m2.year == 2019
+    assert m1.month == 1 and m2.month == 3
+
+    m1, m2 = month_range(2019, 12, 3)
+    assert m1 == datetime.datetime(2019, 12, 1)
+    assert m2 == datetime.datetime(2020, 2, 29, 23, 59, 59, 999999)
+
+    assert month_range(2018, 12, 4) == month_range(2019, -1, 4)
+
+    assert season_range(2019, "djf") == month_range(2019, -1, 3)
+    assert season_range(2019, "mam") == month_range(2019, 3, 3)
+    assert season_range(2002, "jja") == month_range(2002, 6, 3)
+    assert season_range(2000, "son") == month_range(2000, 9, 3)
