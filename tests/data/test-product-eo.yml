@@ -1,0 +1,10 @@
+name: test_product_eo
+metadata_type: eo
+metadata:
+  product:
+    name: test_product_eo
+measurements:
+  - name: band
+    dtype: "float32"
+    nodata: .nan
+    units: "1"

@@ -2,6 +2,8 @@
 
 import pytest
 
+from datacube.utils.geometry import unary_union
+from odc.index import bin_dataset_stream, bin_dataset_stream2
 from odc.index._utm import mk_utm_gs, utm_region_code, utm_tile_dss, utm_zone_to_epsg
 
 
@@ -53,3 +55,50 @@ def test_tile_dss_smoke_test(s2_dataset):
         assert tile.grid_spec.tile_geobox(tile.region[1:]) == tile.geobox
         for ds in tile.dss:
             assert ds.extent.intersects(tile.geobox.extent)
+
+
+def test_bin_dataset_stream(s2_dataset):
+    gridspec = mk_utm_gs(s2_dataset.crs.epsg, 10, 2000)
+    dss = iter([s2_dataset] * 3)
+    cells = {}
+
+    _dss = bin_dataset_stream(gridspec, dss, cells)
+    assert len(cells) == 0
+
+    for ds in _dss:
+        assert ds is s2_dataset
+
+    assert len(cells) > 0
+    extents = []
+
+    for idx, cell in cells.items():
+        assert len(cell.dss) == 3
+        assert idx == cell.idx
+        assert gridspec.tile_geobox(cell.idx) == cell.geobox
+        extents.append(cell.geobox.extent)
+        for _id in cell.dss:
+            assert _id == s2_dataset.id
+            assert s2_dataset.extent.intersects(cell.geobox.extent)
+
+    # No dataset parts outside of occupied tiles
+    tiles_extent = unary_union(extents)
+    assert tiles_extent is not None
+    assert tiles_extent.contains(s2_dataset.extent)
+
+
+def test_bin_dataset_stream2(s2_dataset):
+    gridspec = mk_utm_gs(s2_dataset.crs.epsg, 10, 2000)
+    dss = iter([s2_dataset] * 3)
+
+    for ds, tiles in bin_dataset_stream2(gridspec, dss):
+        assert ds is s2_dataset
+        extents = []
+        for tidx in tiles:
+            geobox = gridspec.tile_geobox(tidx)
+            assert ds.extent.intersects(geobox.extent)
+            extents.append(geobox.extent)
+
+        # Verify that union of all tiles encloses dataset
+        tiles_extent = unary_union(extents)
+        assert tiles_extent is not None
+        assert tiles_extent.contains(ds.extent)

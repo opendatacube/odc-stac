@@ -2,6 +2,7 @@ from copy import deepcopy
 from unittest.mock import MagicMock
 
 import pystac
+import pystac.item
 import pytest
 from datacube.model import Dataset
 from pyproj.crs.crs import CRS
@@ -11,7 +12,7 @@ from odc.stac._load import most_common_crs
 
 
 def test_dc_load_smoketest(sentinel_stac_ms):
-    item = pystac.Item.from_dict(sentinel_stac_ms)
+    item = pystac.item.Item.from_dict(sentinel_stac_ms)
     with pytest.warns(UserWarning, match="`rededge`"):
         (ds,) = stac2ds([item], {})
 
@@ -35,7 +36,7 @@ def test_dc_load_smoketest(sentinel_stac_ms):
     assert xx.nir.geobox == yy.SCL.geobox
 
 
-def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
+def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
 
     params = dict(crs="EPSG:3857", resolution=100, align=0, chunks={})
@@ -105,14 +106,14 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
 
     # test bbox overlaping with lon/lat
     with pytest.raises(ValueError):
-        stac_load([item], ["nir"], bbox=[0, 0, 1, 1], lon=(0, 1), lat=(0, 1), chunks={})
+        stac_load([item], ["nir"], bbox=(0, 0, 1, 1), lon=(0, 1), lat=(0, 1), chunks={})
 
     # test bbox overlaping with x/y
     with pytest.raises(ValueError):
         stac_load(
             [item],
             ["nir"],
-            bbox=[0, 0, 1, 1],
+            bbox=(0, 0, 1, 1),
             x=(0, 1000),
             y=(0, 1000),
             chunks={},
