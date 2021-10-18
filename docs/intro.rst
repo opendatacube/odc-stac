@@ -12,8 +12,7 @@ Load STAC :class:`pystac.Item`\s into :class:`xarray.Dataset`.
    xx = odc.stac.load(
        query.get_items(),
        bands=["red", "green", "blue"],
-       output_crs="EPSG:32606",
-       resolution=(100, -100),
+       resolution=100,
    )
    xx.red.plot.imshow(col="time")
 

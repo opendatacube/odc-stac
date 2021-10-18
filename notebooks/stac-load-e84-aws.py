@@ -79,8 +79,8 @@ zoom = 2 ** 5  # overview level 5
 
 xx = stac_load(
     items,
-    output_crs=crs,
-    resolution=(-10 * zoom, 10 * zoom),
+    crs=crs,
+    resolution=10 * zoom,
     chunks={},
     groupby="solar_day",
     measurements=["red", "green", "blue"],
