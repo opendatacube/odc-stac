@@ -1,12 +1,12 @@
-"""
-stac.load - dc.load from STAC Items
-"""
+"""stac.load - dc.load from STAC Items."""
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Set, Tuple, Union
 
+import datacube.model
 import datacube.utils.geometry
 import numpy as np
 import pyproj
 import pystac
+import pystac.item
 import xarray
 from affine import Affine
 from datacube.model import Dataset
@@ -70,6 +70,11 @@ def eo3_geoboxes(
 
 
 def most_common_crs(crss: Iterable[CRS]) -> CRS:
+    """
+    Find most frequently occuring CRS.
+
+    :param crss: Iterable of :class:`~datacube.utils.geometry.CRS` objects
+    """
     _cc: Dict[CRS, int] = {}
     for crs in crss:
         _cc.setdefault(crs, 0)
@@ -85,6 +90,17 @@ def most_common_crs(crss: Iterable[CRS]) -> CRS:
 def pick_best_resolution(
     dss: Sequence[Dataset], bands: Optional[Sequence[str]] = None
 ) -> Optional[Tuple[float, float]]:
+    """
+    Pick "best" resolution to use for data load.
+
+    Given a non-empty sequence of :class:`~datacube.model.Dataset` objects and a
+    set of bands to be loaded figure out what resolution is most appropriate.
+
+    :param dss: Sequence of Dataset objects
+    :param bands: Set of bands of interest, default: consider all bands.
+    :return: ``(Y, X)`` resolution tuple
+    """
+
     def best(
         a: Tuple[float, float], b: Optional[Tuple[float, float]]
     ) -> Tuple[float, float]:
@@ -107,7 +123,7 @@ def pick_best_resolution(
 
 # pylint: disable=too-many-arguments,too-many-locals
 def load(
-    items: Iterable[pystac.Item],
+    items: Iterable[pystac.item.Item],
     bands: Optional[Union[str, Sequence[str]]] = None,
     *,
     groupby: Optional[str] = None,
@@ -136,11 +152,13 @@ def load(
     **kw,
 ) -> xarray.Dataset:
     """
-    Load several STAC :class:`pystac.Item` objects (from the same or similar
-    collections) as an :class:`xarray.Dataset`
+    STAC :class:`~pystac.item.Item` to :class:`xarray.Dataset`.
 
-    This method can load pixel data directly locally or construct Dask graph that can
-    be processed on a remote cluster.
+    Load several STAC :class:`~pystac.item.Item` objects (from the same or similar
+    collections) as an :class:`xarray.Dataset`.
+
+    This method can load pixel data directly on a local machine or construct a Dask
+    graph that can be processed on a remote cluster.
 
     .. code-block:: python
 

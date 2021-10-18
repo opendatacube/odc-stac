@@ -1,6 +1,4 @@
-"""
-Methods for grouping Datasets spatialy and otherwise
-"""
+"""Methods for grouping Datasets spatialy and otherwise."""
 from datetime import timedelta
 from typing import Any, Dict, Hashable, Iterable, Iterator, List, Optional
 
@@ -13,9 +11,7 @@ from datacube.utils.geometry import Geometry
 
 
 def mid_longitude(geom: Geometry) -> float:
-    """
-    Returns longitude of the middle point of the geomtry
-    """
+    """Return longitude of the middle point of the geomtry."""
     ((lon,), _) = geom.centroid.to_crs("epsg:4326").xy
     return lon
 
@@ -41,6 +37,7 @@ def key2num(
 ) -> Iterator[int]:
     """
     Given a sequence of hashable objects return sequence of numeric ids starting from 0.
+
     For example ``'A' 'B' 'A' 'A' 'C' -> 0 1 0 0 2``
     """
     o2id: Dict[Any, int] = {}
@@ -58,13 +55,15 @@ def group_by_nothing(
     dss: List[Dataset], solar_day_offset: Optional[timedelta] = None
 ) -> xr.DataArray:
     """
+    No op grouping of datasets.
+
     Construct "sources" just like ``.group_dataset`` but with every slice
     containing just one Dataset object wrapped in a tuple.
 
     Time -> (Dataset,)
     """
-    dss = sorted(dss, key=lambda ds: (normalise_dt(ds.center_time), ds.id))
-    time = [normalise_dt(ds.center_time) for ds in dss]
+    dss = sorted(dss, key=lambda ds: (normalise_dt(ds.center_time), ds.id))  # type: ignore
+    time = [normalise_dt(ds.center_time) for ds in dss]  # type: ignore
     solar_day = None
 
     if solar_day_offset is not None:

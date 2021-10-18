@@ -1,7 +1,4 @@
-"""
-Wrapper for Datacube.load_data
-
-"""
+"""Wrapper for Datacube.load_data."""
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Union
 from warnings import warn
 
@@ -10,6 +7,7 @@ from datacube import Datacube
 from datacube.api.core import output_geobox
 from datacube.model import Dataset
 from datacube.utils.geometry import GeoBox
+
 
 # pylint: disable=too-many-arguments
 def dc_load(
@@ -24,9 +22,7 @@ def dc_load(
     fuse_func=None,
     **kw,
 ) -> xr.Dataset:
-    """
-    Load data given a collection of datacube.Dataset objects.
-    """
+    """Load data given a collection of datacube.Dataset objects."""
     datasets = list(datasets)
     assert len(datasets) > 0
 

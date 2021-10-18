@@ -1,6 +1,4 @@
-"""
-These should probably be in datacube library
-"""
+"""These should probably be in datacube library."""
 import datetime
 import json
 import sys
@@ -25,6 +23,8 @@ from ._grouper import solar_offset
 
 def from_metadata_stream(metadata_stream, index, **kwargs):
     """
+    Raw metadata to Dataset stream converter.
+
     Given a stream of (uri, metadata) tuples convert them into Datasets, using
     supplied index and options for Doc2Dataset.
 
@@ -54,7 +54,8 @@ def from_metadata_stream(metadata_stream, index, **kwargs):
 
 
 def parse_doc_stream(doc_stream, on_error=None, transform=None):
-    """Replace doc bytes/strings with parsed dicts.
+    """
+    Replace doc bytes/strings with parsed dicts.
 
        Stream[(uri, bytes)] -> Stream[(uri, dict)]
 
@@ -85,6 +86,8 @@ def parse_doc_stream(doc_stream, on_error=None, transform=None):
 
 def from_yaml_doc_stream(doc_stream, index, logger=None, transform=None, **kwargs):
     """
+    Stream of yaml documents to a stream of Dataset results.
+
     Stream[(path, bytes|str)] -> Stream[(Dataset, None)|(None, error_message)]
 
     :param doc_stream: sequence of (uri, doc: byges|string)
@@ -109,18 +112,16 @@ def from_yaml_doc_stream(doc_stream, index, logger=None, transform=None, **kwarg
 
 
 def dataset_count(index, **query):
-    """
-    Returns number of datasets matching a query.
-    """
+    """Return number of datasets matching a query."""
     return index.datasets.count(**Query(**query).search_terms)
 
 
 def count_by_year(index, product, min_year=None, max_year=None):
     """
-    Returns dictionary Int->Int: `year` -> `dataset count for this year`.
+    Return dictionary Int->Int: `year` -> `dataset count for this year`.
+
     Only non-empty years are reported.
     """
-
     # TODO: get min/max from datacube properly
     if min_year is None:
         min_year = 1970
@@ -137,7 +138,8 @@ def count_by_year(index, product, min_year=None, max_year=None):
 
 def count_by_month(index, product, year):
     """
-    Return 12 integer tuple
+    Return 12 integer tuple.
+
     counts for January, February ... December
     """
     return tuple(
@@ -148,11 +150,10 @@ def count_by_month(index, product, year):
 
 def time_range(begin, end, freq="m"):
     """
-    Return tuples of datetime objects aligned to boundaries of requested period
+    Return tuples of datetime objects aligned to boundaries of requested period.
+
     (month is default).
-
     """
-
     tzinfo = begin.tzinfo
     t = Period(begin, freq)
 
@@ -172,6 +173,8 @@ def month_range(
     year: int, month: int, n: int
 ) -> Tuple[datetime.datetime, datetime.datetime]:
     """
+    Construct month aligned time range.
+
     Return time range covering n months starting from year, month
     month 1..12
     month can also be negative
@@ -209,6 +212,8 @@ def season_range(year: int, season: str) -> Tuple[datetime.datetime, datetime.da
 
 def chop_query_by_time(q: Query, freq: str = "m") -> Iterator[Query]:
     """
+    Split query along time dimension.
+
     Given a query over longer period of time, chop it up along the time dimension
     into smaller queries each covering a shorter time period (year, month, week or day).
     """
@@ -268,20 +273,21 @@ def chopped_dss(dc: Datacube, freq: str = "m", **query):
 
 def bin_dataset_stream(gridspec, dss, cells, persist=None):
     """
+    Intersect Grid Spec cells with Datasets.
 
     :param gridspec: GridSpec
     :param dss: Sequence of datasets (can be lazy)
     :param cells: Dictionary to populate with tiles
     :param persist: Dataset -> SomeThing mapping, defaults to keeping dataset id only
 
-    The `cells` dictionary is a mapping from (x,y) tile index to object with the following properties
+    The ``cells`` dictionary is a mapping from (x,y) tile index to object with the
+    following properties:
 
      .idx     - tile index (x,y)
      .geobox  - tile geobox
      .utc_offset - timedelta to add to timestamp to get day component in local time
-     .dss     - list of UUIDs, or results of `persist(dataset)` if custom `persist` is supplied
+     .dss     - list of UUIDs, or results of ``persist(dataset)`` if custom ``persist`` is supplied
     """
-
     geobox_cache = {}
 
     def default_persist(ds):
@@ -343,7 +349,16 @@ def all_datasets(
     dc: Datacube, product: str, read_chunk: int = 1000, limit: Optional[int] = None
 ):
     """
-    Like dc.find_datasets_lazy(product=product) but actually lazy, using db cursors
+    Properly lazy version of ``dc.find_datasets_lazy(product=product)``.
+
+    Uses db cursors to reduce latency of results arriving from the database, original
+    method in datacube fetches entire query result from the database and only then lazily
+    constructs Dataset objects from the returned table.
+
+    :param dc: Datacube object
+    :param product: Product name to extract
+    :param read_chunk: Number of datasets per page
+    :param limit: Optionally constrain query to just return that many dataset
     """
     assert isinstance(limit, (int, type(None)))
 
@@ -351,6 +366,8 @@ def all_datasets(
     _limit = "" if limit is None else f"LIMIT {limit}"
 
     _product = dc.index.products.get_by_name(product)
+    if _product is None:
+        raise ValueError(f"No such product: {product}")
 
     query = f"""select
 jsonb_build_object(
@@ -381,14 +398,14 @@ def product_from_yaml(path: str, dc: Optional[Datacube] = None) -> DatasetType:
     """
     Make product definition from yaml file without access to the database.
 
-    NOTE: access to database is only needed when non-standard metadata types
-    are used.
+    .. note:
+
+         access to database is only needed when non-standard metadata types are used.
 
     :param path: File path or a URL pointing to yaml definition of the product
     :param dc: Optional datacube instance (used to query MetadataType, only
                used if non-standard metadata type is used in the product)
     """
-
     standard_metadata_types = {
         d["name"]: metadata_from_doc(d) for d in default_metadata_type_docs()
     }
@@ -411,7 +428,7 @@ def patch_urls(
     ds: Dataset, edit: Callable[[str], str], bands: Optional[Iterable[str]] = None
 ) -> Dataset:
     """
-    Map function over dataset measurement urls
+    Map function over dataset measurement urls.
 
     :param ds: Dataset to edit in place
     :param edit: Function that returns modified url from input url

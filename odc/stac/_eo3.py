@@ -1,5 +1,7 @@
 """
-STAC -> EO3 utilities
+STAC -> EO3 utilities.
+
+Utilities for translating STAC Items to EO3 Datasets.
 """
 
 import datetime
@@ -22,6 +24,8 @@ from typing import (
 from warnings import warn
 
 import pystac.asset
+import pystac.collection
+import pystac.errors
 import pystac.item
 from affine import Affine
 from datacube.index.eo3 import prep_eo3
@@ -66,7 +70,7 @@ STAC_TO_EO3_RENAMES = {
 
 def with_default(v: Optional[T], default_value: T) -> T:
     """
-    Replace ``None`` with default value
+    Replace ``None`` with default value.
 
     :param v: Value that might be None
     :param default_value: Default value of the same type as v
@@ -87,7 +91,7 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
     """
     try:
         rext = RasterExtension.ext(asset)
-    except pystac.ExtensionNotImplemented:
+    except pystac.errors.ExtensionNotImplemented:
         return default
 
     if rext.bands is None or len(rext.bands) == 0:
@@ -104,19 +108,24 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
     )
 
 
-def has_proj_ext(item: Union[pystac.Item, pystac.Collection]) -> bool:
+def has_proj_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) -> bool:
     """
-    Check if STAC Item or Collection has projection extension
+    Check if STAC Item or Collection has projection extension.
+
+    :returns: ``True`` if PROJ exetension is enabled
+    :returns: ``False`` if no PROJ extension was found
     """
     try:
         ProjectionExtension.validate_has_extension(item, add_if_missing=False)
         return True
-    except pystac.ExtensionNotImplemented:
+    except pystac.errors.ExtensionNotImplemented:
         return False
 
 
 def has_proj_data(asset: pystac.asset.Asset) -> bool:
     """
+    Check if STAC Asset contains proj extension data.
+
     :returns: True if both ``.shape`` and ``.transform`` are set
     :returns: False if either ``.shape`` or ``.transform`` are missing
     """
@@ -126,6 +135,8 @@ def has_proj_data(asset: pystac.asset.Asset) -> bool:
 
 def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
     """
+    Heuristic for determining if Asset points to raster data.
+
     - Has "data" role --> True
     - Has roles other than "data" --> False
     - Has no role but
@@ -182,7 +193,7 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
     """
     try:
         _proj = ProjectionExtension.ext(asset)
-    except pystac.ExtensionNotImplemented:
+    except pystac.errors.ExtensionNotImplemented:
         raise ValueError("No projection extension defined") from None
 
     if _proj.shape is None or _proj.transform is None or _proj.crs_string is None:
@@ -205,6 +216,9 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
 def geobox_gsd(geobox: GeoBox) -> float:
     """
     Compute ground sampling distance of a given GeoBox.
+
+    :param geobox: input :class:`~datacube.utils.geometry.GeoBox`
+    :returns: Minimum ground sampling distance along X/Y
     """
     return min(map(abs, [geobox.transform.a, geobox.transform.e]))  # type: ignore
 
@@ -213,8 +227,10 @@ def compute_eo3_grids(
     assets: Dict[str, pystac.asset.Asset]
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     """
-    Compute a minimal set of eo3 grids, pick default one, give names to
-    non-default grids, while keeping track of which asset has which grid
+    Compute a minimal set of eo3 grids.
+
+    Pick default one, give names to non-default grids, while keeping track of
+    which asset has which grid
 
     Assets must have ProjectionExtension with shape, transform and crs information
     populated.
@@ -283,20 +299,17 @@ def _band2grid_from_gsd(assets: Dict[str, pystac.asset.Asset]) -> Dict[str, str]
     return band2grid
 
 
-def alias_map_from_eo(item: pystac.Item, quiet: bool = False) -> Dict[str, str]:
+def alias_map_from_eo(item: pystac.item.Item, quiet: bool = False) -> Dict[str, str]:
     """
     Generate mapping ``common name -> canonical name`` for all unique common names defined on the Item eo extension.
 
-    :param item: STAC Item to process
-    :type item: pystac.Item
+    :param item: STAC :class:`~pystac.item.Item` to process
     :param quiet: Do not print warning if duplicate common names are found, defaults to False
-    :type quiet: bool, optional
     :return: common name to canonical name mapping
-    :rtype: Dict[str, str]
     """
     try:
         bands = EOExtension.ext(item, add_if_missing=False).bands
-    except pystac.ExtensionNotImplemented:
+    except pystac.errors.ExtensionNotImplemented:
         return {}
 
     if bands is None:
@@ -321,9 +334,12 @@ def alias_map_from_eo(item: pystac.Item, quiet: bool = False) -> Dict[str, str]:
 
 def normalise_product_name(name: str) -> str:
     """
-    Create valid product name from arbitrary string
-    """
+    Create valid product name from an arbitrary string.
 
+    Right now just maps ``-`` and `` `` to ``_``.
+
+    :param name: Usually comes from ``collection_id``.
+    """
     # TODO: for now just map `-`,` ` to `_`
     return name.replace("-", "_").replace(" ", "_")
 
@@ -346,17 +362,11 @@ def mk_product(
     Generate ODC Product from simplified config.
 
     :param name: Product name
-    :type name: str
     :param bands: List of band names
-    :type bands: Iterable[str]
     :param cfg: Band configuration, band_name -> Config mapping
-    :type cfg: Dict[str, Any]
     :param aliases: Map of aliases ``alias -> band name``
-    :type aliases: Optional[Dict[str, str]], optional
     :return: Constructed ODC Product with EO3 metadata type
-    :rtype: DatasetType
     """
-
     if aliases is None:
         aliases = {}
 
@@ -392,16 +402,28 @@ def mk_product(
     return DatasetType(_eo3, doc)
 
 
+def _collection_id(item: pystac.item.Item) -> str:
+    if item.collection_id is None:
+        # workaround for some early ODC data
+        return str(item.properties.get("odc:product", "_"))
+    return str(item.collection_id)
+
+
 @singledispatch
 def infer_dc_product(x: Any, cfg: Optional[ConversionConfig] = None) -> DatasetType:
-    raise TypeError("Invalid type, must be one of: pystac.Item, pystac.Collection")
+    """Overloaded function."""
+    raise TypeError(
+        "Invalid type, must be one of: pystac.item.Item, pystac.collection.Collection"
+    )
 
 
-@infer_dc_product.register(pystac.Item)
+@infer_dc_product.register(pystac.item.Item)
 def infer_dc_product_from_item(
-    item: pystac.Item, cfg: Optional[ConversionConfig] = None
+    item: pystac.item.Item, cfg: Optional[ConversionConfig] = None
 ) -> DatasetType:
     """
+    Infer Datacube product object from a STAC Item.
+
     :param item: Sample STAC Item from a collection
     :param cfg: Dictionary of configuration, see below
 
@@ -439,11 +461,7 @@ def infer_dc_product_from_item(
     if cfg is None:
         cfg = {}
 
-    collection_id = item.collection_id
-    if collection_id is None:
-        # workaround for some early ODC data
-        collection_id = item.properties.get("odc:product", "_")
-    collection_id = str(collection_id)
+    collection_id = _collection_id(item)
 
     _cfg = cfg.get("*", {})
     _cfg.update(cfg.get(collection_id, {}))
@@ -479,12 +497,12 @@ def infer_dc_product_from_item(
         band2grid = _band2grid_from_gsd(data_bands)
 
     _cfg["band2grid"] = band2grid
-    product._stac_cfg = _cfg  # pylint: disable=protected-access
+    setattr(product, "_stac_cfg", _cfg)  # pylint: disable=protected-access
     return product
 
 
 def _compute_uuid(
-    item: pystac.Item, mode: str = "auto", extras: Optional[Sequence[str]] = None
+    item: pystac.item.Item, mode: str = "auto", extras: Optional[Sequence[str]] = None
 ) -> uuid.UUID:
     if mode == "native":
         return uuid.UUID(item.id)
@@ -502,10 +520,10 @@ def _compute_uuid(
     _extras = (
         {} if extras is None else {key: item.properties.get(key, "") for key in extras}
     )
-    return odc_uuid(item.collection_id, "stac", [], stac_id=item.id, **_extras)
+    return odc_uuid(_collection_id(item), "stac", [], stac_id=item.id, **_extras)
 
 
-def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
+def item_to_ds(item: pystac.item.Item, product: DatasetType) -> Dataset:
     """
     Construct Dataset object from STAC Item and previously constructed Product.
 
@@ -577,17 +595,19 @@ def item_to_ds(item: pystac.Item, product: DatasetType) -> Dataset:
 
 
 def stac2ds(
-    items: Iterable[pystac.Item],
+    items: Iterable[pystac.item.Item],
     cfg: Optional[ConversionConfig] = None,
     product_cache: Optional[Dict[str, DatasetType]] = None,
 ) -> Iterator[Dataset]:
     """
-    Given a lazy sequence of STAC :class:`~pystac.Item` objects turn it into a lazy sequence of
+    STAC :class:`~pystac.item.Item` to :class:`~datacube.model.Dataset` stream converter.
+
+    Given a lazy sequence of STAC :class:`~pystac.item.Item` objects turn it into a lazy sequence of
     :class:`~datacube.model.Dataset` objects.
 
     .. rubric:: Assumptions
 
-    First observed :py:class:`~pystac.Item` for a given collection is used to construct
+    First observed :py:class:`~pystac.item.Item` for a given collection is used to construct
     :py:mod:`datacube` product definition. After that, all subsequent items from the same collection
     are interpreted according to that product spec. Specifically this means that every item is
     expected to have the same set of bands. If product contains bands with different resolutions, it
@@ -595,7 +615,7 @@ def stac2ds(
     collection.
 
     :param items:
-       Lazy sequence of :class:`~pystac.Item` objects
+       Lazy sequence of :class:`~pystac.item.Item` objects
 
     :param cfg:
        Supply metadata missing from STAC, configure aliases, control warnings
@@ -652,15 +672,15 @@ def stac2ds(
         yield item_to_ds(item, product)
 
 
-def _mk_sample_item(collection: pystac.Collection) -> pystac.Item:
+def _mk_sample_item(collection: pystac.collection.Collection) -> pystac.item.Item:
     try:
         item_assets = ItemAssetsExtension.ext(collection).item_assets
-    except pystac.ExtensionNotImplemented:
+    except pystac.errors.ExtensionNotImplemented:
         raise ValueError(
             "This only works on Collections with ItemAssets extension"
         ) from None
 
-    item = pystac.Item(
+    item = pystac.item.Item(
         "sample",
         None,
         None,
@@ -678,10 +698,16 @@ def _mk_sample_item(collection: pystac.Collection) -> pystac.Item:
     return item
 
 
-@infer_dc_product.register(pystac.Collection)
+@infer_dc_product.register(pystac.collection.Collection)
 def infer_dc_product_from_collection(
-    collection: pystac.Collection, cfg: Optional[ConversionConfig] = None
+    collection: pystac.collection.Collection, cfg: Optional[ConversionConfig] = None
 ) -> DatasetType:
+    """
+    Construct Datacube Product definition from STAC Collection.
+
+    :param collection: STAC Collection
+    :param cfg: Configuration dictionary
+    """
     if cfg is None:
         cfg = {}
     return infer_dc_product(_mk_sample_item(collection), cfg)
