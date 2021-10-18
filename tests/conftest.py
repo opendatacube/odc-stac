@@ -28,6 +28,11 @@ LIDAR_STAC: str = "lidar_dem.json"
 # pylint: disable=redefined-outer-name
 
 
+@pytest.fixture(scope="session")
+def test_data_dir():
+    return TEST_DATA_FOLDER
+
+
 @pytest.fixture
 def usgs_landsat_stac():
     with TEST_DATA_FOLDER.joinpath(USGS_LANDSAT_STAC).open("r") as f:

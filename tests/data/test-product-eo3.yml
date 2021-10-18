@@ -1,0 +1,10 @@
+name: test_product_eo3
+metadata_type: eo3
+metadata:
+  product:
+    name: test_product_eo3
+measurements:
+  - name: band
+    dtype: int16
+    nodata: -999
+    units: "1"
