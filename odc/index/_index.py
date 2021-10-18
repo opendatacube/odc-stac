@@ -202,7 +202,7 @@ def season_range(year: int, season: str) -> Tuple[datetime.datetime, datetime.da
 
     DJF for year X starts in Dec X-1 and ends in Feb X.
     """
-    seasons = dict(djf=-1, mam=2, jja=6, son=9)
+    seasons = dict(djf=-1, mam=3, jja=6, son=9)
 
     start_month = seasons.get(season.lower())
     if start_month is None:
