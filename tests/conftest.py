@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 
 import pystac
+import pystac.collection
+import pystac.item
 import pytest
 from datacube.utils import documents
 
@@ -78,14 +80,14 @@ def sentinel_stac_ms_no_ext():
 
 @pytest.fixture
 def sentinel_stac_ms_with_raster_ext():
-    return pystac.Item.from_file(
+    return pystac.item.Item.from_file(
         str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS_RASTER_EXT))
     )
 
 
 @pytest.fixture
 def sentinel_stac_collection():
-    return pystac.Collection.from_file(
+    return pystac.collection.Collection.from_file(
         str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_COLLECTION))
     )
 

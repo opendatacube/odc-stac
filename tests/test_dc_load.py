@@ -69,6 +69,16 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.Item):
     # expect product cache to contain 1 product
     assert len(product_cache) == 1
 
+    patch_url = MagicMock(return_value="https://example.com/f.tif")
+    zz = stac_load(
+        [item],
+        patch_url=patch_url,
+        stac_cfg={"*": {"warnings": "ignore"}},
+        product_cache=product_cache,
+        **params,
+    )
+    assert patch_url.call_count == len(zz.data_vars)
+
     yy = stac_load(
         [item], ["nir"], like=xx, chunks={}, stac_cfg={"*": {"warnings": "ignore"}}
     )
