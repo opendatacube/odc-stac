@@ -1,0 +1,7 @@
+fish
+git
+tig
+htop
+jq
+silversearcher-ag
+graphviz

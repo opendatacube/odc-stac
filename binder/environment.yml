@@ -1,0 +1,78 @@
+name: odc-stac
+channels:
+  - conda-forge
+  - kirill-odc
+
+dependencies:
+  - python =3.9
+  - pip =20
+  - mamba
+
+  # Datacube
+  - datacube >=1.8.6
+  - odc-stac
+
+  # planetary-computer lib for URL signing
+  - planetary-computer
+
+  # from kirill-odc
+  - odc-ui
+  - odc-algo
+  - odc-cloud
+  - odc-dscache
+
+  #  pin aiobotocore for easier resolution of dependencies
+  - aiobotocore ==1.4.1
+
+  # JupyterLab
+  - jupytext
+  - nodejs
+  - nbdime
+  - jupyter-server-proxy
+  - jupyterlab-git
+  - matplotlib
+  - ipympl
+  - ipyfilechooser
+  - ipycanvas
+  - sidecar
+  - dask-labextension
+  - python-graphviz
+  - bokeh
+
+  # Some Geo libs
+  - ipyleaflet
+  - bqplot
+  - leafmap
+  - geopandas
+  - hvplot
+  - holoviews
+  - rioxarray
+  - fiona
+  - numba
+
+  # tests and dev
+  - autopep8
+  - awscli
+  - black
+  - deepdiff
+  - docker-py   # moto fails without it
+  - hypothesis
+  - isort
+  - mock
+  - moto
+  - pycodestyle
+  - pylint
+  - pytest
+  - pytest-cov
+  - pytest-httpserver
+  - pytest-timeout
+  - python-dotenv  # for notebooks
+
+
+  - pip:
+      # JupyterLab dev convinience
+      - jupyterlab-code-formatter
+      - jupyterlab-code-snippets
+
+      # non-condified odc-tools
+      - odc-apps-cloud

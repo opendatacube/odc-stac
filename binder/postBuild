@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# This runs as a last step of Docker build
+echo "+++++++++++++++++++++++++++++++++"
+echo "+ post build started            +"
+echo "+++++++++++++++++++++++++++++++++"
+
+(cd binder/_home && tar c .) | tar x
