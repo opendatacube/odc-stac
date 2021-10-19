@@ -1,0 +1,11 @@
+temporary-directory: /tmp
+
+distributed:
+   dashboard:
+      link: "/user/__JUPYTERHUB_USER__/proxy/{port}/status"
+   worker:
+      memory:
+        target: 0.95
+        spill: 0.99
+        pause: 0.99
+        terminate: 0.99
