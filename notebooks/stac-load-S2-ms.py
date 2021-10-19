@@ -42,12 +42,12 @@
 # %%
 import numpy as np
 import planetary_computer as pc
-import pystac
 import yaml
 from dask.distributed import wait as dask_wait
 from IPython.display import display
-from odc.stac import stac_load
 from pystac_client import Client
+
+from odc.stac import stac_load
 
 # %% [markdown]
 # ## Configuration
@@ -179,7 +179,9 @@ from odc.ui.plt_tools import scl_colormap
 # like .astype(float32) but taking care of nodata->NaN mapping
 nir = to_float(xx.nir)
 red = to_float(xx.red)
-ndvi = (nir - red) / (nir + red)  # < This is still a lazy Dask computation (no data loaded yet)
+ndvi = (nir - red) / (
+    nir + red
+)  # < This is still a lazy Dask computation (no data loaded yet)
 
 # Get the 5-th time slice `load->compute->plot`
 _ = ndvi.isel(time=4).compute().plot.imshow(size=7, aspect=1.2, interpolation="bicubic")
@@ -243,9 +245,13 @@ _ = dask_wait([scl_rgb, im_rgba])
 # resize ~10 megapixel images down to small size.
 
 # %%
-scl_rgb.plot.imshow(col="time", col_wrap=3, size=3, aspect=1, interpolation="antialiased")
+scl_rgb.plot.imshow(
+    col="time", col_wrap=3, size=3, aspect=1, interpolation="antialiased"
+)
 
-fig = im_rgba.plot.imshow(col="time", col_wrap=3, size=3, aspect=1, interpolation="bicubic")
+fig = im_rgba.plot.imshow(
+    col="time", col_wrap=3, size=3, aspect=1, interpolation="bicubic"
+)
 for ax in fig.axes.ravel():
     ax.set_facecolor("magenta")
 
@@ -263,7 +269,9 @@ rgba_small = to_rgba(
 )
 
 # Same for SCL, but we can only use nearest|mode resampling
-scl_small = colorize(xr_reproject(xx.SCL, thumb_geobox, resampling="mode"), scl_colormap)
+scl_small = colorize(
+    xr_reproject(xx.SCL, thumb_geobox, resampling="mode"), scl_colormap
+)
 
 # Compress image 5 (index 4) to JPEG and display
 idx = 4
@@ -277,8 +285,12 @@ display(ipywidgets.HBox(ims))
 # %%
 # Change to True to display higher resolution
 if False:
-    display(ipywidgets.Image(value=to_jpeg_data(im_rgba.isel(time=idx).data.compute(), 90)))
-    display(ipywidgets.Image(value=to_jpeg_data(scl_rgb.isel(time=idx).data.compute(), 90)))
+    display(
+        ipywidgets.Image(value=to_jpeg_data(im_rgba.isel(time=idx).data.compute(), 90))
+    )
+    display(
+        ipywidgets.Image(value=to_jpeg_data(scl_rgb.isel(time=idx).data.compute(), 90))
+    )
 
 # %% [markdown]
 # --------------------------------
