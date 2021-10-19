@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.abspath(".."))
 from odc.stac._version import __version__ as _odc_stac_version
 
 
-def ensure_notebooks(git_url, dst_folder):
+def ensure_notebooks(git_url, branch, dst_folder):
     """
     Download pre-rendered notebooks from a gist for now
     """
@@ -29,11 +29,11 @@ def ensure_notebooks(git_url, dst_folder):
         return
 
     print(f"Cloning: {git_url} to {dst_folder}")
-    os.system(f"git clone --depth=1 '{git_url}' '{dst_folder}'")
+    os.system(f"git clone --depth=1 '{git_url}' -b '{branch}' '{dst_folder}'")
 
 
 ensure_notebooks(
-    "https://gist.github.com/4845c9f33509650e4a7a6e751d377fb6.git", "notebooks"
+    "https://github.com/opendatacube/odc-stac.git", "nb-renders", "notebooks"
 )
 
 # -- Project information -----------------------------------------------------
