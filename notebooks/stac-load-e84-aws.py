@@ -6,7 +6,11 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.13.0
+#       jupytext_version: 1.11.3
+#   kernelspec:
+#     display_name: Python 3
+#     language: python
+#     name: python3
 # ---
 
 # %% [markdown]
@@ -17,10 +21,10 @@
 # %%
 import odc.ui
 import yaml
+from IPython.display import display
 from odc.algo import to_rgba
-from pystac_client import Client
-
 from odc.stac import stac2ds, stac_load
+from pystac_client import Client
 
 # %%
 cfg = """---
@@ -45,7 +49,7 @@ sentinel-s2-l2a-cogs:
     green: B03
     blue: B02
 """
-cfg = yaml.load(cfg, Loader=yaml.CSafeLoader)
+cfg = yaml.load(cfg, Loader=yaml.SafeLoader)
 
 catalog = Client.open("https://earth-search.aws.element84.com/v0")
 
@@ -70,30 +74,32 @@ print(f"Found: {len(items):d} datasets")
 # %% [markdown]
 # ## Construct Dask Dataset
 #
-# Note that even though there are 9 STAC Items on input, there is only one timeslice on output. This is because of `groupy="solar_day"`. With that setting `stac_load` will place all items that occured on the same day (as adjusted for the timezone) into one image plane.
+# Note that even though there are 9 STAC Items on input, there is only one
+# timeslice on output. This is because of `groupy="solar_day"`. With that
+# setting `stac_load` will place all items that occured on the same day (as
+# adjusted for the timezone) into one image plane.
 
 # %%
-# crs = "epsg:32749"  # native UTM projection in the query region
-crs = "epsg:3857"  # Since we will plot it on a map we need to use 3857 projection
+# Since we will plot it on a map we need to use `EPSG:3857` projection
+crs = "epsg:3857"
 zoom = 2 ** 5  # overview level 5
 
 xx = stac_load(
     items,
+    bands=("red", "green", "blue"),
     crs=crs,
     resolution=10 * zoom,
-    chunks={},
+    chunks={},  # <-- use Dask
     groupby="solar_day",
-    measurements=["red", "green", "blue"],
     stac_cfg=cfg,
 )
-xx
+display(xx)
 
 # %% [markdown]
-# ## Convert to RGB and load
+# ## Load data and convert to RGBA
 
 # %%
 # %%time
-
 rgba = to_rgba(xx, clamp=(1, 3000))
 _rgba = rgba.compute()
 
@@ -105,7 +111,7 @@ dss = list(stac2ds(items, cfg))
 _map = odc.ui.show_datasets(dss, style={"fillOpacity": 0.1}, scroll_wheel_zoom=True)
 ovr = odc.ui.mk_image_overlay(_rgba)
 _map.add_layer(ovr)
-_map
+display(_map)
 
 # %% [markdown]
 # --------------------------------------------------------------
