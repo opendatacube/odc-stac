@@ -62,6 +62,11 @@ STAC_TO_EO3_RENAMES = {
     "view:sun_elevation": "eo:sun_elevation",
 }
 
+# Assets with these roles are ignored unless manually requested
+ROLES_THUMBNAIL = {"thumbnail", "overview"}
+
+# Used to detect image assets when media_type is missing
+RASTER_FILE_EXTENSIONS = {"tif", "tiff", "jpeg", "jpg", "jp2", "img"}
 
 (_eo3,) = (
     metadata_from_doc(d) for d in default_metadata_type_docs() if d.get("name") == "eo3"
@@ -161,8 +166,6 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
             return False
 
     roles: Set[str] = set(asset.roles or [])
-    thumb_roles = {"thumbnail", "overview"}
-    raster_extensions = {"tif", "tiff", "jpeg", "jpg"}
 
     media_type = asset.media_type
     if media_type is None:
@@ -176,7 +179,7 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
         # Image:
         #    False -- when thumbnail
         #    True  -- otherwise
-        if any(r in roles for r in thumb_roles):
+        if any(r in roles for r in ROLES_THUMBNAIL):
             return False
         return True
     else:
@@ -184,7 +187,7 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
         return False
 
     ext = asset.href.split(".")[-1].lower()
-    return ext in raster_extensions
+    return ext in RASTER_FILE_EXTENSIONS
 
 
 def _mk_1x1_geobox(geom: Geometry) -> GeoBox:
