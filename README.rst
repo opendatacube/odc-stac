@@ -1,7 +1,7 @@
 odc.stac
 ########
 
-|Documentation Status| |Test Status| |Test Coverage|
+|Documentation Status| |Test Status| |Test Coverage| |Binder|
 
 Tooling for converting STAC metadata to ODC data model.
 
@@ -83,3 +83,7 @@ Sample ``environment.yml`` is provided below.
 .. |Test Coverage| image:: https://codecov.io/gh/opendatacube/odc-stac/branch/develop/graph/badge.svg?token=HQ8nTuZHH5
    :target: https://codecov.io/gh/opendatacube/odc-stac
    :alt: Test Coverage
+
+.. |Binder| image:: https://mybinder.org/badge_logo.svg
+   :target: https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?urlpath=lab/workspaces/demo
+   :alt: Run Examples in Binder
