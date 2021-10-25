@@ -7,7 +7,7 @@ Utilities for translating STAC Items to EO3 Datasets.
 import datetime
 import uuid
 from collections import namedtuple
-from functools import partial, singledispatch
+from functools import singledispatch
 from typing import (
     Any,
     Dict,
@@ -482,6 +482,7 @@ def infer_dc_product_from_item(
        "*": # Applies to all collections if not defined on a collection
          warnings: ignore
     """
+    # pylint: disable=too-many-locals
     if cfg is None:
         cfg = {}
 
@@ -491,10 +492,15 @@ def infer_dc_product_from_item(
     _cfg.update(cfg.get(collection_id, {}))
 
     quiet = _cfg.get("warnings", "all") == "ignore"
+    band_cfg = _cfg.get("assets", {})
 
-    data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.valfilter(
-        partial(is_raster_data, check_proj=True), item.assets
-    )
+    def _keep(kv):
+        name, asset = kv
+        if name in band_cfg:
+            return True
+        return is_raster_data(asset, check_proj=True)
+
+    data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.itemfilter(_keep, item.assets)
 
     aliases = alias_map_from_eo(item, quiet=quiet)
     aliases.update(_cfg.get("aliases", {}))
@@ -502,7 +508,6 @@ def infer_dc_product_from_item(
     # 1. If band in user config -- use that
     # 2. Use data from raster extension (with fallback to "*" config)
     # 3. Use config for "*" from user config as fallback
-    band_cfg = _cfg.get("assets", {})
     band_defaults = _band_metadata(band_cfg.get("*", {}))
     for name, asset in data_bands.items():
         if name not in band_cfg:
