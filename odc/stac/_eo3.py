@@ -137,10 +137,9 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
     """
     Heuristic for determining if Asset points to raster data.
 
-    - Has "data" role --> True
-    - Has roles other than "data" --> False
-    - Has no role but
-      - media_type has ``image/``
+    - If media type looks like image and roles don't look like thumbnail/overview
+    - If media type is undefined and roles contains "data"
+    - If media type is undefined and href ends on image extension
 
     :param asset:
        STAC Asset to check
@@ -150,6 +149,9 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
        extension enabled and if yes only consider bands with
        projection data as "raster data" bands.
     """
+    # pylint: disable=too-many-return-statements
+    #   some of these are for readability
+
     if check_proj:
         if (
             asset.owner is not None
@@ -158,9 +160,31 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
         ):
             return False
 
-    if asset.roles is not None and len(asset.roles) > 0:
-        return "data" in asset.roles
-    return asset.media_type is not None and "image/" in asset.media_type
+    roles: Set[str] = set(asset.roles or [])
+    thumb_roles = {"thumbnail", "overview"}
+    raster_extensions = {"tif", "tiff", "jpeg", "jpg"}
+
+    media_type = asset.media_type
+    if media_type is None:
+        # Type undefined
+        #   Look if it has data role
+        if "data" in roles:
+            return True
+        if "metadata" in roles:
+            return False
+    elif "image/" in media_type:
+        # Image:
+        #    False -- when thumbnail
+        #    True  -- otherwise
+        if any(r in roles for r in thumb_roles):
+            return False
+        return True
+    else:
+        # Some type that is not `image/*`
+        return False
+
+    ext = asset.href.split(".")[-1].lower()
+    return ext in raster_extensions
 
 
 def _mk_1x1_geobox(geom: Geometry) -> GeoBox:
