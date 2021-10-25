@@ -11,8 +11,8 @@ from odc.stac import dc_load, eo3_geoboxes, stac2ds, stac_load
 from odc.stac._load import most_common_crs
 
 
-def test_dc_load_smoketest(sentinel_stac_ms):
-    item = pystac.item.Item.from_dict(sentinel_stac_ms)
+def test_dc_load_smoketest(sentinel_stac_ms: pystac.item.Item):
+    item = sentinel_stac_ms
     with pytest.warns(UserWarning, match="`rededge`"):
         (ds,) = stac2ds([item], {})
 
