@@ -1,6 +1,8 @@
 import uuid
 
 import pystac
+import pystac.item
+import pystac.collection
 import pytest
 from common import mk_stac_item
 from datacube.testutils.io import native_geobox
@@ -77,8 +79,8 @@ def test_mk_product():
         assert m.units == "1"
 
 
-def test_is_raster_data(sentinel_stac_ms):
-    item = pystac.Item.from_dict(sentinel_stac_ms)
+def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):
+    item = sentinel_stac_ms
     assert "B01" in item.assets
     assert "B02" in item.assets
 
@@ -89,8 +91,8 @@ def test_is_raster_data(sentinel_stac_ms):
     assert is_raster_data(item.assets["B02"])
 
 
-def test_eo3_grids(sentinel_stac_ms):
-    item0 = pystac.Item.from_dict(sentinel_stac_ms)
+def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
+    item0 = sentinel_stac_ms
 
     item = item0.clone()
     assert item.collection_id == "sentinel-2-l2a"
@@ -119,8 +121,8 @@ def test_eo3_grids(sentinel_stac_ms):
 
 
 def test_infer_product_collection(
-    sentinel_stac_collection: pystac.Collection,
-    sentinel_stac_ms_with_raster_ext: pystac.Item,
+    sentinel_stac_collection: pystac.collection.Collection,
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ):
 
     with pytest.warns(UserWarning):
@@ -159,8 +161,8 @@ def test_infer_product_collection(
         infer_dc_product([])
 
 
-def test_infer_product_item(sentinel_stac_ms):
-    item = pystac.Item.from_dict(sentinel_stac_ms)
+def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
+    item = sentinel_stac_ms
 
     assert item.collection_id in STAC_CFG
 
@@ -181,8 +183,8 @@ def test_infer_product_item(sentinel_stac_ms):
 
     assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
 
-    _stac = dicttoolz.dissoc(sentinel_stac_ms, "collection")
-    item_no_collection = pystac.Item.from_dict(_stac)
+    _stac = dicttoolz.dissoc(sentinel_stac_ms.to_dict(), "collection")
+    item_no_collection = pystac.item.Item.from_dict(_stac)
     assert item_no_collection.collection_id is None
 
     with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
@@ -190,7 +192,7 @@ def test_infer_product_item(sentinel_stac_ms):
     print(product)
 
 
-def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.Item):
+def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
     with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
         product = infer_dc_product(item)
@@ -205,8 +207,8 @@ def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.Item)
     assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
 
 
-def test_item_to_ds(sentinel_stac_ms):
-    item0 = pystac.Item.from_dict(sentinel_stac_ms)
+def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
+    item0 = sentinel_stac_ms
     item = item0.clone()
 
     assert item.collection_id in STAC_CFG
@@ -254,8 +256,8 @@ def test_item_to_ds(sentinel_stac_ms):
             infer_dc_product(item, STAC_CFG)
 
 
-def test_item_to_ds_no_proj(sentinel_stac_ms):
-    item0 = pystac.Item.from_dict(sentinel_stac_ms)
+def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
+    item0 = sentinel_stac_ms
     item = item0.clone()
     item.stac_extensions.remove(
         "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
@@ -268,13 +270,13 @@ def test_item_to_ds_no_proj(sentinel_stac_ms):
     geom = Geometry(item.geometry, "EPSG:4326")
     ds = item_to_ds(item, product)
     assert ds.crs == "EPSG:4326"
+    assert ds.extent is not None
     assert ds.extent.contains(geom)
     assert native_geobox(ds).shape == (1, 1)
 
 
-def test_asset_geobox(sentinel_stac):
-    item0 = pystac.Item.from_dict(sentinel_stac)
-
+def test_asset_geobox(sentinel_stac: pystac.item.Item):
+    item0 = sentinel_stac
     item = item0.clone()
     asset = item.assets["B01"]
     geobox = asset_geobox(asset)
@@ -309,12 +311,11 @@ def test_asset_geobox(sentinel_stac):
         asset_geobox(asset)
 
 
-def test_has_proj_ext(sentinel_stac_ms_no_ext):
-    item = pystac.Item.from_dict(sentinel_stac_ms_no_ext)
-    assert has_proj_ext(item) is False
+def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item):
+    assert has_proj_ext(sentinel_stac_ms_no_ext) is False
 
 
-def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.Item):
+def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
     asset = item.assets["SCL"]
     bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
