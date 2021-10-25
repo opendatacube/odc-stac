@@ -5,13 +5,14 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 from datacube.utils import geometry as geom
+
 from odc.index._grouper import group_by_nothing, key2num, mid_longitude, solar_offset
 from odc.index._index import (
     month_range,
     parse_doc_stream,
+    product_from_yaml,
     season_range,
     time_range,
-    product_from_yaml,
 )
 
 

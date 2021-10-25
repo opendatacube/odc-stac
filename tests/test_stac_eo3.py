@@ -2,8 +2,8 @@ import uuid
 
 import pystac
 import pystac.asset
-import pystac.item
 import pystac.collection
+import pystac.item
 import pytest
 from common import mk_stac_item
 from datacube.testutils.io import native_geobox
