@@ -1,6 +1,7 @@
 import uuid
 
 import pystac
+import pystac.asset
 import pystac.item
 import pystac.collection
 import pytest
@@ -353,3 +354,43 @@ def test_item_uuid():
     assert id1.version == 5
     assert id2.version == 5
     assert id1 != id2
+
+
+def test_is_raster_data_more():
+    def _a(href="http://example.com/", **kw):
+        return pystac.asset.Asset(href, **kw)
+
+    assert is_raster_data(_a(media_type="image/jpeg")) is True
+    assert is_raster_data(_a(media_type="image/jpeg", roles=["data"])) is True
+    assert is_raster_data(_a(media_type="image/jpeg", roles=["overview"])) is False
+    assert is_raster_data(_a(media_type="image/jpeg", roles=["thumbnail"])) is False
+
+    # no media type defined
+    assert is_raster_data(_a(roles=["data"])) is True
+    assert is_raster_data(_a(roles=["metadata"])) is False
+    assert is_raster_data(_a(roles=["custom-22"])) is False
+
+    # based on extension
+    assert is_raster_data(_a(href="/foo.tif")) is True
+    assert is_raster_data(_a(href="/foo.tiff")) is True
+    assert is_raster_data(_a(href="/foo.TIF")) is True
+    assert is_raster_data(_a(href="/foo.TIFF")) is True
+    assert is_raster_data(_a(href="/foo.jpeg")) is True
+    assert is_raster_data(_a(href="/foo.jpg")) is True
+
+
+def test_issue_n6(usgs_landsat_stac_v1):
+    expected_bands = {
+        "blue",
+        "coastal",
+        "green",
+        "nir08",
+        "red",
+        "swir16",
+        "swir22",
+        "qa_aerosol",
+        "qa_pixel",
+        "qa_radsat",
+    }
+    p = infer_dc_product(usgs_landsat_stac_v1)
+    assert set(p.measurements) == expected_bands
