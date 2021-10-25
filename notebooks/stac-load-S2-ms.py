@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.3
+#       jupytext_version: 1.13.0
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -24,7 +24,7 @@
 # We need to install extra libraries first:
 #
 # ```bash
-# pip install 'odc-stac>=0.2.0a9'
+# pip install 'odc-stac>=0.2.1'
 # ```
 #
 # This is enough to load data. But this notebook also uses some extra utilities
@@ -36,14 +36,15 @@
 #
 
 # %%
-# #!pip install odc-stac>=0.2.0a9
+# #!pip install odc-stac>=0.2.1
 # #!pip install odc-ui odc-algo
 
 # %%
+import dask.distributed
+import dask.utils
 import numpy as np
 import planetary_computer as pc
 import yaml
-from dask.distributed import wait as dask_wait
 from IPython.display import display
 from pystac_client import Client
 
@@ -89,9 +90,8 @@ cfg = yaml.load(cfg, Loader=yaml.CSafeLoader)
 # notebook.
 
 # %%
-from datacube.utils.dask import start_local_dask
-
-client = start_local_dask()
+client = dask.distributed.Client()
+display(client)
 
 # %% [markdown]
 # ## Query STAC API
@@ -124,8 +124,10 @@ print(f"Found: {len(items):d} datasets")
 # case EO extension defines common name `rededge` for bands 5, 6 and 7.
 
 # %%
-SHRINK = 4
 resolution = 10
+SHRINK = 4
+if client.cluster.workers[0].memory_limit < dask.utils.parse_bytes("4G"):
+    SHRINK = 8  # running on Binder with 2Gb RAM
 
 if SHRINK > 1:
     resolution = resolution * SHRINK
@@ -229,9 +231,12 @@ im_rgba = to_rgba(xx, clamp=(1, 3_000))
 # We will then pull results into local process for display as we need it.
 
 # %%
-# %%time
 scl_rgb, im_rgba = client.persist([scl_rgb, im_rgba])
-_ = dask_wait([scl_rgb, im_rgba])
+dask.distributed.progress([scl_rgb, im_rgba], multi=False)
+
+# %%
+# Can't merge with cell above as progress won't display then due to blocking
+_ = dask.distributed.wait([scl_rgb, im_rgba])
 
 # %% [markdown]
 # ## Plot Imagery
