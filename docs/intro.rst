@@ -7,7 +7,7 @@ Load STAC :class:`pystac.Item`\s into :class:`xarray.Dataset`.
 
 .. code-block:: python
 
-   catalog = pystac.Client.open(...)
+   catalog = pystac_client.Client.open(...)
    query = catalog.search(...)
    xx = odc.stac.load(
        query.get_items(),
