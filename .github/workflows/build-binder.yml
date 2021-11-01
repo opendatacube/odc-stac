@@ -1,0 +1,33 @@
+name: Build Binder Image
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'binder/**'
+      - '.github/workflows/build-binder.yml'
+
+jobs:
+  repo2docker:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Build Binder Image
+      uses: jupyterhub/repo2docker-action@0.2
+      id: dkr
+      with:
+        IMAGE_NAME: kirillodc/odc-stac-binder
+        DOCKER_USERNAME: kirillodc
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Debug
+      run: |
+        docker images
+        echo ${{ steps.dkr.outputs.IMAGE_SHA_NAME }}
+        echo ${DKR}
+        docker run --rm --entrypoint /srv/conda/envs/notebook/bin/mamba ${DKR} env export
+
+      env:
+          DKR: ${{ steps.dkr.outputs.IMAGE_SHA_NAME }}
