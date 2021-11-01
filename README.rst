@@ -14,7 +14,7 @@ odc.stac.load
 
 .. code-block:: python
 
-   catalog = pystac.Client.open(...)
+   catalog = pystac_client.Client.open(...)
    query = catalog.search(...)
    xx = odc.stac.load(
        query.get_items(),
