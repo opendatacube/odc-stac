@@ -1,18 +1,27 @@
-name: Publish odc-stac to PyPI
+name: Publish to PyPI
 
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["Run Code Checks"]
+    branches: [develop]
+    types:
+      - completed
 
 jobs:
   publish-pypi:
     if: |
         github.repository == 'opendatacube/odc-stac'
-        && (github.ref == 'refs/heads/stable' || github.ref == 'refs/heads/develop')
+        && github.event.workflow_run.conclusion == 'success'
 
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
+    - uses: actions/cache@v2
+      id: wheels_cache
+      with:
+        path: ./wheels
+        key: wheels-${{ github.sha }}
 
     - name: Setup Python
       uses: actions/setup-python@v1
@@ -28,14 +37,8 @@ jobs:
          wheel \
          twine
         python -m pip freeze
-    - uses: actions/cache@v2
-      id: wheels_cache
-      with:
-        path: ./wheels
-        key: wheels-${{ github.sha }}
 
     - name: Upload to PyPI
-      if: steps.cfg.outputs.publish == 'yes'
       env:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         TWINE_USERNAME: __token__
