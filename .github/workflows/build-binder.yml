@@ -22,12 +22,28 @@ jobs:
         DOCKER_USERNAME: kirillodc
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Debug
-      run: |
-        docker images
-        echo ${{ steps.dkr.outputs.IMAGE_SHA_NAME }}
-        echo ${DKR}
-        docker run --rm --entrypoint /srv/conda/envs/notebook/bin/mamba ${DKR} env export
+    - name: Print Notice
+      uses: actions/github-script@v5
+      env:
+        DKR: ${{ steps.dkr.outputs.IMAGE_SHA_NAME }}
+      with:
+        script: |
+          const {DKR} = process.env
+          core.notice(`Built Docker Image: '${DKR}'`)
 
+    - name: Dump conda environment
+      run: |
+        echo "# ${DKR}" > /tmp/environment.yaml
+        docker run --rm \
+          --entrypoint /srv/conda/envs/notebook/bin/mamba \
+          ${DKR} \
+          env export | tee --append /tmp/environment.yaml
       env:
           DKR: ${{ steps.dkr.outputs.IMAGE_SHA_NAME }}
+
+    - name: Publish environment.yaml artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: environment
+        path: /tmp/environment.yaml
+        if-no-files-found: error
