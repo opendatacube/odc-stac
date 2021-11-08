@@ -311,15 +311,50 @@ jobs:
         DASK_TEMPORARY_DIRECTORY: /tmp/dask
         DATACUBE_DB_URL: postgresql:///datacube
 
+  build-notebooks:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Run Notebooks
+      run: |
+        docker pull $DKR
+
+        nb_dir=docs/notebooks
+        mkdir -p $nb_dir
+        for src in $(find notebooks -type f -maxdepth 1 -name '*py'); do
+           dst="$nb_dir/$(basename ${src%%.py}.ipynb)"
+           echo "$src -> $dst"
+           docker run -i --entrypoint ./binder/render-nb-pipe.sh $DKR <$src >$dst
+        done
+        ls -lh $nb_dir
+
+      env:
+        DKR: kirillodc/odc-stac-binder:latest
+
+    - name: Upload Rendered Notebooks (artifact)
+      uses: actions/upload-artifact@v2
+      with:
+        name: rendered-notebooks
+        path: docs/notebooks/
+        if-no-files-found: error
+
   check-docs:
     runs-on: ubuntu-latest
 
     needs:
       - build-test-env-base
       - run-black-check
+      - build-notebooks
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Download Rendered Notebooks
+      uses: actions/download-artifact@v2
+      with:
+        name: rendered-notebooks
 
     - name: Get Conda Environment from Cache
       uses: actions/cache@v2
@@ -342,3 +377,23 @@ jobs:
       shell: bash
       run: |
         make -C docs html
+
+    - name: Deploy to Netlify
+      id: netlify
+      uses: nwtgck/actions-netlify@v1.0
+      with:
+        production-branch: 'main'
+        publish-dir: 'docs/_build/html'
+        deploy-message: "Deploy from GitHub Actions"
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+    - name: Print Notice
+      uses: actions/github-script@v5
+      env:
+        NETLIFY_URL: ${{ steps.netlify.outputs.deploy-url }}
+      with:
+        script: |
+          const {NETLIFY_URL} = process.env
+          core.notice(`Published to: ${NETLIFY_URL}`)
