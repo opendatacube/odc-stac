@@ -1,0 +1,39 @@
+name: Render Example Notebooks
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+    - 'notebooks/*py'
+    - '.github/workflows/render.yml'
+
+env:
+  DKR: kirillodc/odc-stac-binder:latest
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Pull Docker
+      run: |
+        docker pull $DKR
+
+    - name: Run Notebooks
+      run: |
+        mkdir -p rendered
+        for src in $(find notebooks -type f -maxdepth 1 -name '*py'); do
+           dst="rendered/$(basename ${src%%.py}.ipynb)"
+           echo "$src -> $dst"
+           docker run -i --entrypoint ./binder/render-nb-pipe.sh $DKR <$src >$dst
+        done
+        ls -lh rendered/
+
+    - name: Upload results (artifact)
+      uses: actions/upload-artifact@v2
+      with:
+        name: rendered-notebooks
+        path: rendered/
+        if-no-files-found: error
