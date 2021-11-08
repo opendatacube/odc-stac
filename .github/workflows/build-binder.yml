@@ -3,6 +3,8 @@ name: Build Binder Image
 on:
   workflow_dispatch:
   push:
+    branches:
+      - develop
     paths:
       - 'binder/**'
       - '.github/workflows/build-binder.yml'
