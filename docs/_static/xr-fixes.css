@@ -1,0 +1,29 @@
+/* xarray widget tweaks
+
+   Some styles from default theme interfere, so define more specific rules to
+   override
+*/
+
+.rst-content section ul.xr-var-list li>* {
+	  margin-top: 0px;
+	  margin-bottom: 0px
+}
+
+.rst-content dl.xr-attrs dt,
+.rst-content dl.xr-attrs dd {
+	  margin: 0px 0;
+	  font-size: inherit;
+	  background: inherit;
+	  color: inherit;
+	  border-top: none;
+	  padding: 0px;
+}
+
+.rst-content dl.xr-attrs dt {
+	  font-weight: normal;
+	  grid-column: 1;
+}
+
+.rst-content dl.xr-attrs dd {
+	  grid-column: 2;
+}
