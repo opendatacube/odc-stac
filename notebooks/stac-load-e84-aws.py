@@ -25,7 +25,7 @@ from IPython.display import display
 from odc.algo import to_rgba
 from pystac_client import Client
 
-from odc.stac import stac2ds, stac_load
+from odc.stac import stac_load
 
 # %%
 cfg = """---
@@ -107,11 +107,25 @@ _rgba = rgba.compute()
 # %% [markdown]
 # ## Display Image on a map
 
-# %%
-dss = list(stac2ds(items, cfg))
-_map = odc.ui.show_datasets(dss, style={"fillOpacity": 0.1}, scroll_wheel_zoom=True)
+# %% tags=[]
+from ipyleaflet import FullScreenControl, ImageOverlay, LayersControl, Map
+
+# This compresses image with png and packs it into `data` url
+# it then computes Image bounds and return `ipyleaflet.ImageOverlay`
 ovr = odc.ui.mk_image_overlay(_rgba)
+
+# Make a leaflet.Map object
+_map = Map(scroll_wheel_zoom=True, zoom=1)
+_map.layout.height = "600px"
+_map.add_control(FullScreenControl())
+_map.add_control(LayersControl())
+
+# Add Image overlay
 _map.add_layer(ovr)
+
+# Zoom to area of interest
+_map.fit_bounds(ovr.bounds[::-1])  # need to flip Y axis
+
 display(_map)
 
 # %% [markdown]
