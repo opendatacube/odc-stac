@@ -390,7 +390,6 @@ jobs:
         deploy-message: "Deploy from GitHub Actions"
         github-token: ${{ secrets.GITHUB_TOKEN }}
         enable-pull-request-comment: true
-        overwrites-pull-request-comment: true
         enable-commit-comment: false
 
       env:
