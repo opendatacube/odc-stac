@@ -382,6 +382,7 @@ jobs:
 
     - name: Deploy to Netlify
       id: netlify
+      if: github.event_name == 'pull_request'
       uses: nwtgck/actions-netlify@v1.0
       with:
         production-branch: 'main'
@@ -393,6 +394,7 @@ jobs:
 
     - name: Print Notice
       uses: actions/github-script@v5
+      if: github.event_name == 'pull_request'
       env:
         NETLIFY_URL: ${{ steps.netlify.outputs.deploy-url }}
       with:
