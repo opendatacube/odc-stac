@@ -12,29 +12,53 @@
 #
 import os
 import sys
+from pathlib import Path
+import subprocess
 
 sys.path.insert(0, os.path.abspath(".."))
 from odc.stac._version import __version__ as _odc_stac_version
 
 
-def ensure_notebooks(git_url, branch, dst_folder):
+def compute_nb_hash(folder):
+    nb_hash = (
+        subprocess.check_output(
+            [
+                "/bin/bash",
+                "-c",
+                f"find {folder} -maxdepth 1 -name '*.py' -type f | sort -f -d | xargs cat | sha256sum | cut -b -16",
+            ]
+        )
+        .decode("ascii")
+        .split()[0]
+    )
+    return nb_hash
+
+
+def ensure_notebooks(https_url, dst_folder):
     """
-    Download pre-rendered notebooks from a gist for now
+    Download pre-rendered notebooks from a tar archive
     """
-    from pathlib import Path
 
     dst_folder = Path(dst_folder)
     if dst_folder.exists():
         print(f"Found pre-rendered notebooks in {dst_folder}")
         return
 
-    print(f"Cloning: {git_url} to {dst_folder}")
-    os.system(f"git clone --depth=1 '{git_url}' -b '{branch}' '{dst_folder}'")
+    dst_folder.mkdir()
+    print(f"Fetching: {https_url} to {dst_folder}")
+    log = subprocess.check_output(
+        ["/bin/bash", "-c", f"curl -s {https_url} | tar xz -C {dst_folder}"]
+    ).decode("utf-8")
+    print(log)
 
 
-ensure_notebooks(
-    "https://github.com/opendatacube/odc-stac.git", "nb-renders", "notebooks"
+# working directory is docs/
+# download pre-rendered notebooks unless folder is already populated
+nb_hash = compute_nb_hash("../notebooks")
+https_url = (
+    f"https://packages.dea.ga.gov.au/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz"
 )
+ensure_notebooks(https_url, "notebooks")
 
 # -- Project information -----------------------------------------------------
 
