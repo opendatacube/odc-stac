@@ -22,7 +22,7 @@ s3://datacube-core-deployment/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz
 https://packages.dea.ga.gov.au/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz
 ```
 
-Where `{nb_hash}` is a 16 character hash computed from the content of `noteboos/*.py`
+Where `{nb_hash}` is a 16 character hash computed from the content of `notebooks/*.py`
 
 ```
 find notebooks/ -maxdepth 1 -name '*.py' -type f | \ 
