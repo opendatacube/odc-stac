@@ -115,16 +115,16 @@ from ipyleaflet import FullScreenControl, ImageOverlay, LayersControl, Map
 ovr = odc.ui.mk_image_overlay(_rgba)
 
 # Make a leaflet.Map object
-_map = Map(scroll_wheel_zoom=True, zoom=1)
+lon, lat = rgba.geobox.geographic_extent.centroid.coords[0]
+_map = Map(scroll_wheel_zoom=True, center=(lat, lon), zoom=8)
+
+# Make a leaflet.Map object
 _map.layout.height = "600px"
 _map.add_control(FullScreenControl())
 _map.add_control(LayersControl())
 
 # Add Image overlay
 _map.add_layer(ovr)
-
-# Zoom to area of interest
-_map.fit_bounds(ovr.bounds[::-1])  # need to flip Y axis
 
 display(_map)
 
