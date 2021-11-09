@@ -11,19 +11,19 @@
 
 .rst-content dl.xr-attrs dt,
 .rst-content dl.xr-attrs dd {
-	  margin: 0px 0;
-	  font-size: inherit;
-	  background: inherit;
-	  color: inherit;
-	  border-top: none;
-	  padding: 0px;
+	  margin: 0px 0 !important;
+	  font-size: inherit !important;
+	  background: inherit !important;
+	  color: inherit !important;
+	  border-top: none !important;
+	  padding: 0px !important;
 }
 
 .rst-content dl.xr-attrs dt {
-	  font-weight: normal;
-	  grid-column: 1;
+	  font-weight: normal !important;
+	  grid-column: 1 !important;
 }
 
 .rst-content dl.xr-attrs dd {
-	  grid-column: 2;
+	  grid-column: 2 !important;
 }
