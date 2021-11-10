@@ -4,41 +4,43 @@
    override
 */
 
+
 /* override theme default of 800px which is too narrow I feel*/
 .wy-nav-content {
-    max-width: 60em;
+    max-width: 56em;
 }
 
 .rst-content ul.xr-var-list li>* {
-	  margin-top: 0px !important;
-	  margin-bottom: 0px !important;
+    margin-top: 0px !important;
+    margin-bottom: 0px !important;
 }
 
 .rst-content ul.xr-dim-list li {
-	  display: inline-block !important;
-    padding: 0 !important;;
+    display: inline-block !important;
+    padding: 0 !important;
+    ;
     margin: 0 !important;
 }
 
 .rst-content dl.xr-attrs dt,
 .rst-content dl.xr-attrs dd {
-	  margin: 0px 0 !important;
-	  font-size: inherit !important;
-	  background: inherit !important;
-	  color: inherit !important;
-	  border-top: none !important;
-	  padding: 0px 10px 0px 0px !important;
-	  float: left !important;
-	  white-space: nowrap !important;
+    margin: 0px 0 !important;
+    font-size: inherit !important;
+    background: inherit !important;
+    color: inherit !important;
+    border-top: none !important;
+    padding: 0px 10px 0px 0px !important;
+    float: left !important;
+    white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
 }
 
 .rst-content dl.xr-attrs dt {
-	  font-weight: normal !important;
-	  grid-column: 1 !important;
+    font-weight: normal !important;
+    grid-column: 1 !important;
 }
 
 .rst-content dl.xr-attrs dd {
-	  grid-column: 2 !important;
+    grid-column: 2 !important;
 }
