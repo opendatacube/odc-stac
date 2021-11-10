@@ -15,6 +15,8 @@
 
 # %% [markdown] tags=[]
 # # Access Sentinel 2 Data on Planetary Computer
+#
+# [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?labpath=notebooks%2Fstac-load-S2-ms.ipynb)
 
 # %% [markdown] tags=[]
 # ## Setup Instructions
