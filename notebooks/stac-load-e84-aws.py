@@ -16,6 +16,8 @@
 # %% [markdown]
 # # Access Sentinel 2 Data from AWS
 #
+# [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?labpath=notebooks%2Fstac-load-e84-aws.ipynb)
+#
 # https://registry.opendata.aws/sentinel-2-l2a-cogs/
 
 # %%
