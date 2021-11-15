@@ -241,3 +241,7 @@ def test_normalize_geometry(sample_geojson):
 
     with pytest.raises(ValueError):
         _normalize_geometry({})
+
+    # some object without __geo_interface__
+    with pytest.raises(ValueError):
+        _normalize_geometry(epsg4326)
