@@ -26,7 +26,8 @@ def _geojson_to_shapely(xx: Any) -> shapely.geometry.base.BaseGeometry:
         return shapely.geometry.GeometryCollection(
             [shapely.geometry.shape(feature["geometry"]) for feature in features]
         )
-    elif _type == "feature":
+
+    if _type == "feature":
         return shapely.geometry.shape(xx["geometry"])
 
     return shapely.geometry.shape(xx)
