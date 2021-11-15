@@ -27,6 +27,7 @@ dependencies:
   - mock
   - deepdiff
   - pystac-client >=0.2.0
+  - geopandas
 
   # for docs
   - sphinx

@@ -1,13 +1,16 @@
 from copy import deepcopy
 from unittest.mock import MagicMock
 
+import geopandas as gpd
 import pystac
 import pystac.item
 import pytest
+import shapely.geometry
 from datacube.model import Dataset
 from pyproj.crs.crs import CRS
 
 from odc.stac import dc_load, eo3_geoboxes, stac2ds, stac_load
+from odc.stac._dcload import _geojson_to_shapely, _normalize_geometry
 from odc.stac._load import most_common_crs
 
 
@@ -144,6 +147,29 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
         ).nir.geobox
     )
 
+    geopolygon = shapely.geometry.box(*bbox)
+    assert (
+        stac_load(
+            [item],
+            ["nir"],
+            crs="epsg:3857",
+            resolution=10,
+            chunks={},
+            lon=(x1, x2),
+            lat=(y1, y2),
+            product_cache=product_cache,
+        ).nir.geobox
+        == stac_load(
+            [item],
+            ["nir"],
+            crs="epsg:3857",
+            resolution=10,
+            chunks={},
+            geopolygon=geopolygon,
+            product_cache=product_cache,
+        ).nir.geobox
+    )
+
 
 def test_eo3_geoboxes(s2_dataset):
     geoboxes = eo3_geoboxes(s2_dataset)
@@ -193,3 +219,25 @@ def test_most_common_crs():
 
     assert most_common_crs([epsg3857, epsg4326, epsg4326]) is epsg4326
     assert most_common_crs([epsg3857, epsg3857, epsg4326]) is epsg3857
+
+
+def test_normalize_geometry(sample_geojson):
+    # sample_geojson has one feature wrapped in featurecollection
+    epsg4326 = CRS("epsg:4326")
+    g0 = _normalize_geometry(sample_geojson)
+    assert g0.crs == epsg4326
+    assert _normalize_geometry(sample_geojson["features"][0]) == g0
+    assert _normalize_geometry(sample_geojson["features"][0]["geometry"]) == g0
+
+    assert _normalize_geometry(g0) is g0
+
+    g_shapely = _geojson_to_shapely(sample_geojson)
+    assert _normalize_geometry(g_shapely) == g0
+
+    gg = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    geom = _normalize_geometry(gg[gg.continent == "Africa"])
+    assert geom.crs == epsg4326
+    assert geom.contains(_normalize_geometry(gg[gg.name == "Tanzania"]))
+
+    with pytest.raises(ValueError):
+        _normalize_geometry({})

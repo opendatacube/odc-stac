@@ -140,7 +140,7 @@ def load(
     y: Optional[Tuple[float, float]] = None,
     align: Optional[Union[float, int, Tuple[float, float]]] = None,
     like: Optional[Any] = None,
-    geopolygon: Optional[datacube.utils.geometry.Geometry] = None,
+    geopolygon: Optional[Any] = None,
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
@@ -259,6 +259,13 @@ def load(
 
     :param like:
        Match output grid to the data loaded previously.
+
+    :param geopolygon:
+       Limit returned result to a bounding box of a given geometry. This could be an
+       instance of :class:`~datacube.utils.geometry.Geometry`, GeoJSON dictionary,
+       GeoPandas DataFrame, or any object implementing ``__geo_interface__``. We assume
+       ``EPSG:4326`` projection for dictionary and Shapely inputs. CRS information available
+       on GeoPandas inputs should be understood correctly.
 
     .. rubric:: STAC Related Options
 

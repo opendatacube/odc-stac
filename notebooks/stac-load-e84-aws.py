@@ -30,8 +30,9 @@ import yaml
 from branca.element import Figure
 from IPython.display import HTML, display
 from odc.algo import to_rgba
-from odc.stac import stac_load
 from pystac_client import Client
+
+from odc.stac import stac_load
 
 
 # %%
