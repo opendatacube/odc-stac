@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.3
+#       jupytext_version: 1.13.0
 #   kernelspec:
 #     display_name: Python 3
 #     language: python
@@ -21,13 +21,31 @@
 # https://registry.opendata.aws/sentinel-2-l2a-cogs/
 
 # %%
+import folium
+import folium.plugins
+import geopandas as gpd
 import odc.ui
+import shapely.geometry
 import yaml
-from ipyleaflet import FullScreenControl, GeoJSON, LayersControl, Map, Rectangle
-from IPython.display import Image, display
+from branca.element import Figure
+from IPython.display import HTML, display
 from odc.algo import to_rgba
 from odc.stac import stac_load
 from pystac_client import Client
+
+
+# %%
+def convert_bounds(bbox, invert_y=False):
+    """
+    Helper method for changing bounding box representation to leaflet notation
+
+    ``(lon1, lat1, lon2, lat2) -> ((lat1, lon1), (lat2, lon2))``
+    """
+    x1, y1, x2, y2 = bbox
+    if invert_y:
+        y1, y2 = y2, y1
+    return ((y1, x1), (y2, x2))
+
 
 # %%
 cfg = """---
@@ -72,61 +90,68 @@ query = catalog.search(
 items = list(query.get_items())
 print(f"Found: {len(items):d} datasets")
 
+# Convert STAC items into a GeoJSON FeatureCollection
+stac_json = query.get_all_items_as_dict()
+
+# %% [markdown]
+# ## Review Query Result
+#
+# We'll use GeoPandas DataFrame object to make plotting easier.
+
+# %%
+gdf = gpd.GeoDataFrame.from_features(stac_json, "epsg:4326")
+
+# Compute granule id from components
+gdf["granule"] = (
+    gdf["sentinel:utm_zone"].apply(lambda x: f"{x:02d}")
+    + gdf["sentinel:latitude_band"]
+    + gdf["sentinel:grid_square"]
+)
+
+fig = gdf.plot(
+    "granule",
+    edgecolor="black",
+    categorical=True,
+    aspect="equal",
+    alpha=0.5,
+    figsize=(6, 12),
+    legend=True,
+    legend_kwds={"loc": "upper left", "frameon": False, "ncol": 1},
+)
+_ = fig.set_title("STAC Query Results")
+
 # %% [markdown]
 # ## Plot STAC Items on a Map
 
 # %%
-query_rectangle = Rectangle(
-    bounds=(
-        bbox[:2][::-1],
-        bbox[2:][::-1],
-    ),  # IPyleaflet expects ((lat1, lon1), (lat2, lon2))
-    fill=False,
-    weight=3,
-    opacity=0.7,
-    color="olive",
+# https://github.com/python-visualization/folium/issues/1501
+fig = Figure(width="400px", height="500px")
+map1 = folium.Map()
+fig.add_child(map1)
+
+folium.GeoJson(
+    shapely.geometry.box(*bbox),
+    style_function=lambda x: dict(fill=False, weight=1, opacity=0.7, color="olive"),
     name="Query",
-)
+).add_to(map1)
 
-# Convert STAC items into a GeoJSON FeatureCollection
-stac_json = {
-    "type": "FeatureCollection",
-    "features": [item.to_dict() for item in items],
-}
-
-footprint_style = dict(
-    fillColor="black",
-    fillOpacity=0.0,
-    weight=1,
-    opacity=0.6,
-    color="magenta",
-    dashArray=1,
-)
-hover_style = dict(
-    weight=4,
-    opacity=1,
-    color="tomato",
-)
-
-# Make GeoJSON layer with styles
-stac_layer = GeoJSON(
-    data=stac_json,
-    style=footprint_style,
-    hover_style=hover_style,
+gdf.explore(
+    "granule",
+    categorical=True,
+    tooltip=[
+        "granule",
+        "datetime",
+        "sentinel:data_coverage",
+        "eo:cloud_cover",
+    ],
+    popup=True,
+    style_kwds=dict(fillOpacity=0.1, width=2),
     name="STAC",
+    m=map1,
 )
 
-# Make a leaflet.Map object
-map1 = Map(scroll_wheel_zoom=True, center=(y, x), zoom=5)
-map1.layout.height = "300px"
-map1.layout.width = "300px"
-
-# Plot query rectangle
-map1.add_layer(query_rectangle)
-# Plot footprints on top
-map1.add_layer(stac_layer)
-
-display(map1)
+map1.fit_bounds(bounds=convert_bounds(gdf.unary_union.bounds))
+display(fig)
 
 # %% [markdown]
 # ## Construct Dask Dataset
@@ -164,25 +189,41 @@ _rgba = rgba.compute()
 # ## Display Image on a map
 
 # %%
-# This compresses image with png and packs it into `data` url
-# it then computes Image bounds and return `ipyleaflet.ImageOverlay`
-ovr = odc.ui.mk_image_overlay(_rgba)
+map2 = folium.Map()
 
-# Make a leaflet.Map object
-lon, lat = rgba.geobox.geographic_extent.centroid.coords[0]
-map2 = Map(scroll_wheel_zoom=True, center=(lat, lon), zoom=8)
-map2.layout.height = "600px"
-map2.add_control(FullScreenControl())
-map2.add_control(LayersControl())
+folium.GeoJson(
+    shapely.geometry.box(*bbox),
+    style_function=lambda x: dict(fill=False, weight=1, opacity=0.7, color="olive"),
+    name="Query",
+).add_to(map2)
 
-# Add Image overlay
-map2.add_layer(ovr)
+gdf.explore(
+    "granule",
+    categorical=True,
+    tooltip=[
+        "granule",
+        "datetime",
+        "sentinel:data_coverage",
+        "eo:cloud_cover",
+    ],
+    popup=True,
+    style_kwds=dict(fillOpacity=0.1, width=2),
+    name="STAC",
+    m=map2,
+)
 
-# Plot footprints on top
-map2.add_layer(query_rectangle)
-map2.add_layer(stac_layer)
 
-display(map2)
+# Image bounds are specified in Lat/Lon order with Lat axis inversed
+image_bounds = convert_bounds(_rgba.geobox.geographic_extent.boundingbox, invert_y=True)
+img_ovr = folium.raster_layers.ImageOverlay(
+    _rgba.isel(time=0).data, bounds=image_bounds, name="Image"
+)
+img_ovr.add_to(map2)
+map2.fit_bounds(bounds=image_bounds)
+
+folium.LayerControl().add_to(map2)
+folium.plugins.Fullscreen().add_to(map2)
+map2
 
 # %% [markdown]
 # ## Load with bounding box
@@ -196,7 +237,7 @@ display(map2)
 # Let's load a small region at native resolution to demonstrate.
 
 # %%
-r = 6 * km2deg
+r = 6.5 * km2deg
 small_bbox = (x - r, y - r, x + r, y + r)
 
 yy = stac_load(
@@ -212,7 +253,22 @@ yy = stac_load(
 im_small = to_rgba(yy, clamp=(1, 3000)).compute()
 
 # %%
-display(Image(data=odc.ui.to_jpeg_data(im_small.isel(time=0).data, quality=80)))
+img_zoomed_in = odc.ui.mk_data_uri(
+    odc.ui.to_jpeg_data(im_small.isel(time=0).data, quality=80), "image/jpeg"
+)
+print(f"Image url: {img_zoomed_in[:64]}...")
+
+# %%
+HTML(
+    data=f"""
+<style> .img-two-column{{
+  width: 50%;
+  float: left;
+}}</style>
+<img src="{img_zoomed_in}" alt="Sentinel-2 Zoom in" class="img-two-column">
+<img src="{img_ovr.url}" alt="Sentinel-2 Mosaic" class="img-two-column">
+"""
+)
 
 # %% [markdown]
 # --------------------------------------------------------------
