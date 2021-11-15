@@ -2,11 +2,50 @@
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Union
 from warnings import warn
 
+import datacube.utils.geometry
+import shapely.geometry
 import xarray as xr
 from datacube import Datacube
 from datacube.api.core import output_geobox
 from datacube.model import Dataset
 from datacube.utils.geometry import GeoBox
+
+
+def _geojson_to_shapely(xx: Any) -> shapely.geometry.base.BaseGeometry:
+    _type = xx.get("type", None)
+
+    if _type is None:
+        raise ValueError("Not a valid GeoJSON")
+
+    _type = _type.lower()
+    if _type == "featurecollection":
+        features = xx.get("features", [])
+        if len(features) == 1:
+            return shapely.geometry.shape(features[0]["geometry"])
+        else:
+            return shapely.geometry.GeometryCollection(
+                [shapely.geometry.shape(feature["geometry"]) for feature in features]
+            )
+    elif _type == "feature":
+        return shapely.geometry.shape(xx["geometry"])
+
+    return shapely.geometry.shape(xx)
+
+
+def _normalize_geometry(xx: Any) -> datacube.utils.geometry.Geometry:
+    if isinstance(xx, shapely.geometry.base.BaseGeometry):
+        return datacube.utils.geometry.Geometry(xx, "epsg:4326")
+
+    if isinstance(xx, datacube.utils.geometry.Geometry):
+        return xx
+
+    if isinstance(xx, dict):
+        return datacube.utils.geometry.Geometry(_geojson_to_shapely(xx), "epsg:4326")
+
+    # GeoPandas
+    _geo = getattr(xx, "__geo_interface__", None)
+    _crs = getattr(xx, "crs", "epsg:4326")
+    return datacube.utils.geometry.Geometry(_geojson_to_shapely(_geo), _crs)
 
 
 # pylint: disable=too-many-arguments
@@ -53,6 +92,9 @@ def dc_load(
         ]
         if k in kw
     }
+
+    if "geopolygon" in geo_keys:
+        geo_keys["geopolygon"] = _normalize_geometry(geo_keys["geopolygon"])
 
     ds = datasets[0]
     product = ds.type

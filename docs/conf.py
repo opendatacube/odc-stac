@@ -11,9 +11,9 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import subprocess
 import sys
 from pathlib import Path
-import subprocess
 
 sys.path.insert(0, os.path.abspath(".."))
 from odc.stac._version import __version__ as _odc_stac_version

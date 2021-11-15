@@ -115,3 +115,31 @@ def s2_dataset(sentinel_stac_ms_with_raster_ext):
         [sentinel_stac_ms_with_raster_ext], cfg={"*": {"warnings": "ignore"}}
     )
     yield ds
+
+
+@pytest.fixture
+def sample_geojson():
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"name": "Kangaroo Island"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [136.351318359375, -35.78217070326606],
+                            [136.7303466796875, -36.16448788632062],
+                            [137.5323486328125, -36.16005298551352],
+                            [137.8179931640625, -35.933540642493114],
+                            [138.0816650390625, -36.05798104702501],
+                            [138.2025146484375, -35.74205383068035],
+                            [137.5653076171875, -35.46066995149529],
+                            [136.351318359375, -35.78217070326606],
+                        ]
+                    ],
+                },
+            }
+        ],
+    }
