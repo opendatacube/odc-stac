@@ -22,10 +22,10 @@ def _geojson_to_shapely(xx: Any) -> shapely.geometry.base.BaseGeometry:
         features = xx.get("features", [])
         if len(features) == 1:
             return shapely.geometry.shape(features[0]["geometry"])
-        else:
-            return shapely.geometry.GeometryCollection(
-                [shapely.geometry.shape(feature["geometry"]) for feature in features]
-            )
+
+        return shapely.geometry.GeometryCollection(
+            [shapely.geometry.shape(feature["geometry"]) for feature in features]
+        )
     elif _type == "feature":
         return shapely.geometry.shape(xx["geometry"])
 
@@ -44,6 +44,9 @@ def _normalize_geometry(xx: Any) -> datacube.utils.geometry.Geometry:
 
     # GeoPandas
     _geo = getattr(xx, "__geo_interface__", None)
+    if _geo is None:
+        raise ValueError("Can't interpret value as geometry")
+
     _crs = getattr(xx, "crs", "epsg:4326")
     return datacube.utils.geometry.Geometry(_geojson_to_shapely(_geo), _crs)
 
