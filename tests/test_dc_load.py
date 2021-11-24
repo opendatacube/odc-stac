@@ -2,12 +2,14 @@ from copy import deepcopy
 from unittest.mock import MagicMock
 
 import geopandas as gpd
+import geopandas.datasets
 import pystac
 import pystac.item
 import pytest
 import shapely.geometry
 from datacube.model import Dataset
 from pyproj.crs.crs import CRS
+from shapely.geometry import geo
 
 from odc.stac import dc_load, eo3_geoboxes, stac2ds, stac_load
 from odc.stac._dcload import _geojson_to_shapely, _normalize_geometry
@@ -234,7 +236,7 @@ def test_normalize_geometry(sample_geojson):
     g_shapely = _geojson_to_shapely(sample_geojson)
     assert _normalize_geometry(g_shapely) == g0
 
-    gg = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    gg = gpd.read_file(geopandas.datasets.get_path("naturalearth_lowres"))
     geom = _normalize_geometry(gg[gg.continent == "Africa"])
     assert geom.crs == epsg4326
     assert geom.contains(_normalize_geometry(gg[gg.name == "Tanzania"]))

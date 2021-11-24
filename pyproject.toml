@@ -12,6 +12,8 @@ omit = [
   "tests/*"
 ]
 
+[tool.isort]
+profile = "black"
 
 [tool.pylint.messages_control]
 
@@ -21,4 +23,5 @@ disable = [
   "missing-function-docstring",
   "invalid-name",
   "fixme",
+  "wrong-import-order",
 ]
