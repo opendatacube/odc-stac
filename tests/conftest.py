@@ -26,6 +26,8 @@ SENTINEL_ODC: str = "S2A_28QCH_20200714_0_L2A.odc-metadata.json"
 USGS_LANDSAT_STAC_v1b: str = "LC08_L2SR_081119_20200101_20200823_02_T2.json"
 USGS_LANDSAT_STAC_v1: str = "LC08_L2SP_028030_20200114_20200824_02_T1_SR.json"
 LIDAR_STAC: str = "lidar_dem.json"
+BENCH_SITE1: str = "site1-20200606-tall-strip-africa.geojson"
+BENCH_SITE2: str = "site2-2020_jun_jul-35MNM.geojson"
 
 # pylint: disable=redefined-outer-name
 
@@ -86,6 +88,18 @@ def sentinel_stac():
 @pytest.fixture
 def sentinel_stac_ms_json():
     with TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS).open("r") as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def bench_site1():
+    with TEST_DATA_FOLDER.joinpath(BENCH_SITE1).open("r") as f:
+        return json.load(f)
+
+
+@pytest.fixture
+def bench_site2():
+    with TEST_DATA_FOLDER.joinpath(BENCH_SITE2).open("r") as f:
         return json.load(f)
 
 
