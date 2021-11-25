@@ -13,6 +13,7 @@ from datacube.utils import documents
 from odc.stac import stac2ds
 
 TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
+PARTIAL_PROJ_STAC: str = "only_crs_proj.json"
 GA_LANDSAT_STAC: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.stac-item.json"
 GA_LANDSAT_ODC: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.odc-metadata.yaml"
 SENTINEL_STAC_COLLECTION: str = "sentinel-2-l2a.collection.json"
@@ -32,6 +33,17 @@ LIDAR_STAC: str = "lidar_dem.json"
 @pytest.fixture(scope="session")
 def test_data_dir():
     return TEST_DATA_FOLDER
+
+
+@pytest.fixture
+def partial_proj_stac():
+    return pystac.item.Item.from_file(str(TEST_DATA_FOLDER.joinpath(PARTIAL_PROJ_STAC)))
+
+
+@pytest.fixture
+def no_bands_stac(partial_proj_stac):
+    partial_proj_stac.assets.clear()
+    return partial_proj_stac
 
 
 @pytest.fixture

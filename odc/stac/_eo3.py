@@ -7,7 +7,7 @@ Utilities for translating STAC Items to EO3 Datasets.
 import datetime
 import uuid
 from collections import namedtuple
-from functools import singledispatch
+from functools import partial, singledispatch
 from typing import (
     Any,
     Dict,
@@ -264,6 +264,8 @@ def compute_eo3_grids(
     """
     # pylint: disable=too-many-locals
 
+    assert len(assets) > 0
+
     def gbox_name(geobox: GeoBox) -> str:
         gsd = geobox_gsd(geobox)
         return f"g{gsd:g}"
@@ -496,14 +498,26 @@ def infer_dc_product_from_item(
 
     quiet = _cfg.get("warnings", "all") == "ignore"
     band_cfg = _cfg.get("assets", {})
+    ignore_proj = _cfg.get("ignore_proj", False)
 
-    def _keep(kv):
+    def _keep(kv, check_proj):
         name, asset = kv
         if name in band_cfg:
             return True
-        return is_raster_data(asset, check_proj=True)
+        return is_raster_data(asset, check_proj=check_proj)
 
-    data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.itemfilter(_keep, item.assets)
+    has_proj = False if ignore_proj else has_proj_ext(item)
+    data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.itemfilter(
+        partial(_keep, check_proj=has_proj), item.assets
+    )
+    if len(data_bands) == 0 and has_proj is True:
+        # Proj is enabled but no Asset has all the proj data
+        has_proj = False
+        data_bands = dicttoolz.itemfilter(partial(_keep, check_proj=False), item.assets)
+        _cfg.update(ignore_proj=True)
+
+    if len(data_bands) == 0:
+        raise ValueError("Unable to find any bands")
 
     aliases = alias_map_from_eo(item, quiet=quiet)
     aliases.update(_cfg.get("aliases", {}))
@@ -523,7 +537,7 @@ def infer_dc_product_from_item(
     # We assume that grouping of data bands into grids is consistent across
     # entire collection, so we compute it once and keep it on a product object
     # at least for now.
-    if has_proj_ext(item):
+    if has_proj:
         _, band2grid = compute_eo3_grids(data_bands)
     else:
         band2grid = _band2grid_from_gsd(data_bands)
@@ -564,8 +578,9 @@ def item_to_ds(item: pystac.item.Item, product: DatasetType) -> Dataset:
     # pylint: disable=too-many-locals
     _cfg = getattr(product, "_stac_cfg", {})
     band2grid: Dict[str, str] = _cfg.get("band2grid", {})
+    ignore_proj: bool = _cfg.get("ignore_proj", False)
 
-    has_proj = has_proj_ext(item)
+    has_proj = False if ignore_proj else has_proj_ext(item)
     measurements: Dict[str, Dict[str, Any]] = {}
     grids: Dict[str, Dict[str, Any]] = {}
     crs = None
@@ -596,8 +611,13 @@ def item_to_ds(item: pystac.item.Item, product: DatasetType) -> Dataset:
                     "Expect all assets to share common CRS"
                 )  # pragma: no cover
 
-    # No proj metadata make up 1x1 Grid in EPSG4326 instead
+    # No proj metadata: make up 1x1 Grid in EPSG4326 instead
     if not has_proj:
+        # TODO: support partial proj, when only CRS is known but not shape/transform
+        # - get native CRS
+        # - compute bounding box in native CRS
+        # - construct 1x1 geobox in native CRS
+
         geom = Geometry(item.geometry, EPSG4326)
         geobox = _mk_1x1_geobox(geom)
         crs = geobox.crs
