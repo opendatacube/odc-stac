@@ -190,7 +190,6 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
 
     with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
         product = infer_dc_product(item_no_collection)
-    print(product)
 
 
 def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
@@ -394,3 +393,13 @@ def test_issue_n6(usgs_landsat_stac_v1):
     }
     p = infer_dc_product(usgs_landsat_stac_v1)
     assert set(p.measurements) == expected_bands
+
+
+def test_partial_proj(partial_proj_stac):
+    (ds,) = list(stac2ds([partial_proj_stac]))
+    assert ds.metadata_doc["grids"]["default"]["shape"] == (1, 1)
+
+
+def test_noassets_case(no_bands_stac):
+    with pytest.raises(ValueError):
+        list(stac2ds([no_bands_stac]))
