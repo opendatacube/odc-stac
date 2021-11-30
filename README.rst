@@ -71,6 +71,33 @@ Sample ``environment.yml`` is provided below.
        - odc-stac
 
 
+Developing
+##########
+
+To develop ``odc-stac`` locally using pip (assuming you have virtualenvwrapper_ installed):
+
+.. code-block:: bash
+
+   git clone https://github.com/opendatacube/odc-stac
+   cd odc-stac
+   mkvirtualenv odc-stac
+   pip install -e .
+   pip install -r requirements-dev.txt
+
+Run tests with pytest_:
+
+.. code-block:: bash
+
+   pytest
+
+Linting is provided by mypy_, pylint_, and black_:
+
+.. code-block:: bash
+
+   black --check .
+   pylint -v odc
+   mypy odc
+
 
 .. |Documentation Status| image:: https://readthedocs.org/projects/odc-stac/badge/?version=latest
    :target: https://odc-stac.readthedocs.io/en/latest/?badge=latest
@@ -87,3 +114,13 @@ Sample ``environment.yml`` is provided below.
 .. |Binder| image:: https://mybinder.org/badge_logo.svg
    :target: https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?urlpath=lab/workspaces/demo
    :alt: Run Examples in Binder
+
+.. _virtualenvwrapper: https://virtualenvwrapper.readthedocs.io
+
+.. _pytest: https://docs.pytest.org
+
+.. _mypy: http://mypy-lang.org/
+
+.. _pylint: https://pylint.org/
+
+.. _black: https://github.com/psf/black
