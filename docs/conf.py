@@ -28,7 +28,13 @@ def ensure_notebooks(https_url, dst_folder):
     dst_folder = Path(dst_folder)
     if dst_folder.exists():
         print(f"Found pre-rendered notebooks in {dst_folder}")
-        return
+        return True
+
+    print(f"Testing: {https_url}")
+    result = subprocess.run([f"curl -f -s -I {https_url}"], shell=True)
+    if result.returncode != 0:
+        print(f"Cached notebook URL does not exist: {https_url}")
+        return False
 
     dst_folder.mkdir()
     print(f"Fetching: {https_url} to {dst_folder}")
@@ -36,6 +42,7 @@ def ensure_notebooks(https_url, dst_folder):
         ["/bin/bash", "-c", f"curl -s {https_url} | tar xz -C {dst_folder}"]
     ).decode("utf-8")
     print(log)
+    return True
 
 
 # working directory is docs/
@@ -44,7 +51,13 @@ nb_hash = notebook_hash.compute("../notebooks")
 https_url = (
     f"https://packages.dea.ga.gov.au/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz"
 )
-ensure_notebooks(https_url, "notebooks")
+if not ensure_notebooks(https_url, "notebooks"):
+    notebooks_directory = os.path.abspath("../notebooks")
+    raise Exception(
+        "There is no cached version of these notebooks. "
+        "Build the notebooks before building the documentation. "
+        f"Notebooks are located in {notebooks_directory}."
+    )
 
 # -- Project information -----------------------------------------------------
 
