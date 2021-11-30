@@ -1,0 +1,17 @@
+black
+folium
+geopandas
+ipywidgets
+jupytext
+mapclassify
+matplotlib
+mypy
+nbsphinx
+sphinx
+sphinx_rtd_theme
+sphinx-autodoc-typehints
+odc-algo
+odc-ui
+planetary-computer
+pylint
+pytest
