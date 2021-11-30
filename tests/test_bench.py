@@ -1,14 +1,15 @@
-from typing import Literal
 import pytest
-from odc.stac.bench import BenchmarkContext, collect_context_info, load_from_json
-from distributed import Client, client
+import xarray
+from distributed import Client
+
+from odc.stac.bench import BenchLoadParams, collect_context_info, load_from_json
 
 CFG = {"*": {"warnings": "ignore"}}
 
 
 @pytest.fixture(scope="module")
 def dask_client():
-    yield Client(
+    client = Client(
         n_workers=1,
         threads_per_worker=2,
         memory_limit="500MiB",
@@ -16,64 +17,68 @@ def dask_client():
         memory_target_fraction=False,
         memory_spill_fraction=False,
         memory_pause_fraction=False,
+        dashboard_address=None,
+        processes=False,
     )
+    yield client
+    client.shutdown()
+    del client
 
 
 def test_load_from_json_stackstac(dask_client, bench_site1, bench_site2):
-    xx = load_from_json(
-        bench_site1,
+    params = BenchLoadParams(
+        scenario="test1",
         method="stackstac",
-        assets=["B04", "B02", "B03"],
-        dtype="uint16",
-        chunksize=2048,
+        bands=("B04", "B02", "B03"),
+        chunks=(2048, 2048),
+        resampling="nearest",
+        extra={
+            "odc-stac": {"groupby": "solar_day", "stac_cfg": CFG},
+            "stackstac": {"dtype": "uint16", "fill_value": 0},
+        },
     )
+    xx = load_from_json(bench_site1, params)
     assert "band" in xx.dims
     assert xx.shape == (1, 3, 90978, 10980)
     assert xx.dtype == "uint16"
     assert xx.spec.epsg == 32735
 
-    yy = load_from_json(
-        bench_site1,
-        method="odc-stac",
-        bands=["B04", "B02", "B03"],
-        chunks={"x": 2048, "y": 2048},
-        groupby="solar_day",
-        stac_cfg=CFG,
-    )
+    yy = load_from_json(bench_site1, params.with_method("odc-stac"))
 
     rrx = collect_context_info(dask_client, xx)
     rry = collect_context_info(dask_client, yy)
     assert rrx.shape == rry.shape
     assert rrx == rry
 
-    xx = load_from_json(
-        bench_site2,
-        method="stackstac",
-        assets=["B04", "B02", "B03"],
-        dtype="uint16",
-    )
+    xx = load_from_json(bench_site2, params)
     assert "band" in xx.dims
     assert xx.dtype == "uint16"
     assert xx.spec.epsg == 32735
 
+    params.crs = "epsg:32736"
+    xx = load_from_json(bench_site2, params)
+    assert "band" in xx.dims
+    assert xx.dtype == "uint16"
+    assert xx.spec.epsg == 32736
+
     with pytest.raises(ValueError):
-        load_from_json(bench_site1, "wroNg")
+        load_from_json(bench_site1, params.with_method("wroNg"))
 
 
 def test_bench_context(dask_client, bench_site1, bench_site2):
-    xx = load_from_json(
-        bench_site1,
+    params = BenchLoadParams(
+        scenario="test1",
         method="odc-stac",
-        bands=["red", "green", "blue"],
-        chunks={"x": 2048, "y": 2048},
-        groupby="solar_day",
-        stac_cfg=CFG,
+        bands=("red", "green", "blue"),
+        chunks=(2048, 2048),
+        extra={"odc-stac": {"groupby": "solar_day", "stac_cfg": CFG}},
     )
+    xx = load_from_json(bench_site1, params)
     nt, ny, nx = xx.red.shape
     nb = len(xx.data_vars)
 
     # Check normal case Dataset, with time coords
-    rr = collect_context_info(dask_client, xx, method="odc-stac", scenario="site1")
+    rr = collect_context_info(dask_client, xx, method=params.method, scenario="site1")
     assert rr.shape == (nt, nb, ny, nx)
     assert rr.chunks == (1, 1, 2048, 2048)
     assert rr.crs == f"epsg:{xx.geobox.crs.epsg}"
@@ -98,8 +103,8 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
     rr = collect_context_info(
         dask_client,
         xx.isel(time=0),
-        method="odc-stac",
-        scenario="site1",
+        method=params.method,
+        scenario=params.scenario,
         extras={"custom": 2},
     )
     assert rr.extras == {"custom": 2}
@@ -113,8 +118,8 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
     rr = collect_context_info(
         dask_client,
         xx.isel(time=0, drop=True),
-        method="odc-stac",
-        scenario="site1",
+        method=params.method,
+        scenario=params.scenario,
     )
     assert rr.shape == (nt, nb, ny, nx)
     assert rr.dtype == xx.red.dtype
@@ -125,14 +130,7 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
         collect_context_info(dask_client, "wrong input type")  # type: ignore
 
     # Check multi-time axis
-    xx = load_from_json(
-        bench_site2,
-        method="odc-stac",
-        bands=["red", "green", "blue"],
-        chunks={"x": 2048, "y": 2048},
-        groupby="solar_day",
-        stac_cfg=CFG,
-    )
+    xx = load_from_json(bench_site2, params)
     nt, ny, nx = xx.red.shape
     nb = len(xx.data_vars)
 
@@ -141,19 +139,25 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
     rr = collect_context_info(
         dask_client,
         xx,
-        method="odc-stac",
-        scenario="site1",
+        method=params.method,
+        scenario=params.scenario,
     )
     assert rr.shape == (nt, nb, ny, nx)
     assert rr.temporal_id == "2020-06-01__2020-07-31"
 
     # Check missing GEO info
-    no_geo = xx.red.drop_vars("spatial_ref")
+    no_geo = _strip_geo(xx.red)
+    assert no_geo.geobox is None
+    with pytest.raises(ValueError):
+        # no geobox
+        collect_context_info(dask_client, no_geo)
+
+
+def _strip_geo(xx: xarray.DataArray) -> xarray.DataArray:
+    no_geo = xx.drop_vars("spatial_ref")
     no_geo.attrs.pop("crs", None)
     no_geo.attrs.pop("grid_mapping", None)
     no_geo.x.attrs.pop("crs", None)
     no_geo.y.attrs.pop("crs", None)
     assert no_geo.geobox is None
-    with pytest.raises(ValueError):
-        # no geobox
-        collect_context_info(dask_client, no_geo)
+    return no_geo

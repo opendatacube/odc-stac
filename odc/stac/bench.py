@@ -1,6 +1,7 @@
 """Utilities for benchmarking."""
+from copy import copy
 from dataclasses import dataclass, field
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import affine
 import distributed
@@ -8,6 +9,7 @@ import numpy as np
 import pystac.item
 import xarray as xr
 from dask.utils import format_bytes
+from datacube.utils.geometry import CRS
 
 import odc.stac
 
@@ -205,31 +207,122 @@ def collect_context_info(
     )
 
 
-def load_from_json(geojson, method: str = "odc-stac", patch_url=None, **kw):
+@dataclass
+class BenchLoadParams:
+    """Per experiment configuration."""
+
+    scenario: str = ""
+    """Name for this scenario"""
+
+    method: str = "odc-stac"
+    """Method to use for loading: odc-stac|stackstac"""
+
+    chunks: Tuple[int, int] = (2048, 2048)
+    """Chunk size in pixels in ``Y, X`` order"""
+
+    bands: Optional[Tuple[str, ...]] = None
+    """Bands to load, defaults to All"""
+
+    resolution: Optional[float] = None
+    """Resolution, leave as ``None`` for native"""
+
+    crs: Optional[str] = None
+    """Projection to use, leave as ``None`` for native"""
+
+    resampling: Optional[str] = None
+    """Set resampling method when reprojecting at load"""
+
+    patch_url: Any = None
+    """Accepts ``planetary_computer.sign``"""
+
+    extra: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    """Extra params per ``method``"""
+
+    def with_method(self, method: str) -> "BenchLoadParams":
+        """Replace method field only."""
+        other = copy(self)
+        other.method = method
+        return other
+
+    @property
+    def epsg(self) -> Optional[int]:
+        """EPSG code of crs if configured, else ``None``."""
+        if self.crs is None:
+            return None
+        return CRS(self.crs).epsg
+
+    @property
+    def chunks_as_dict(self) -> Dict[str, float]:
+        """Return chunks in dictionary form."""
+        return {"y": self.chunks[0], "x": self.chunks[1]}
+
+    def compute_args(self, method: str = "") -> Dict[str, Any]:
+        """Translate into call arguments for a given method."""
+        if method == "":
+            method = self.method
+
+        extra = dict(**self.extra.get(method, {}))
+
+        if method == "odc-stac":
+            return _trim_dict(
+                {
+                    "chunks": self.chunks_as_dict,
+                    "crs": self.crs,
+                    "resolution": self.resolution,
+                    "patch_url": self.patch_url,
+                    "bands": self.bands,
+                    "resampling": self.resampling,
+                    **extra,
+                }
+            )
+        if method == "stackstac":
+            from rasterio.enums import Resampling
+
+            resampling = None
+            if self.resampling is not None:
+                resampling = Resampling[self.resampling]
+
+            extra.setdefault("dtype", "uint16")
+            extra.setdefault("fill_value", 0)
+            extra.setdefault("xy_coords", "center")
+
+            return _trim_dict(
+                {
+                    "chunksize": self.chunks[0],
+                    "epsg": self.epsg,
+                    "resolution": self.resolution,
+                    "assets": list(self.bands),
+                    "resampling": resampling,
+                    **extra,
+                }
+            )
+
+        return {}
+
+
+def load_from_json(geojson, params: BenchLoadParams, **kw):
     """
     Turn passed in geojson into a Dask array.
 
     :param geojson: GeoJSON FeatureCollection
-    :param method: odc-stac (default)| stackstac
+    :param params: data loading configuration
+    :param kw: passed on to underlying data load function
     """
     all_items = [pystac.item.Item.from_dict(f) for f in geojson["features"]]
 
-    if method == "odc-stac":
-        opts = dict(**kw)
-        opts.setdefault("chunks", {})  # force Dask
+    opts = params.compute_args()
+    opts.update(**kw)
 
-        xx = odc.stac.load(all_items, patch_url=patch_url, **opts)
-    elif method == "stackstac":
+    if params.method == "odc-stac":
+        xx = odc.stac.load(all_items, **opts)
+    elif params.method == "stackstac":
         import stackstac
 
+        patch_url = params.patch_url
         if patch_url is None:
             patch_url = lambda x: x
 
         _items = [patch_url(item).to_dict() for item in all_items]
-        opts = dict(**kw)
-        opts.setdefault("dtype", "uint16")
-        opts.setdefault("fill_value", 0)
-        opts.setdefault("xy_coords", "center")
         xx = stackstac.stack(_items, **opts)
         if np.unique(xx.time.data).shape != xx.time.shape:
             xx = xx.groupby("time").map(stackstac.mosaic)
@@ -238,6 +331,12 @@ def load_from_json(geojson, method: str = "odc-stac", patch_url=None, **kw):
             # work around issue 93 in stackstac
             xx.y.data[:] = xx.y.data - xx.spec.resolutions_xy[1]
     else:
-        raise ValueError(f"Unsupported method:'{method}'")
+        raise ValueError(f"Unsupported method:'{params.method}'")
 
+    xx.attrs["load_params"] = params
+    xx.attrs["_opts"] = opts
     return xx
+
+
+def _trim_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: v for k, v in d.items() if v is not None}
