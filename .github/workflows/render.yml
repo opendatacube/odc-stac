@@ -23,7 +23,7 @@ jobs:
         find notebooks/ -maxdepth 1 -name '*.py' -type f | sort -f -d
 
         nb_dir="docs/notebooks"
-        nb_hash=$(find notebooks/ -maxdepth 1 -name '*.py' -type f | sort -f -d | xargs cat | sha256sum | cut -b -16)
+        nb_hash=$(python scripts/notebook_hash.py)
         echo "Notebooks hash: ${nb_hash}"
         echo "::set-output name=nb-dir::${nb_dir}"
         echo "::set-output name=nb-hash::${nb_hash}"

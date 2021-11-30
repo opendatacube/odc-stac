@@ -17,21 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(".."))
 from odc.stac._version import __version__ as _odc_stac_version
-
-
-def compute_nb_hash(folder):
-    nb_hash = (
-        subprocess.check_output(
-            [
-                "/bin/bash",
-                "-c",
-                f"find {folder} -maxdepth 1 -name '*.py' -type f | sort -f -d | xargs cat | sha256sum | cut -b -16",
-            ]
-        )
-        .decode("ascii")
-        .split()[0]
-    )
-    return nb_hash
+from scripts import notebook_hash
 
 
 def ensure_notebooks(https_url, dst_folder):
@@ -54,7 +40,7 @@ def ensure_notebooks(https_url, dst_folder):
 
 # working directory is docs/
 # download pre-rendered notebooks unless folder is already populated
-nb_hash = compute_nb_hash("../notebooks")
+nb_hash = notebook_hash.compute("../notebooks")
 https_url = (
     f"https://packages.dea.ga.gov.au/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz"
 )

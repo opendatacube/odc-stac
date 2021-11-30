@@ -22,12 +22,7 @@ s3://datacube-core-deployment/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz
 https://packages.dea.ga.gov.au/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz
 ```
 
-Where `{nb_hash}` is a 16 character hash computed from the content of `notebooks/*.py`
-
-```
-find notebooks/ -maxdepth 1 -name '*.py' -type f | \ 
-  sort -f -d | xargs cat | sha256sum | cut -b -16
-```
+Where `{nb_hash}` is a 16 character hash computed from the content of `notebooks/*.py` (see `scripts/notebook_hash.py`).
 
 By the time changes are merged into `develop` branch there should be
 pre-rendered notebook archive accessible without authentication via https.
