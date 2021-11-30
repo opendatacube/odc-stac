@@ -94,13 +94,13 @@ def sentinel_stac_ms_json():
 @pytest.fixture
 def bench_site1():
     with TEST_DATA_FOLDER.joinpath(BENCH_SITE1).open("r") as f:
-        return json.load(f)
+        return _strip_links(json.load(f))
 
 
 @pytest.fixture
 def bench_site2():
     with TEST_DATA_FOLDER.joinpath(BENCH_SITE2).open("r") as f:
-        return json.load(f)
+        return _strip_links(json.load(f))
 
 
 @pytest.fixture
@@ -169,3 +169,9 @@ def sample_geojson():
             }
         ],
     }
+
+
+def _strip_links(gjson):
+    for item in gjson["features"]:
+        item["links"] = []
+    return gjson
