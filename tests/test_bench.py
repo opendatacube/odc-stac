@@ -2,7 +2,12 @@ import pytest
 import xarray
 from distributed import Client
 
-from odc.stac.bench import BenchLoadParams, collect_context_info, load_from_json
+from odc.stac.bench import (
+    BenchLoadParams,
+    collect_context_info,
+    load_from_json,
+    run_bench,
+)
 
 CFG = {"*": {"warnings": "ignore"}}
 
@@ -25,7 +30,8 @@ def dask_client():
     del client
 
 
-def test_load_from_json_stackstac(dask_client, bench_site1, bench_site2):
+def test_load_from_json_stackstac(fake_dask_client, bench_site1, bench_site2):
+    dask_client = fake_dask_client
     params = BenchLoadParams(
         scenario="test1",
         method="stackstac",
@@ -65,7 +71,7 @@ def test_load_from_json_stackstac(dask_client, bench_site1, bench_site2):
         load_from_json(bench_site1, params.with_method("wroNg"))
 
 
-def test_bench_context(dask_client, bench_site1, bench_site2):
+def test_bench_context(fake_dask_client, bench_site1, bench_site2):
     params = BenchLoadParams(
         scenario="test1",
         method="odc-stac",
@@ -78,7 +84,9 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
     nb = len(xx.data_vars)
 
     # Check normal case Dataset, with time coords
-    rr = collect_context_info(dask_client, xx, method=params.method, scenario="site1")
+    rr = collect_context_info(
+        fake_dask_client, xx, method=params.method, scenario="site1"
+    )
     assert rr.shape == (nt, nb, ny, nx)
     assert rr.chunks == (1, 1, 2048, 2048)
     assert rr.crs == f"epsg:{xx.geobox.crs.epsg}"
@@ -95,13 +103,15 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
     print(run_txt)
 
     # Check DataArray case
-    rr = collect_context_info(dask_client, xx.red, method="odc-stac", scenario="site1")
+    rr = collect_context_info(
+        fake_dask_client, xx.red, method="odc-stac", scenario="site1"
+    )
     assert rr.shape == (nt, 1, ny, nx)
     assert rr.crs == xx.geobox.crs
 
     # Check Dataset with 0 dimension time axis and extras field
     rr = collect_context_info(
-        dask_client,
+        fake_dask_client,
         xx.isel(time=0),
         method=params.method,
         scenario=params.scenario,
@@ -116,7 +126,7 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
 
     # Check no time info at all
     rr = collect_context_info(
-        dask_client,
+        fake_dask_client,
         xx.isel(time=0, drop=True),
         method=params.method,
         scenario=params.scenario,
@@ -127,7 +137,7 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
 
     # Check wrong type
     with pytest.raises(ValueError):
-        collect_context_info(dask_client, "wrong input type")  # type: ignore
+        collect_context_info(fake_dask_client, "wrong input type")  # type: ignore
 
     # Check multi-time axis
     xx = load_from_json(bench_site2, params)
@@ -137,7 +147,7 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
     assert nt > 1
 
     rr = collect_context_info(
-        dask_client,
+        fake_dask_client,
         xx,
         method=params.method,
         scenario=params.scenario,
@@ -150,7 +160,7 @@ def test_bench_context(dask_client, bench_site1, bench_site2):
     assert no_geo.geobox is None
     with pytest.raises(ValueError):
         # no geobox
-        collect_context_info(dask_client, no_geo)
+        collect_context_info(fake_dask_client, no_geo)
 
 
 def _strip_geo(xx: xarray.DataArray) -> xarray.DataArray:
@@ -161,3 +171,21 @@ def _strip_geo(xx: xarray.DataArray) -> xarray.DataArray:
     no_geo.y.attrs.pop("crs", None)
     assert no_geo.geobox is None
     return no_geo
+
+
+def test_run_bench(fake_dask_client, bench_site1):
+    dask_client = fake_dask_client
+    params = BenchLoadParams(
+        scenario="test1",
+        method="odc-stac",
+        bands=("red", "green", "blue"),
+        chunks=(2048, 2048),
+        extra={"odc-stac": {"groupby": "solar_day", "stac_cfg": CFG}},
+    )
+    xx = load_from_json(bench_site1, params)
+
+    rr, timing = run_bench(xx, dask_client, 10)
+
+    assert rr.scenario == params.scenario
+    assert rr.method == params.method
+    assert len(timing) == 10

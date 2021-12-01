@@ -3,7 +3,9 @@ Test for SQS to DC tool
 """
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import distributed
 import pystac
 import pystac.collection
 import pystac.item
@@ -169,6 +171,56 @@ def sample_geojson():
             }
         ],
     }
+
+
+@pytest.fixture
+def fake_dask_client(monkeypatch):
+    cc = MagicMock()
+    cc.scheduler_info.return_value = {
+        "type": "Scheduler",
+        "id": "Scheduler-80d943db-16f6-4476-a51a-64d57a287e9b",
+        "address": "inproc://10.10.10.10/1281505/1",
+        "services": {"dashboard": 8787},
+        "started": 1638320006.6135786,
+        "workers": {
+            "inproc://10.10.10.10/1281505/4": {
+                "type": "Worker",
+                "id": 0,
+                "host": "10.1.1.140",
+                "resources": {},
+                "local_directory": "/tmp/dask-worker-space/worker-uhq1b9bh",
+                "name": 0,
+                "nthreads": 2,
+                "memory_limit": 524288000,
+                "last_seen": 1638320007.2504623,
+                "services": {"dashboard": 38439},
+                "metrics": {
+                    "executing": 0,
+                    "in_memory": 0,
+                    "ready": 0,
+                    "in_flight": 0,
+                    "bandwidth": {"total": 100000000, "workers": {}, "types": {}},
+                    "spilled_nbytes": 0,
+                    "cpu": 0.0,
+                    "memory": 145129472,
+                    "time": 1638320007.2390554,
+                    "read_bytes": 0.0,
+                    "write_bytes": 0.0,
+                    "read_bytes_disk": 0.0,
+                    "write_bytes_disk": 0.0,
+                    "num_fds": 82,
+                },
+                "nanny": None,
+            }
+        },
+    }
+    cc.cancel.return_value = None
+    cc.restart.return_value = cc
+    cc.persist = lambda x: x
+    cc.compute = lambda x: x
+
+    monkeypatch.setattr(distributed, "wait", MagicMock())
+    yield cc
 
 
 def _strip_links(gjson):
