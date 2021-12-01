@@ -6,6 +6,8 @@
 
 # -- Path setup --------------------------------------------------------------
 
+import logging as pylogging
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -15,9 +17,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sphinx.util import logging
+
 sys.path.insert(0, os.path.abspath(".."))
 from odc.stac._version import __version__ as _odc_stac_version
 from scripts import notebook_hash
+
+
+# Workaround for https://github.com/agronholm/sphinx-autodoc-typehints/issues/123
+# When this https://github.com/agronholm/sphinx-autodoc-typehints/pull/153
+# gets merged, we can remove this
+class FilterForIssue123(pylogging.Filter):
+    def filter(self, record: pylogging.LogRecord) -> bool:
+        # You probably should make this check more specific by checking
+        # that dataclass name is in the message, so that you don't filter out
+        # other meaningful warnings
+        return not record.getMessage().startswith("Cannot treat a function")
+
+
+logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(FilterForIssue123())
+# End of a workaround
 
 
 def ensure_notebooks(https_url, dst_folder):

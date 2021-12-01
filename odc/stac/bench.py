@@ -21,10 +21,10 @@ TimeSample = Tuple[float, float, float]
 # pylint: disable=too-many-instance-attributes,too-many-locals,import-outside-toplevel,import-error
 
 
-@dataclass
+@dataclass()
 class BenchmarkContext:
     """
-    Bencmark Context Metadata.
+    Benchmark Context Metadata.
 
     Normalized representation of the task being benchmarked and
     the environment it is benchmarked in.
