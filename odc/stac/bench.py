@@ -1,7 +1,9 @@
 """Utilities for benchmarking."""
+from time import sleep
 from copy import copy
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple, Union
+from timeit import default_timer as t_now
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import affine
 import distributed
@@ -12,6 +14,9 @@ from dask.utils import format_bytes
 from datacube.utils.geometry import CRS
 
 import odc.stac
+
+TimeSample = Tuple[float, float, float]
+"""(t0, t_finished_submit, t_finished_compute)"""
 
 # pylint: disable=too-many-instance-attributes,too-many-locals,import-outside-toplevel,import-error
 
@@ -341,6 +346,62 @@ def load_from_json(geojson, params: BenchLoadParams, **kw):
     xx.attrs["load_params"] = params
     xx.attrs["_opts"] = opts
     return xx
+
+
+def run_bench(
+    xx: Union[xr.DataArray, xr.Dataset],
+    client: distributed.Client,
+    ntimes: int = 1,
+    col_width: int = 12,
+    restart_sleep: float = 0,
+) -> Tuple[BenchmarkContext, List[TimeSample]]:
+    """
+    Run same configuration multiple times and resport timing.
+
+    :param xx: Dask graph to persist to ram
+    :param client: Dask client to test on (will be restarted between runs)
+    :param ntimes: How many rounds to run (default: 1)
+    :param col_width: First column width in characters
+    :param restart_sleep: Number of seconds to sleep after ``client.restart()``
+    :returns: :class:`odc.stac.bench.BenchmarkContext` and timing info per run.
+
+    Reported timing info is a triple of ``(t0, t_finished_submit, t_finished_persist)``
+    """
+    params = xx.attrs.get("load_params", None)
+
+    extra = {}
+    if params is not None:
+        extra["method"] = params.method
+        extra["scenario"] = params.scenario
+
+    rr = collect_context_info(client, xx, **extra)
+    results = []
+    _xx = None
+
+    try:
+        print(rr.render_txt(col_width))
+        for _ in range(ntimes):
+            client.restart()
+            sleep(restart_sleep)
+
+            t0 = t_now()
+
+            _xx = client.persist(xx)
+            t1 = t_now()
+
+            _ = distributed.wait(_xx)
+            t2 = t_now()
+
+            times = (t0, t1, t2)
+            print("-" * 60)
+            print(rr.render_timing_info(times, col_width))
+            results.append(times)
+    except KeyboardInterrupt:
+        print("Aborting early upon request")
+        if _xx is not None:
+            client.cancel(_xx)
+
+    return rr, results
 
 
 def _trim_dict(d: Dict[str, Any]) -> Dict[str, Any]:
