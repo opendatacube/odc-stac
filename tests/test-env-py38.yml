@@ -16,7 +16,7 @@ dependencies:
   - pandas
   - pystac >=1.1.0
   - toolz
-  - xarray
+  - xarray ~= 0.20.1
 
   # For tests
   - pytest

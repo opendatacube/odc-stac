@@ -49,7 +49,7 @@ dependencies using conda then install ``odc-stac`` with pip. Sample
      - conda-forge
    dependencies:
      - datacube >=1.8.5
-     - xarray
+     - xarray ~- 0.20.1
      - numpy
      - pandas
      - affine
