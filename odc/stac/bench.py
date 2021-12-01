@@ -282,6 +282,11 @@ class BenchLoadParams:
             if self.resampling is not None:
                 resampling = Resampling[self.resampling]
 
+            assets = None
+            if self.bands is not None:
+                # translate to list, stackstac doesn't like tuple
+                assets = list(self.bands)
+
             extra.setdefault("dtype", "uint16")
             extra.setdefault("fill_value", 0)
             extra.setdefault("xy_coords", "center")
@@ -291,7 +296,7 @@ class BenchLoadParams:
                     "chunksize": self.chunks[0],
                     "epsg": self.epsg,
                     "resolution": self.resolution,
-                    "assets": list(self.bands),
+                    "assets": assets,
                     "resampling": resampling,
                     **extra,
                 }
