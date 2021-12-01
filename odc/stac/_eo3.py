@@ -7,6 +7,7 @@ Utilities for translating STAC Items to EO3 Datasets.
 import datetime
 import uuid
 from collections import namedtuple
+from copy import copy
 from functools import partial, singledispatch
 from typing import (
     Any,
@@ -493,7 +494,7 @@ def infer_dc_product_from_item(
 
     collection_id = _collection_id(item)
 
-    _cfg = cfg.get("*", {})
+    _cfg = copy(cfg.get("*", {}))
     _cfg.update(cfg.get(collection_id, {}))
 
     quiet = _cfg.get("warnings", "all") == "ignore"
