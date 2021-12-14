@@ -16,10 +16,10 @@ dependencies:
   - planetary-computer
 
   # from kirill-odc
-  - odc-ui
-  - odc-algo
+  - odc-ui >=0.2.0a3
+  - odc-algo >=0.2.2
   - odc-cloud
-  - odc-dscache
+  - odc-dscache >=0.2.2
 
   #  pin aiobotocore for easier resolution of dependencies
   - aiobotocore ==1.4.1
@@ -49,6 +49,8 @@ dependencies:
   - rioxarray
   - fiona
   - numba
+  - zarr
+  - stackstac
 
   # tests and dev
   - autopep8
