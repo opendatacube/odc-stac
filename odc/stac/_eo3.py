@@ -39,13 +39,14 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
 from toolz import dicttoolz
 
-from odc.index import odc_uuid
-
 T = TypeVar("T")
 BandMetadata = namedtuple("BandMetadata", ["data_type", "nodata", "unit"])
 ConversionConfig = Dict[str, Any]
 
 EPSG4326 = CRS("EPSG:4326")
+
+# uuid.uuid5(uuid.NAMESPACE_URL, "https://stacspec.org")
+UUID_NAMESPACE_STAC = uuid.UUID("55d26088-a6d0-5c77-bf9a-3a7f3c6a6dab")
 
 # Mapping between EO3 field names and STAC properties object field names
 # EO3 metadata was defined before STAC 1.0, so we used some extensions
@@ -563,11 +564,23 @@ def _compute_uuid(
     except ValueError:
         pass
 
-    # 2. .id, .collection_id, [extras]
-    _extras = (
-        {} if extras is None else {key: item.properties.get(key, "") for key in extras}
-    )
-    return odc_uuid(_collection_id(item), "stac", [], stac_id=item.id, **_extras)
+    # 2. .collection_id, .id, [extras]
+    #
+    # Deterministic UUID is using uuid5 on a string constructed from Item properties like so
+    #
+    #  <collection_id>\n
+    #  <item_id>\n
+    #  extras[i]=item.properties[extras[i]]\n
+    #
+    #  At a minimum it's just 2 lines collection_id and item.id If extra keys are requested, these
+    #  are sorted first and then appended one per line in `{key}={value}` format where value is
+    #  looked up from item properties, if key is missing then {value} is set to empty string.
+    hash_srcs = [_collection_id(item), item.id]
+    if extras is not None:
+        tags = [f"{k}={str(item.properties.get(k, ''))}" for k in sorted(extras)]
+        hash_srcs.extend(tags)
+    hash_text = "\n".join(hash_srcs) + "\n"  # < ensure last line ends on \n
+    return uuid.uuid5(UUID_NAMESPACE_STAC, hash_text)
 
 
 def item_to_ds(item: pystac.item.Item, product: DatasetType) -> Dataset:
