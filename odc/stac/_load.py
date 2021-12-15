@@ -10,10 +10,9 @@ import pystac.item
 import xarray
 from affine import Affine
 from datacube.model import Dataset
+from datacube.storage import measurement_paths
 from pyproj.crs.crs import CRS
 from toolz import dicttoolz
-
-from odc.index import patch_urls
 
 from ._dcload import dc_load
 from ._eo3 import ConversionConfig, stac2ds
@@ -119,6 +118,30 @@ def pick_best_resolution(
                 res_best = best(geobox.resolution, res_best)
 
     return res_best
+
+
+def patch_urls(
+    ds: Dataset, edit: Callable[[str], str], bands: Optional[Iterable[str]] = None
+) -> Dataset:
+    """
+    Map function over dataset measurement urls.
+
+    :param ds: Dataset to edit in place
+    :param edit: Function that returns modified url from input url
+    :param bands: Only edit specified bands, default is to edit all
+    :return: Input dataset
+    """
+    resolved_paths = measurement_paths(ds)
+    if bands is None:
+        bands = list(resolved_paths)
+    else:
+        # remap aliases if present to their canonical name
+        bands = list(map(ds.type.canonical_measurement, bands))
+
+    mm = ds.metadata_doc["measurements"]
+    for band in bands:
+        mm[band]["path"] = edit(resolved_paths[band])
+    return ds
 
 
 # pylint: disable=too-many-arguments,too-many-locals
