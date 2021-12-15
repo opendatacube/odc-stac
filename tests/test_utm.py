@@ -1,8 +1,10 @@
 """Tests for UTM utilities in odc.index._utm."""
+import warnings
 
 import pytest
 from datacube.utils.geometry import unary_union
 
+warnings.filterwarnings("ignore", category=FutureWarning, module="odc.index")
 from odc.index import bin_dataset_stream, bin_dataset_stream2
 from odc.index._utm import mk_utm_gs, utm_region_code, utm_tile_dss, utm_zone_to_epsg
 
