@@ -1,4 +1,6 @@
 """Indexing related helper methods."""
+import warnings
+
 from ._grouper import group_by_nothing, solar_offset
 from ._index import (
     all_datasets,
@@ -20,6 +22,8 @@ from ._index import (
 )
 from ._utm import mk_utm_gs, utm_region_code, utm_tile_dss, utm_zone_to_epsg
 from ._uuid import odc_uuid
+
+warnings.warn("odc.index is being removed", FutureWarning)
 
 __all__ = (
     "from_yaml_doc_stream",

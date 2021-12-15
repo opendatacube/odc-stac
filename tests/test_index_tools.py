@@ -1,11 +1,13 @@
 import datetime
 import json
+import warnings
 from unittest.mock import MagicMock
 
 import pytest
 import yaml
 from datacube.utils import geometry as geom
 
+warnings.filterwarnings("ignore", category=FutureWarning, module="odc.index")
 from odc.index._grouper import group_by_nothing, key2num, mid_longitude, solar_offset
 from odc.index._index import (
     month_range,
