@@ -9,17 +9,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 - This CHANGELOG
-- requirements-dev.txt
+- `requirements-dev.txt`
 - Documentation
 - Upload built conda environment as an artifact
 - Notebook rendering to Github actions, including hash-based artifact checks
+- Initial benchmarking tooling, still in progress
 
 ### Changed
 
 - Moved publishing steps into separate workflows
+- Deprecated imports from `odc.index.*`
 
 ### Fixed
 
+- Handling of STAC Items with only partial `proj` data
 - Typos in documentation
 
 ## [v0.2.2] - 2021-10-25
