@@ -189,3 +189,20 @@ def test_run_bench(fake_dask_client, bench_site1):
     assert rr.scenario == params.scenario
     assert rr.method == params.method
     assert len(timing) == 10
+
+
+def test_bench_params_json():
+    params = BenchLoadParams(
+        scenario="test1",
+        method="odc-stac",
+        bands=("red", "green", "blue"),
+        chunks=(100, 200),
+        extra={"odc-stac": {"groupby": "solar_day", "stac_cfg": CFG}},
+    )
+
+    assert params == BenchLoadParams.from_json(params.to_json())
+    assert params.to_json() == BenchLoadParams.from_json(params.to_json()).to_json()
+
+    # function should round-trip too
+    params.patch_url = load_from_json
+    assert params == BenchLoadParams.from_json(params.to_json())

@@ -1,4 +1,6 @@
 """Utilities for benchmarking."""
+import importlib
+import json
 from copy import copy
 from dataclasses import dataclass, field
 from time import sleep
@@ -263,6 +265,29 @@ class BenchLoadParams:
         """Return chunks in dictionary form."""
         return {"y": self.chunks[0], "x": self.chunks[1]}
 
+    def to_json(self, indent=2) -> str:
+        """Convert to JSON string."""
+        data = copy(self.__dict__)
+        if self.patch_url is not None:
+            data["patch_url"] = f"{self.patch_url.__module__}.{self.patch_url.__name__}"
+        return json.dumps(data, indent=indent)
+
+    @staticmethod
+    def from_json(json_text: str) -> "BenchLoadParams":
+        """Construct from JSON string."""
+        src = json.loads(json_text)
+
+        # convert arrays to tuples
+        for k in ("bands", "chunks"):
+            v = src.get(k, None)
+            if v is not None:
+                src[k] = tuple(v)
+
+        cfg = BenchLoadParams(**src)
+        if isinstance(cfg.patch_url, str):
+            cfg.patch_url = _method_from_string(cfg.patch_url)
+        return cfg
+
     def compute_args(self, method: str = "") -> Dict[str, Any]:
         """Translate into call arguments for a given method."""
         if method == "":
@@ -408,3 +433,8 @@ def run_bench(
 
 def _trim_dict(d: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in d.items() if v is not None}
+
+
+def _method_from_string(method_path: str) -> Any:
+    module_name, method_name = method_path.rsplit(".", 1)
+    return getattr(importlib.import_module(module_name), method_name)
