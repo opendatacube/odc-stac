@@ -1,4 +1,5 @@
 """Benchmarking tools."""
+from ._prepare import SAMPLE_SITES, dump_site
 from ._run import (
     BenchLoadParams,
     BenchmarkContext,
@@ -9,6 +10,8 @@ from ._run import (
 )
 
 __all__ = (
+    "SAMPLE_SITES",
+    "dump_site",
     "BenchLoadParams",
     "BenchmarkContext",
     "TimeSample",
