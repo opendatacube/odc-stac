@@ -1,7 +1,7 @@
 """Utilities for benchmarking."""
-from time import sleep
 from copy import copy
 from dataclasses import dataclass, field
+from time import sleep
 from timeit import default_timer as t_now
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -21,7 +21,7 @@ TimeSample = Tuple[float, float, float]
 # pylint: disable=too-many-instance-attributes,too-many-locals,import-outside-toplevel,import-error
 
 
-@dataclass()
+@dataclass
 class BenchmarkContext:
     """
     Benchmark Context Metadata.
@@ -222,7 +222,7 @@ class BenchLoadParams:
     """Name for this scenario"""
 
     method: str = "odc-stac"
-    """Method to use for loading: odc-stac|stackstac"""
+    """Method to use for loading: ``odc-stac|stackstac``"""
 
     chunks: Tuple[int, int] = (2048, 2048)
     """Chunk size in pixels in ``Y, X`` order"""
@@ -253,7 +253,7 @@ class BenchLoadParams:
 
     @property
     def epsg(self) -> Optional[int]:
-        """EPSG code of crs if configured, else ``None``."""
+        """Return EPSG code of crs if it was configured, else ``None``."""
         if self.crs is None:
             return None
         return CRS(self.crs).epsg
