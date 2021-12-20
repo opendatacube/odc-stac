@@ -159,14 +159,16 @@ def collect_context_info(
         nbytes = npix * dtype.itemsize
         _band = getattr(xx, "band", None)
         nb = _band.shape[0] if _band is not None and _band.ndim > 0 else 1
-        _chunks = {k: max(v) for k, v in xx.chunksizes.items()}
+        assert xx.chunks is not None
+        _chunks = {k: max(v) for k, v in zip(xx.dims, xx.chunks)}
     elif isinstance(xx, xr.Dataset):
         npix = sum(b.data.size for b in xx.data_vars.values())
         nbytes = sum(b.data.dtype.itemsize * b.data.size for b in xx.data_vars.values())
         dtype, *_ = {b.dtype for b in xx.data_vars.values()}
         nb = len(xx.data_vars)
         sample_band, *_ = xx.data_vars.values()
-        _chunks = {k: max(v) for k, v in sample_band.chunksizes.items()}
+        assert sample_band.chunks is not None
+        _chunks = {k: max(v) for k, v in zip(sample_band.dims, sample_band.chunks)}
     else:
         raise ValueError("Expect one of `xarray.{DataArray,Dataset}` on input")
 
