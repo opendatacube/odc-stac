@@ -29,5 +29,6 @@ odc.stac.bench
    BenchmarkContext
    BenchLoadParams
 
+   dump_site
    load_from_json
    run_bench
