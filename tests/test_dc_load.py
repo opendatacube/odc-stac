@@ -25,6 +25,7 @@ def test_dc_load_smoketest(sentinel_stac_ms: pystac.item.Item):
     xx = dc_load([ds], "B02", **params)
     assert xx.B02.shape == (1, 1099, 1099)
     assert xx.B02.geobox.crs == ds.crs
+    assert "units" not in xx.time.attrs
 
     # Check that aliases also work
     xx = dc_load([ds], bands=["red", "green", "blue"], **params)

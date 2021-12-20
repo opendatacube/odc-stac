@@ -114,6 +114,10 @@ def dc_load(
         warn(f"Supplied 'geobox=' parameter aliases {list(geo_keys)} inputs")
 
     grouped = Datacube.group_datasets(datasets, groupby)
+
+    # better inter-op with .to_zarr, .to_netcdf
+    grouped.time.attrs.pop("units", None)
+
     mm = product.lookup_measurements(measurements)
     return Datacube.load_data(
         grouped,

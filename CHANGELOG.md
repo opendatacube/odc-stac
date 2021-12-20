@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - Moved publishing steps into separate workflows
 - Deprecated imports from `odc.index.*`
+- Removed `.units` attribute from `.time` axis for better inter-op with `.to_zarr`, `.to_netcdf`
 
 ### Fixed
 
