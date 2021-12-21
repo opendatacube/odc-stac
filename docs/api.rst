@@ -26,7 +26,6 @@ odc.stac.bench
 .. autosummary::
    :toctree: _api/
 
-   TimeSample
    BenchmarkContext
    BenchLoadParams
 
