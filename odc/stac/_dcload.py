@@ -3,12 +3,81 @@ from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Union
 from warnings import warn
 
 import datacube.utils.geometry
+import distributed
 import shapely.geometry
 import xarray as xr
 from datacube import Datacube
 from datacube.api.core import output_geobox
 from datacube.model import Dataset
 from datacube.utils.geometry import GeoBox
+from datacube.utils.rio import activate_from_config, get_rio_env, set_default_rio_config
+
+
+def _dump_rio_config():
+    cfg = get_rio_env()
+    nw = max(len(k) for k in cfg)
+    for k, v in cfg.items():
+        print(f"{k:<{nw}} = {v}")
+
+
+class ODCConfigPlugin(distributed.WorkerPlugin):
+    """Worker Plugin to configure GDAL/rio."""
+
+    def __init__(
+        self,
+        cloud_defaults: bool = False,
+        verbose: bool = False,
+        aws: Optional[Dict[str, Any]] = None,
+        **params,
+    ):
+        """Configure plugin."""
+        self._cloud_defaults = cloud_defaults
+        self._verbose = verbose
+        self._aws = aws
+        self._params = params
+
+    def setup(self, worker):  # noqa: D401
+        """Called on each worker."""
+        set_default_rio_config(
+            cloud_defaults=self._cloud_defaults, aws=self._aws, **self._params
+        )
+        activate_from_config()
+        if self._verbose:
+            _dump_rio_config()
+
+
+def configure_rio(
+    *,
+    cloud_defaults: bool = False,
+    verbose: bool = False,
+    client: Optional[distributed.Client] = None,
+    aws: Optional[Dict[str, Any]] = None,
+    activate: bool = True,
+    **params,
+):
+    """
+    Change GDAL/rasterio configuration.
+
+    Change can be applied locally or on a Dask cluster using ``WorkerPlugin`` mechanism.
+
+    :param cloud_defaults: When ``True`` enable common cloud settings in GDAL
+    :param verbose: Dump GDAL environment settings to stdout
+    :param client: Activate on Dask workers rather than locally
+    :param aws: Arguments for :py:class:`rasterio.session.AWSSession`
+    :param activate: Activate immediately in this thread or delay until first read
+    """
+    if client is not None:
+        plugin = ODCConfigPlugin(
+            cloud_defaults=cloud_defaults, aws=aws, verbose=verbose, **params
+        )
+        client.register_worker_plugin(plugin, name="odc-config")
+        return
+
+    set_default_rio_config(cloud_defaults=cloud_defaults, aws=aws, **params)
+    if activate:
+        activate_from_config()
+    if verbose and activate:
+        _dump_rio_config()
 
 
 def _geojson_to_shapely(xx: Any) -> shapely.geometry.base.BaseGeometry:

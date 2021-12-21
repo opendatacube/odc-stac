@@ -11,7 +11,7 @@ from datacube.model import Dataset
 from pyproj.crs.crs import CRS
 from shapely.geometry import geo
 
-from odc.stac import dc_load, eo3_geoboxes, stac2ds, stac_load
+from odc.stac import configure_rio, dc_load, eo3_geoboxes, stac2ds, stac_load
 from odc.stac._dcload import _geojson_to_shapely, _normalize_geometry
 from odc.stac._load import most_common_crs
 
@@ -248,3 +248,25 @@ def test_normalize_geometry(sample_geojson):
     # some object without __geo_interface__
     with pytest.raises(ValueError):
         _normalize_geometry(epsg4326)
+
+
+def test_configure_rio(capsys):
+    def fake_register(plugin, name="name"):
+        worker = MagicMock()
+        plugin.setup(worker)
+
+    client = MagicMock()
+    client.register_worker_plugin = fake_register
+
+    configure_rio(cloud_defaults=True, activate=True, verbose=False)
+    _io = capsys.readouterr()
+    assert _io.out == ""
+    assert _io.err == ""
+
+    configure_rio(cloud_defaults=True, activate=True, verbose=True)
+    _io = capsys.readouterr()
+    assert "GDAL_DISABLE_READDIR_ON_OPEN" in _io.out
+
+    configure_rio(cloud_defaults=True, activate=True, verbose=True, client=client)
+    _io = capsys.readouterr()
+    assert "GDAL_DISABLE_READDIR_ON_OPEN" in _io.out
