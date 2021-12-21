@@ -139,6 +139,7 @@ intersphinx_mapping = {
     "xr": ("https://xarray.pydata.org/en/stable/", None),
     "datacube": ("https://datacube-core.readthedocs.io/en/latest/", None),
     "pystac": ("https://pystac.readthedocs.io/en/latest/", None),
+    "rasterio": ("https://rasterio.readthedocs.io/en/latest/", None),
 }
 
 # -- Options for HTML output -------------------------------------------------
