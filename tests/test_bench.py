@@ -95,12 +95,10 @@ def test_bench_context(fake_dask_client, bench_site1, bench_site2):
     assert rr.total_ram == 500 * (1 << 20)
 
     header_txt = rr.render_txt()
-    print(header_txt)
     assert "T.slice   : 2020-06-06" in header_txt
     assert "Data      : 1.3.90978.10980.uint16,  5.58 GiB" in header_txt
 
     run_txt = rr.render_timing_info((0, 0.1, 30))
-    print(run_txt)
 
     # Check DataArray case
     rr = collect_context_info(
@@ -173,7 +171,7 @@ def _strip_geo(xx: xarray.DataArray) -> xarray.DataArray:
     return no_geo
 
 
-def test_run_bench(fake_dask_client, bench_site1):
+def test_run_bench(fake_dask_client, bench_site1, capsys):
     dask_client = fake_dask_client
     params = BenchLoadParams(
         scenario="test1",
@@ -189,6 +187,8 @@ def test_run_bench(fake_dask_client, bench_site1):
     assert rr.scenario == params.scenario
     assert rr.method == params.method
     assert len(timing) == 10
+    _io = capsys.readouterr()
+    assert len(_io.out) > 0
 
 
 def test_bench_params_json():
