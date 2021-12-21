@@ -17,6 +17,7 @@ odc.stac
 
    load
    stac2ds
+   configure_rio
 
 odc.stac.bench
 **************
