@@ -2,12 +2,14 @@
 import json
 import pickle
 from datetime import datetime
+from time import sleep
 from typing import Any, Dict, Optional
 
 import click
 import distributed
 import rasterio.enums
 
+from odc.stac import configure_rio
 from odc.stac.bench import (
     SAMPLE_SITES,
     BenchLoadParams,
@@ -67,9 +69,31 @@ def prepare(sample_site, list_sample_sites, from_file, overwrite):
 
 
 @main.command("dask")
-def _dask():
+@click.option(
+    "--n-workers", type=int, default=1, help="Number of workers to launch (1)"
+)
+@click.option(
+    "--threads-per-worker", type=int, help="Number of threads per worker (all cpus)"
+)
+@click.option("--memory-limit", type=str, help="Configure worker memory limit")
+def _dask(n_workers, threads_per_worker, memory_limit):
     """Launch local Dask Cluster."""
-    print("TODO")
+    client = distributed.Client(
+        n_workers=n_workers,
+        threads_per_worker=threads_per_worker,
+        memory_limit=memory_limit,
+    )
+    configure_rio(cloud_defaults=True, verbose=True, client=client)
+    info = client.scheduler_info()
+    print(f"Launched Dask Cluster: {info['address']}")
+    print(f"   --scheduler='{info['address']}'")
+    while True:
+        try:
+            sleep(1)
+        except KeyboardInterrupt:
+            print("Terminating")
+            client.shutdown()
+            return
 
 
 @main.command("run")
