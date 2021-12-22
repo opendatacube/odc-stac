@@ -100,6 +100,12 @@ def test_bench_context(fake_dask_client, bench_site1, bench_site2):
 
     run_txt = rr.render_timing_info((0, 0.1, 30))
 
+    pd_dict = rr.to_pandas_dict()
+    assert pd_dict["resolution"] == rr.resolution
+    assert pd_dict["data"] == "1.3.90978.10980.uint16"
+    assert pd_dict["chunks_x"] == 2048
+    assert pd_dict["chunks_y"] == 2048
+
     # Check DataArray case
     rr = collect_context_info(
         fake_dask_client, xx.red, method="odc-stac", scenario="site1"

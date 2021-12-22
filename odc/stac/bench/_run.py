@@ -95,6 +95,17 @@ class BenchmarkContext:
             w["memory_limit"] for w in self.cluster_info["workers"].values()
         )
 
+    @property
+    def data_signature(self) -> str:
+        """Render textual representation of data shape and type."""
+        data_dims = ".".join(map(str, self.shape))
+        return f"{data_dims}.{self.dtype}"
+
+    @property
+    def chunk_signature(self) -> str:
+        """Render textual representation of chunk shapes."""
+        return ".".join(map(str, self.chunks))
+
     def render_txt(self, col_width: int = 10) -> str:
         """
         Render textual representation for human consumption.
@@ -103,8 +114,6 @@ class BenchmarkContext:
         :return: Multiline string representation of self
         """
         nw = col_width
-        data_dims = ".".join(map(str, self.shape))
-        chunk_dims = ".".join(map(str, self.chunks))
 
         transorm_txt = f"\n{'':{nw}}".join(str(self.transform).split("\n")[:2])
         transorm_txt = transorm_txt.replace(".00,", ",")
@@ -114,8 +123,8 @@ class BenchmarkContext:
 {"method":{nw}}: {self.method}
 {"Scenario":{nw}}: {self.scenario}
 {"T.slice":{nw}}: {self.temporal_id}
-{"Data":{nw}}: {data_dims}.{self.dtype},  {format_bytes(self.nbytes)}
-{"Chunks":{nw}}: {chunk_dims} (T.B.Y.X)
+{"Data":{nw}}: {self.data_signature},  {format_bytes(self.nbytes)}
+{"Chunks":{nw}}: {self.chunk_signature} (T.B.Y.X)
 {"GEO":{nw}}: {self.crs}
 {"":{nw}}{transorm_txt}
 {"Cluster":{nw}}: {self.nworkers} workers, {self.nthreads} threads, {format_bytes(self.total_ram)}
@@ -141,6 +150,29 @@ class BenchmarkContext:
 {"Throughput":{nw}}: {self.npix/(t_elapsed*1e+6):8.3f} Mpx/second (overall)
 {"":{nw}}| {self.npix/(self.nthreads*t_elapsed*1e+6):8.3f} Mpx/second (per thread)
 """.strip()
+
+    @property
+    def resolution(self):
+        """Extract resolution."""
+        sx, _, _, _, sy, *_ = self.transform
+        return min(abs(v) for v in [sx, sy])
+
+    def to_pandas_dict(self) -> Dict[str, Any]:
+        """Extract parts one would need for analysis of results."""
+        return dict(
+            method=self.method,
+            scenario=self.scenario,
+            data=self.data_signature,
+            chunks=self.chunk_signature,
+            chunks_x=self.chunks[2],
+            chunks_y=self.chunks[3],
+            resolution=self.resolution,
+            crs=self.crs,
+            npix=self.npix,
+            nbytes=self.nbytes,
+            nthreads=self.nthreads,
+            total_ram=self.total_ram,
+        )
 
 
 def collect_context_info(
