@@ -1,5 +1,6 @@
 """Benchmarking tools."""
 from ._prepare import SAMPLE_SITES, dump_site
+from ._report import load_results
 from ._run import (
     BenchLoadParams,
     BenchmarkContext,
@@ -17,5 +18,6 @@ __all__ = (
     "TimeSample",
     "collect_context_info",
     "load_from_json",
+    "load_results",
     "run_bench",
 )

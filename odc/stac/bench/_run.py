@@ -1,6 +1,7 @@
 """Utilities for benchmarking."""
 import importlib
 import json
+import pickle
 from copy import copy
 from dataclasses import dataclass, field
 from time import sleep
@@ -20,7 +21,8 @@ import odc.stac
 TimeSample = Tuple[float, float, float]
 """(t0, t_finished_submit, t_finished_compute)"""
 
-# pylint: disable=too-many-instance-attributes,too-many-locals,import-outside-toplevel,import-error
+# pylint: disable=too-many-instance-attributes,too-many-locals,too-many-arguments
+# pylint: disable=import-outside-toplevel,import-error
 
 
 @dataclass
@@ -413,6 +415,7 @@ def run_bench(
     ntimes: int = 1,
     col_width: int = 12,
     restart_sleep: float = 0,
+    results_file: Optional[str] = None,
 ) -> Tuple[BenchmarkContext, List[TimeSample]]:
     """
     Run same configuration multiple times and resport timing.
@@ -422,6 +425,8 @@ def run_bench(
     :param ntimes: How many rounds to run (default: 1)
     :param col_width: First column width in characters
     :param restart_sleep: Number of seconds to sleep after ``client.restart()``
+    :param results_file: If set pickle results to this file, it will be overwritten
+                         after every run.
     :returns: :class:`odc.stac.bench.BenchmarkContext` and timing info per run.
 
     Reported timing info is a triple of ``(t0, t_finished_submit, t_finished_persist)``
@@ -433,12 +438,12 @@ def run_bench(
         extra["method"] = params.method
         extra["scenario"] = params.scenario
 
-    rr = collect_context_info(client, xx, **extra)
-    results = []
+    bench_ctx = collect_context_info(client, xx, **extra)
+    samples = []
     _xx = None
 
     try:
-        print(rr.render_txt(col_width))
+        print(bench_ctx.render_txt(col_width))
         for _ in range(ntimes):
             client.restart()
             sleep(restart_sleep)
@@ -453,14 +458,18 @@ def run_bench(
 
             times = (t0, t1, t2)
             print("-" * 60)
-            print(rr.render_timing_info(times, col_width))
-            results.append(times)
+            print(bench_ctx.render_timing_info(times, col_width))
+            samples.append(times)
+
+            if results_file is not None:
+                with open(results_file, "wb") as dst:
+                    pickle.dump({"context": bench_ctx, "samples": samples}, dst)
     except KeyboardInterrupt:
         print("Aborting early upon request")
         if _xx is not None:
             client.cancel(_xx)
 
-    return rr, results
+    return bench_ctx, samples
 
 
 def _trim_dict(d: Dict[str, Any]) -> Dict[str, Any]:
