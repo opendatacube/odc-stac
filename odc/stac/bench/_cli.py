@@ -1,6 +1,5 @@
 """CLI app for benchmarking."""
 import json
-import pickle
 from datetime import datetime
 from time import sleep
 from typing import Any, Dict, Optional
@@ -15,6 +14,7 @@ from odc.stac.bench import (
     BenchLoadParams,
     dump_site,
     load_from_json,
+    load_results,
     run_bench,
 )
 
@@ -193,17 +193,34 @@ def run(
     print(f"Starting benchmark run ({ntimes} runs)")
     print("=" * 60)
 
-    bench_ctx, samples = run_bench(xx, client, ntimes=ntimes)
-    print("=" * 60)
-    print("Finsihed")
     ts = datetime.now().strftime("%Y%m%dT%H%M%S.%f")
     results_file = f"{cfg.scenario}_{ts}.pkl"
-    print(f"Saving results to: {results_file}")
-    with open(results_file, "wb") as dst:
-        pickle.dump({"context": bench_ctx, "samples": samples}, dst)
+    print(f"Will write results to: {results_file}")
+    _ = run_bench(xx, client, ntimes=ntimes, results_file=results_file)
+    print("=" * 60)
+    print("Finsihed")
 
 
 @main.command("report")
-def report():
-    """Assemble report."""
-    print("TODO")
+@click.option(
+    "--matching", type=str, help="Supply glob pattern instead of individual .pkl files"
+)
+@click.option(
+    "--output",
+    type=str,
+    help="File to write CSV data, if not supplied will write to stdout",
+)
+@click.argument(
+    "pkls", type=click.Path(exists=True, dir_okay=False, readable=True), nargs=-1
+)
+def report(matching, output, pkls):
+    """Assemble results of multiple benchmark experiments in to a single CSV file."""
+    if matching is not None:
+        data_raw = load_results(matching)
+    else:
+        data_raw = load_results(pkls)
+
+    if output is None:
+        print(data_raw.to_csv())
+    else:
+        data_raw.to_csv(output)
