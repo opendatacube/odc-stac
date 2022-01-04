@@ -32,3 +32,4 @@ odc.stac.bench
    dump_site
    load_from_json
    run_bench
+   load_results

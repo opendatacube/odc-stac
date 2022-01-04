@@ -17,6 +17,7 @@ odc-stac
 
    api.rst
    examples.rst
+   benchmarking.rst
 
 .. toctree::
    :caption: STAC

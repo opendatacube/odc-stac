@@ -102,7 +102,7 @@ def _dask(n_workers, threads_per_worker, memory_limit):
     "-c",
     type=click.Path(exists=True, dir_okay=False, readable=True),
     required=False,
-    help="GeoJSON file generated with `prepare` step.",
+    help="Experiment configuration in json format",
 )
 @click.option(
     "--ntimes", "-n", type=int, default=1, help="Configure number of times to run"
@@ -139,7 +139,11 @@ def run(
     show_config,
     scheduler,
 ):
-    """Run data load benchmark using Dask."""
+    """
+    Run data load benchmark using Dask.
+
+    SITE is a GeoJSON file produced by `prepare` step.
+    """
     cfg: Optional[BenchLoadParams] = None
     if config is not None:
         with open(config, "rt", encoding="utf8") as src:
@@ -214,7 +218,12 @@ def run(
     "pkls", type=click.Path(exists=True, dir_okay=False, readable=True), nargs=-1
 )
 def report(matching, output, pkls):
-    """Assemble results of multiple benchmark experiments in to a single CSV file."""
+    """
+    Collate results of multiple benchmark experiments.
+
+    Read pickle files produced by the `run` command and assemble
+    them into one CSV file.
+    """
     if matching is not None:
         data_raw = load_results(matching)
     else:
