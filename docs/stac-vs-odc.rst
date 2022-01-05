@@ -12,17 +12,17 @@ similar concepts.
    * - STAC
      - ODC
      - Description
-   * - :class:`~pystac.Collection`
-     - Product or :class:`~datacube.model.DatasetType`
+   * - :py:class:`~pystac.Collection`
+     - Product or :py:class:`~datacube.model.DatasetType`
      - Collection of observations across space and time
-   * - :class:`~pystac.Item`
-     - :class:`~datacube.model.Dataset`
+   * - :py:class:`~pystac.Item`
+     - :py:class:`~datacube.model.Dataset`
      - Single observation (specific time and place), multi-channel
-   * - :class:`~pystac.Asset`
-     - :class:`~datacube.model.Measurement`
+   * - :py:class:`~pystac.Asset`
+     - :py:class:`~datacube.model.Measurement`
      - Component of a single observation
    * - Band_
-     - :class:`~datacube.model.Measurement`
+     - :py:class:`~datacube.model.Measurement`
      - Pixel plane within a multi-plane asset
    * - `Common Name`_
      - Alias

@@ -3,7 +3,7 @@
 Overview
 ########
 
-Load STAC :class:`pystac.Item`\s into :class:`xarray.Dataset`.
+Load STAC :py:class:`pystac.Item`\s into :py:class:`xarray.Dataset`.
 
 .. code-block:: python
 
@@ -17,7 +17,7 @@ Load STAC :class:`pystac.Item`\s into :class:`xarray.Dataset`.
    xx.red.plot.imshow(col="time")
 
 
-See :func:`odc.stac.load`.
+See :py:func:`odc.stac.load`.
 
 
 Installation
