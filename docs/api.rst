@@ -3,9 +3,9 @@
 API Reference
 #############
 
-.. currentmodule:: odc.stac
-.. py:module:: odc.stac
 .. highlight:: python
+.. py:module:: odc.stac
+.. py:module:: odc.stac.bench
 
 
 odc.stac
