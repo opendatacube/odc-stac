@@ -21,6 +21,7 @@
 # https://registry.opendata.aws/sentinel-2-l2a-cogs/
 
 # %%
+import dask.distributed
 import folium
 import folium.plugins
 import geopandas as gpd
@@ -32,7 +33,7 @@ from IPython.display import HTML, display
 from odc.algo import to_rgba
 from pystac_client import Client
 
-from odc.stac import stac_load
+from odc.stac import configure_rio, stac_load
 
 
 # %%
@@ -72,8 +73,17 @@ sentinel-s2-l2a-cogs:
   warnings: ignore # Disable warnings about duplicate common names
 """
 cfg = yaml.load(cfg, Loader=yaml.SafeLoader)
+# %% [markdown]
+# ## Start Dask Client
+#
+# This step is optional, but it does improve load speed significantly. You
+# don't have to use Dask, as you can load data directly into memory of the
+# notebook.
 
-catalog = Client.open("https://earth-search.aws.element84.com/v0")
+# %%
+client = dask.distributed.Client()
+configure_rio(cloud_defaults=True, aws={"aws_unsigned": True}, client=client)
+display(client)
 
 # %% [markdown]
 # ## Find STAC Items to Load
@@ -83,6 +93,8 @@ km2deg = 1.0 / 111
 x, y = (113.887, -25.843)  # Center point of a query
 r = 100 * km2deg
 bbox = (x - r, y - r, x + r, y + r)
+
+catalog = Client.open("https://earth-search.aws.element84.com/v0")
 
 query = catalog.search(
     collections=["sentinel-s2-l2a-cogs"], datetime="2021-09-16", limit=100, bbox=bbox

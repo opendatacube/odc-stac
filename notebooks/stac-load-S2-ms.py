@@ -26,20 +26,20 @@
 # We need to install extra libraries first:
 #
 # ```bash
-# pip install 'odc-stac>=0.2.1'
+# pip install "odc-stac>=0.2.3"
 # ```
 #
 # This is enough to load data. But this notebook also uses some extra utilities
 # from
 #
 # ```bash
-# pip install odc-algo odc-ui
+# pip install "odc-algo>=0.2.2" "odc-ui>=0.2.0a3"
 # ```
 #
 
 # %%
-# #!pip install odc-stac>=0.2.1
-# #!pip install odc-ui odc-algo
+# #!pip install "odc-stac>=0.2.3"
+# #!pip install "odc-algo>=0.2.2" "odc-ui>=0.2.0a3"
 
 # %%
 import dask.distributed
@@ -50,7 +50,7 @@ import yaml
 from IPython.display import display
 from pystac_client import Client
 
-from odc.stac import stac_load
+from odc.stac import configure_rio, stac_load
 
 # %% [markdown]
 # ## Configuration
@@ -93,6 +93,7 @@ cfg = yaml.load(cfg, Loader=yaml.CSafeLoader)
 
 # %%
 client = dask.distributed.Client()
+configure_rio(cloud_defaults=True, client=client)
 display(client)
 
 # %% [markdown]
