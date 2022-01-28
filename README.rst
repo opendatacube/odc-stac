@@ -69,7 +69,7 @@ Sample ``environment.yml`` is provided below.
      - pip =20
      - pip:
        - odc-stac
-
+       - pystac-client
 
 Developing
 ##########
