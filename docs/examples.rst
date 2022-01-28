@@ -11,7 +11,7 @@ Example Notebooks
 
    notebooks/stac-load-e84-aws
    notebooks/stac-load-S2-ms
-
+   notebooks/stac-load-S2-deafrica
 
 .. |Binder| image:: https://mybinder.org/badge_logo.svg
    :target: https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?urlpath=lab/workspaces/demo
