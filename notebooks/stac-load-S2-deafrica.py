@@ -33,7 +33,7 @@ from odc.stac import stac_load, configure_rio
 #
 # The configuration dictionary is determined from the product's definition, available at https://explorer.digitalearth.africa/products/s2_l2a#definition-doc
 #
-# All assets except SLC have the same configuration. SLC uses `uint8` rather than `uint16`.
+# All assets except SCL have the same configuration. SCL uses `uint8` rather than `uint16`.
 #
 # In the configuration, we also supply the aliases for each band. This means we can load data by band name rather than band number.
 
@@ -46,7 +46,7 @@ config = {
                 "nodata": 0,
                 "unit": "1",
             },
-            "SLC": {
+            "SCL": {
                 "data_type": "uint8",
                 "nodata": 0,
                 "unit": "1",
@@ -156,7 +156,7 @@ ds
 # %% [markdown]
 # ### Compute a band index
 #
-# After loading the data, you can perform standard Xarray operations, such as calculating and plotting the normalised difference vegetation index (NDVI). Plotting the band index triggers Dask to load the data into memory, so running this step may take a few minutes.
+# After loading the data, you can perform standard Xarray operations, such as calculating and plotting the normalised difference vegetation index (NDVI). The `.compute()` method triggers Dask to load the data into memory, so running this step may take a few minutes.
 
 # %%
 ds["NDVI"] = (ds.nir - ds.red) / (ds.nir + ds.red)
