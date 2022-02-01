@@ -21,18 +21,17 @@
 # https://explorer.digitalearth.africa/products/s2_l2a
 
 # %% [markdown]
-# ## Import required packages
+# ## Import Required Packages
 
 # %%
-import rasterio
 from pystac_client import Client
 
-from odc.stac import stac_load
+from odc.stac import stac_load, configure_rio
 
 # %% [markdown]
-# ## Set configuration
+# ## Set Collection Configuration
 #
-# The configuration dictionary is determined from the product's definition, availble at https://explorer.digitalearth.africa/products/s2_l2a#definition-doc
+# The configuration dictionary is determined from the product's definition, available at https://explorer.digitalearth.africa/products/s2_l2a#definition-doc
 #
 # All assets except SLC have the same configuration. SLC uses `uint8` rather than `uint16`.
 #
@@ -44,12 +43,12 @@ config = {
         "assets": {
             "*": {
                 "data_type": "uint16",
-                "nodata": 0, 
+                "nodata": 0,
                 "unit": "1",
             },
             "SLC": {
                 "data_type": "uint8",
-                "nodata": 0, 
+                "nodata": 0,
                 "unit": "1",
             },
         },
@@ -69,52 +68,74 @@ config = {
             "mask": "SLC",
             "aerosol_optical_thickness": "AOT",
             "scene_average_water_vapour": "WVP",
-        }
+        },
     }
 }
 
+
 # %% [markdown]
-# ## Connect to the Digital Earth Africa STAC catalog
+# ## Set AWS Configuration
+#
+# Digital Earth Africa data is stored on S3 in Cape Town, Africa. To load the data, we must configure rasterio with the appropriate AWS S3 endpoint. This can be done with the `odc.stac.configure_rio` function. Documentation for this function is available at https://odc-stac.readthedocs.io/en/latest/_api/odc.stac.configure_rio.html#odc.stac.configure_rio.
+#
+# The configuration below must be used when loading any Digital Earth Africa data through the STAC API.
+
+# %%
+configure_rio(
+    cloud_defaults=True,
+    aws={"aws_unsigned": True},
+    AWS_S3_ENDPOINT="s3.af-south-1.amazonaws.com",
+)
+
+
+# %% [markdown]
+# ## Connect to the Digital Earth Africa STAC Catalog
 
 # %%
 # Open the stac catalogue
-deafrica_stac_address = 'https://explorer.digitalearth.africa/stac'
-catalog = Client.open(deafrica_stac_address)
+catalog = Client.open("https://explorer.digitalearth.africa/stac")
+
 
 # %% [markdown]
 # ## Find STAC Items to Load
+#
+# ### Define query parameters
 
 # %%
-# Construct a bounding box to search over
+# Set a bounding box
 # [xmin, ymin, xmax, ymax] in latitude and longitude
 bbox = [37.76, 12.49, 37.77, 12.50]
 
-# Construct a time range to search over
-start_date = '2020-09-01'
-end_date = '2020-12-01'
-timerange = f'{start_date}/{end_date}'
+# Set a start and end date
+start_date = "2020-09-01"
+end_date = "2020-12-01"
 
-# Choose the product/s to load
-products = ['s2_l2a']
+# Set the STAC collections
+collections = ["s2_l2a"]
+
+
+# %% [markdown]
+# ### Construct query and get items from catalog
 
 # %%
-# Identify all data matching the above:
+# Build a query with the set parameters
 query = catalog.search(
-    bbox=bbox,
-    collections=products,
-    datetime=timerange
+    bbox=bbox, collections=collections, datetime=f"{start_date}/{end_date}"
 )
 
+# Search the STAC catalog for all items matching the query
 items = list(query.get_items())
 print(f"Found: {len(items):d} datasets")
 
 # %% [markdown]
-# ## Construct Dask Dataset
+# ## Load the Data
 #
-# In this step, we specify the desired coordinate system, resolution (here 20m), and bands to load. We also pass the bounding box to the `stac_load` function to only load the requested data.
+# In this step, we specify the desired coordinate system, resolution (here 20m), and bands to load. We also pass the bounding box to the `stac_load` function to only load the requested data. Since the band aliases are contained in the `config` dictionary, bands can be loaded using these aliaes (e.g. `"red"` instead of `"B04"` below).
+#
+# The data will be lazy-loaded with dask, meaning that is won't be loaded into memory until necessary, such as when it is displayed.
 
 # %%
-crs = 'EPSG:6933'
+crs = "EPSG:6933"
 resolution = 20
 
 ds = stac_load(
@@ -128,27 +149,16 @@ ds = stac_load(
     bbox=bbox,
 )
 
-
-# %%
 # View the Xarray Dataset
 ds
 
-# %% [markdown]
-# ## Load the data into memory
-#
-# Digital Earth Africa data is stored on S3 in Cape Town, Africa. To load the data, we must use a rasterio Env configured with the appropriate AWS S3 endpoint.
-
-# %%
-# Load into memory
-with rasterio.Env(AWS_S3_ENDPOINT='s3.af-south-1.amazonaws.com', AWS_NO_SIGN_REQUEST='YES'):
-    ds_loaded = ds.load()
 
 # %% [markdown]
 # ### Compute a band index
 #
-# After loading the data, you can perform standard Xarray operations, such as calculating and plotting the normalised difference vegetation index (NDVI).
+# After loading the data, you can perform standard Xarray operations, such as calculating and plotting the normalised difference vegetation index (NDVI). Plotting the band index triggers Dask to load the data into memory, so running this step may take a few minutes.
 
 # %%
-ds_loaded["NDVI"] = (ds_loaded.nir - ds_loaded.red)/(ds_loaded.nir + ds_loaded.red)
+ds["NDVI"] = (ds.nir - ds.red) / (ds.nir + ds.red)
 
-ds_loaded.NDVI.plot(col="time", col_wrap=6, vmin=0, vmax=1);
+ds.NDVI.plot(col="time", col_wrap=6, vmin=0, vmax=1)

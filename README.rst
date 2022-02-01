@@ -66,10 +66,10 @@ Sample ``environment.yml`` is provided below.
      - toolz
      - jinja2
      - pystac
+     - pystac-client
      - pip =20
      - pip:
        - odc-stac
-       - pystac-client
 
 Developing
 ##########

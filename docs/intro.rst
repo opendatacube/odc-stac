@@ -57,7 +57,7 @@ dependencies using conda then install ``odc-stac`` with pip. Sample
      - toolz
      - jinja2
      - pystac
+     - pystac-client
      - pip =20
      - pip:
        - git+https://github.com/opendatacube/odc-stac/
-       - pystac-client
