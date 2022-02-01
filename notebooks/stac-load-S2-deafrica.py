@@ -161,4 +161,4 @@ ds
 # %%
 ds["NDVI"] = (ds.nir - ds.red) / (ds.nir + ds.red)
 
-ds.NDVI.plot(col="time", col_wrap=6, vmin=0, vmax=1)
+ds.NDVI.compute().plot(col="time", col_wrap=6, vmin=0, vmax=1)
