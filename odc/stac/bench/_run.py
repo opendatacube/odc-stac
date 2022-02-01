@@ -371,6 +371,12 @@ class BenchLoadParams:
         return {}
 
 
+def _default_nodata(dtype):
+    if dtype.kind == "f":
+        return float("nan")
+    return 0
+
+
 def load_from_json(geojson, params: BenchLoadParams, **kw):
     """
     Turn passed in geojson into a Dask array.
@@ -396,7 +402,8 @@ def load_from_json(geojson, params: BenchLoadParams, **kw):
         _items = [patch_url(item).to_dict() for item in all_items]
         xx = stackstac.stack(_items, **opts)
         if np.unique(xx.time.data).shape != xx.time.shape:
-            xx = xx.groupby("time").map(stackstac.mosaic)
+            nodata = opts.get("fill_value", _default_nodata(xx.dtype))
+            xx = xx.groupby("time").map(stackstac.mosaic, nodata=nodata)
 
         if xx.geobox.transform != xx.spec.transform:
             # work around issue 93 in stackstac

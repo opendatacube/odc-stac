@@ -117,7 +117,7 @@ jobs:
     - name: Check formatting (black)
       shell: bash
       run: |
-       black --check .
+       black --check --diff .
 
 
   run-pylint:
