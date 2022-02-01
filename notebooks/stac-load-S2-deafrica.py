@@ -65,7 +65,7 @@ config = {
             "water_vapour": "B09",
             "swir_1": "B11",
             "swir_2": "B12",
-            "mask": "SLC",
+            "mask": "SCL",
             "aerosol_optical_thickness": "AOT",
             "scene_average_water_vapour": "WVP",
         },
