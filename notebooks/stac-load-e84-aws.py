@@ -177,7 +177,7 @@ display(fig)
 # %%
 # Since we will plot it on a map we need to use `EPSG:3857` projection
 crs = "epsg:3857"
-zoom = 2 ** 5  # overview level 5
+zoom = 2**5  # overview level 5
 
 xx = stac_load(
     items,
