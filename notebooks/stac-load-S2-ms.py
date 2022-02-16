@@ -23,23 +23,15 @@
 #
 # This notebook is meant to run on Planetary Computer lab hub.
 #
-# We need to install extra libraries first:
+# We need to install extra libraries for some visualizations:
 #
 # ```bash
-# pip install "odc-stac>=0.2.3"
-# ```
-#
-# This is enough to load data. But this notebook also uses some extra utilities
-# from
-#
-# ```bash
-# pip install "odc-algo>=0.2.2" "odc-ui>=0.2.0a3"
+# pip install "odc-ui>=0.2.0a3"
 # ```
 #
 
 # %%
-# #!pip install "odc-stac>=0.2.3"
-# #!pip install "odc-algo>=0.2.2" "odc-ui>=0.2.0a3"
+# #!pip install "odc-ui>=0.2.0a3"
 
 # %%
 import dask.distributed
