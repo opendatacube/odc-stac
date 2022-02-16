@@ -38,6 +38,9 @@ Using Conda
    conda install -c conda-forge odc-stac
 
 
+From unreleased source
+**********************
+
 Using latest unreleased code in ``conda`` is also possible. It's best to install
 dependencies using conda then install ``odc-stac`` with pip. Sample
 ``environment.yml`` is provided below.
@@ -48,8 +51,8 @@ dependencies using conda then install ``odc-stac`` with pip. Sample
    channels:
      - conda-forge
    dependencies:
-     - datacube >=1.8.5
-     - xarray ~- 0.20.1
+     - datacube >=1.8.6
+     - xarray >=0.20.1
      - numpy
      - pandas
      - affine
