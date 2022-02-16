@@ -3,7 +3,8 @@ odc.stac
 
 |Documentation Status| |Test Status| |Test Coverage| |Binder|
 
-Tooling for converting STAC metadata to ODC data model.
+Load STAC items into ``xarray`` Datasets. Process locally or distribute data
+loading and computation with Dask_.
 
 Usage
 #####
@@ -19,11 +20,10 @@ odc.stac.load
    xx = odc.stac.load(
        query.get_items(),
        bands=["red", "green", "blue"],
-       crs="EPSG:32606",
-       resolution=(-100, 100),
    )
    xx.red.plot.imshow(col="time")
 
+For more details see `Documentation`_ and `Sample Notebooks`_, or try it out on Binder_.
 
 
 Installation
@@ -46,19 +46,22 @@ This package is be available on ``conda-forge`` channel:
 
    conda install -c conda-forge odc-stac
 
-To use development version of ``odc-stac`` install dependencies from conda, then
+
+From unreleased source
+~~~~~~~~~~~~~~~~~~~~~~
+
+To use development version of ``odc-stac`` install dependencies from ``conda``, then
 install ``odc-stac`` with ``pip``.
 
 Sample ``environment.yml`` is provided below.
-
 
 .. code-block:: yaml
 
    channels:
      - conda-forge
    dependencies:
-     - datacube >=1.8.5
-     - xarray ~= 0.20.1
+     - datacube >=1.8.6
+     - xarray >= 0.20.1
      - numpy
      - pandas
      - affine
@@ -69,7 +72,7 @@ Sample ``environment.yml`` is provided below.
      - pystac-client
      - pip =20
      - pip:
-       - odc-stac
+       - "git+https://github.com/opendatacube/odc-stac/"
 
 Developing
 ##########
@@ -115,6 +118,8 @@ Linting is provided by mypy_, pylint_, and black_:
    :target: https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?urlpath=lab/workspaces/demo
    :alt: Run Examples in Binder
 
+.. _Binder: https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?urlpath=lab/workspaces/demo
+
 .. _virtualenvwrapper: https://virtualenvwrapper.readthedocs.io
 
 .. _pytest: https://docs.pytest.org
@@ -124,3 +129,9 @@ Linting is provided by mypy_, pylint_, and black_:
 .. _pylint: https://pylint.org/
 
 .. _black: https://github.com/psf/black
+
+.. _`Documentation`: https://odc-stac.readthedocs.io/
+
+.. _`Sample Notebooks`: https://odc-stac.readthedocs.io/en/latest/examples.html
+
+.. _Dask: https://dask.org/
