@@ -51,3 +51,4 @@ dependencies:
   - pip:
       # dev
       - shed
+      - git+https://github.com/opendatacube/odc-geo.git@ab00736e0e7b32f1c6af3720c6e07756fe7276c1

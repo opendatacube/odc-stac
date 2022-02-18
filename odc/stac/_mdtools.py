@@ -5,7 +5,6 @@ Utilities for translating STAC Items to EO3 Datasets.
 """
 
 import datetime
-from collections import namedtuple
 from typing import Any, Dict, List, Optional, Set, Tuple, TypeVar, Union
 from warnings import warn
 
@@ -21,8 +20,9 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
 from toolz import dicttoolz
 
+from ._model import RasterBandMetadata
+
 T = TypeVar("T")
-BandMetadata = namedtuple("BandMetadata", ["data_type", "nodata", "unit"])
 ConversionConfig = Dict[str, Any]
 
 EPSG4326 = CRS("EPSG:4326")
@@ -47,7 +47,9 @@ def with_default(v: Optional[T], default_value: T) -> T:
     return v
 
 
-def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetadata:
+def band_metadata(
+    asset: pystac.asset.Asset, default: RasterBandMetadata
+) -> RasterBandMetadata:
     """
     Compute band metadata from Asset raster extension with defaults from default.
 
@@ -67,7 +69,7 @@ def band_metadata(asset: pystac.asset.Asset, default: BandMetadata) -> BandMetad
         warn(f"Defaulting to first band of {len(rext.bands)}")
     band = rext.bands[0]
 
-    return BandMetadata(
+    return RasterBandMetadata(
         with_default(band.data_type, default.data_type),
         with_default(band.nodata, default.nodata),
         with_default(band.unit, default.unit),
@@ -334,10 +336,12 @@ def normalise_product_name(name: str) -> str:
     return name.replace("-", "_").replace(" ", "_")
 
 
-def norm_band_metadata(v: Union[BandMetadata, Dict[str, Any]]) -> BandMetadata:
-    if isinstance(v, BandMetadata):
+def norm_band_metadata(
+    v: Union[RasterBandMetadata, Dict[str, Any]]
+) -> RasterBandMetadata:
+    if isinstance(v, RasterBandMetadata):
         return v
-    return BandMetadata(
+    return RasterBandMetadata(
         v.get("data_type", "uint16"), v.get("nodata", 0), v.get("unit", "1")
     )
 

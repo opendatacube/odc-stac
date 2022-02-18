@@ -19,7 +19,7 @@ from odc.stac._eo3converter import (
     stac2ds,
 )
 from odc.stac._mdtools import (
-    BandMetadata,
+    RasterBandMetadata,
     asset_geobox,
     band_metadata,
     compute_eo3_grids,
@@ -30,8 +30,8 @@ from odc.stac._mdtools import (
 STAC_CFG = {
     "sentinel-2-l2a": {
         "assets": {
-            "*": BandMetadata("uint16", 0, "1"),
-            "SCL": BandMetadata("uint8", 0, "1"),
+            "*": RasterBandMetadata("uint16", 0, "1"),
+            "SCL": RasterBandMetadata("uint8", 0, "1"),
             "visual": dict(data_type="uint8", nodata=0, unit="1"),
         },
         "aliases": {  # Work around duplicate rededge common_name
@@ -48,7 +48,10 @@ def test_mk_product():
     p = mk_product(
         "some-product",
         ["a", "b"],
-        {"*": BandMetadata("uint8", 0, "1"), "b": BandMetadata("int16", -999, "BB")},
+        {
+            "*": RasterBandMetadata("uint8", 0, "1"),
+            "b": RasterBandMetadata("int16", -999, "BB"),
+        },
         {"A": "a", "B": "b", "bb": "b"},
     )
 
@@ -320,14 +323,14 @@ def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item):
 def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
     asset = item.assets["SCL"]
-    bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
-    assert bm == BandMetadata("uint8", 0, "1")
+    bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
+    assert bm == RasterBandMetadata("uint8", 0, "1")
 
     # Test multiple bands per asset cause a warning
     asset.extra_fields["raster:bands"].append({"nodata": -10})
     with pytest.warns(UserWarning, match="Defaulting to first band of 2"):
-        bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
-    assert bm == BandMetadata("uint8", 0, "1")
+        bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
+    assert bm == RasterBandMetadata("uint8", 0, "1")
 
 
 def test_item_uuid():
