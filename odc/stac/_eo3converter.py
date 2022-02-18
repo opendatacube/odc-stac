@@ -30,7 +30,7 @@ from toolz import dicttoolz
 
 from ._mdtools import (
     EPSG4326,
-    BandMetadata,
+    RasterBandMetadata,
     ConversionConfig,
     alias_map_from_eo,
     asset_geobox,
@@ -87,7 +87,7 @@ def mk_product(
     if aliases is None:
         aliases = {}
 
-    _cfg: Dict[str, BandMetadata] = {
+    _cfg: Dict[str, RasterBandMetadata] = {
         name: norm_band_metadata(meta) for name, meta in cfg.items()
     }
     band_aliases: Dict[str, List[str]] = {}
@@ -95,9 +95,11 @@ def mk_product(
         band_aliases.setdefault(canonical_name, []).append(alias)
 
     def make_band(
-        name: str, cfg: Dict[str, BandMetadata], band_aliases: Dict[str, List[str]]
+        name: str,
+        cfg: Dict[str, RasterBandMetadata],
+        band_aliases: Dict[str, List[str]],
     ) -> Dict[str, Any]:
-        info = cfg.get(name, cfg.get("*", BandMetadata("uint16", 0, "1")))
+        info = cfg.get(name, cfg.get("*", RasterBandMetadata("uint16", 0, "1")))
         aliases = band_aliases.get(name)
 
         # map to ODC names for raster:bands
