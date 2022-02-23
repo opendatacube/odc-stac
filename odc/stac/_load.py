@@ -190,8 +190,6 @@ def load(
        xx = odc.stac.load(
            query.get_items(),
            bands=["red", "green", "blue"],
-           crs="EPSG:32606",
-           resolution=(-100, 100),
        )
        xx.red.plot.imshow(col="time")
 
@@ -229,7 +227,7 @@ def load(
 
        xx = odc.stac.load(...
            crs="EPSG:3857",
-           resolution=(-10, 10))
+           resolution=10)
 
        # resolution units must match CRS
        # here we assume 1 degree == 111km to load at roughly
@@ -326,7 +324,7 @@ def load(
        Any other named parameter is passed on to :py:meth:`datacube.Datacube.load`
 
     :return:
-       :class:`xarray.Dataset` with requested bands populated
+       :py:class:`xarray.Dataset` with requested bands populated
 
 
     .. rubric:: Complete Example Code
@@ -348,16 +346,20 @@ def load(
        xx = stac.load(
            query.get_items(),
            bands=["red", "green", "blue"],
-           crs="EPSG:32606",
-           resolution=100,
+           resolution=100,  # 1/10 of the native 10m resolution
            patch_url=pc.sign,
        )
        xx.red.plot.imshow(col="time", size=8, aspect=1)
 
 
-    .. rubric:: Example Configuration
+    .. rubric:: Example Optional Configuration
 
-    Sample ``stac_cfg={..}`` parameter.
+    Sometimes data source might be missing some optional STAC extensions. With ``stac_cfg=`` parameter
+    one can supply that information at load time. Configuration is per collection per asset. You can
+    provide information like pixel data type, ``nodata`` value used, ``unit`` attribute and band aliases
+    you would like to use.
+
+    Sample ``stac_cfg={..}`` parameter:
 
     .. code-block:: yaml
 
