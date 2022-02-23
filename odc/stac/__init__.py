@@ -1,7 +1,7 @@
 """STAC Item -> ODC Dataset[eo3]."""
 from ._version import __version__  # isort:skip  this has to be 1st import
 from ._dcload import configure_rio, dc_load
-from ._eo3 import BandMetadata, ConversionConfig, infer_dc_product, stac2ds
+from ._eo3converter import BandMetadata, ConversionConfig, infer_dc_product, stac2ds
 from ._load import eo3_geoboxes, load
 
 stac_load = load

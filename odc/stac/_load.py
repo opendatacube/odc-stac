@@ -15,7 +15,7 @@ from pyproj.crs.crs import CRS
 from toolz import dicttoolz
 
 from ._dcload import dc_load
-from ._eo3 import ConversionConfig, stac2ds
+from ._eo3converter import ConversionConfig, stac2ds
 
 SomeCRS = Union[str, datacube.utils.geometry.CRS, pyproj.CRS, Dict[str, Any]]
 MaybeCRS = Optional[SomeCRS]
