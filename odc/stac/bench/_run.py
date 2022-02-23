@@ -14,7 +14,7 @@ import numpy as np
 import pystac.item
 import xarray as xr
 from dask.utils import format_bytes
-from datacube.utils.geometry import CRS
+from odc.geo import CRS
 
 import odc.stac
 
