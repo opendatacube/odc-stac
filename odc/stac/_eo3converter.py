@@ -95,7 +95,7 @@ def mk_product(
         aliases = band_aliases.get(name)
 
         # map to ODC names for raster:bands
-        doc = {
+        doc: Dict[str, Any] = {
             "name": name,
             "dtype": info.data_type,
             "nodata": info.nodata,
