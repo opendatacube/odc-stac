@@ -11,18 +11,20 @@ from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
 from toolz import dicttoolz
 
-from odc.stac._eo3 import (
-    BandMetadata,
+from odc.stac._eo3converter import (
     _compute_uuid,
+    infer_dc_product,
+    item_to_ds,
+    mk_product,
+    stac2ds,
+)
+from odc.stac._mdtools import (
+    BandMetadata,
     asset_geobox,
     band_metadata,
     compute_eo3_grids,
     has_proj_ext,
-    infer_dc_product,
     is_raster_data,
-    item_to_ds,
-    mk_product,
-    stac2ds,
 )
 
 STAC_CFG = {
