@@ -6,3 +6,7 @@ def test_band_load_info():
     band = RasterSource("https://example.com/some.tif", meta=meta)
     assert RasterLoadParams(band).dtype == "uint16"
     assert RasterLoadParams(band).fill_value == 13
+
+    band = RasterSource("file:///")
+    assert RasterLoadParams(band, dtype="uint16").dtype == "uint16"
+    assert RasterLoadParams(band).dtype is None
