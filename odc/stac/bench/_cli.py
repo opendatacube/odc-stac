@@ -202,7 +202,7 @@ def run(
     print(f"Will write results to: {results_file}")
     _ = run_bench(xx, client, ntimes=ntimes, results_file=results_file)
     print("=" * 60)
-    print("Finsihed")
+    print("Finished")
 
 
 @main.command("report")
