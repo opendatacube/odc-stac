@@ -13,7 +13,8 @@ import pystac.collection
 import pystac.errors
 import pystac.item
 from affine import Affine
-from datacube.utils.geometry import CRS, GeoBox, Geometry
+from odc.geo import CRS, Geometry, wh_
+from odc.geo.geobox import GeoBox
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
@@ -160,11 +161,11 @@ def mk_1x1_geobox(geom: Geometry) -> GeoBox:
     :param geom: Geometry in whatever projection
     :return: GeoBox object such that geobox.extent.contains(geom) is True, geobox.shape == (1,1)
     """
-    x1, y1, x2, y2 = (*geom.boundingbox,)  # type: ignore
+    x1, y1, x2, y2 = geom.boundingbox
     # note that Y axis is inverted
     #   0,0 -> X_min, Y_max
     #   1,1 -> X_max, Y_min
-    return GeoBox(1, 1, Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), geom.crs)  # type: ignore
+    return GeoBox((1, 1), Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), geom.crs)
 
 
 def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
@@ -200,7 +201,7 @@ def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
         raise ValueError(f"Asset transform is not affine: {_proj.transform}")
 
     affine = Affine(*_proj.transform[:6])
-    return GeoBox(w, h, affine, _proj.crs_string)
+    return GeoBox(wh_(w, h), affine, _proj.crs_string)
 
 
 def geobox_gsd(geobox: GeoBox) -> float:

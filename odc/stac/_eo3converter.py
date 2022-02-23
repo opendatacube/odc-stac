@@ -7,15 +7,7 @@ Utilities for translating STAC Items to EO3 Datasets.
 import uuid
 from copy import copy
 from functools import partial, singledispatch
-from typing import (
-    Any,
-    Dict,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Sequence,
-)
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
 from warnings import warn
 
 import pystac.asset
@@ -25,13 +17,13 @@ import pystac.item
 from datacube.index.eo3 import prep_eo3
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, metadata_from_doc
-from datacube.utils.geometry import Geometry
+from odc.geo import Geometry
 from toolz import dicttoolz
 
 from ._mdtools import (
     EPSG4326,
-    RasterBandMetadata,
     ConversionConfig,
+    RasterBandMetadata,
     alias_map_from_eo,
     asset_geobox,
     band2grid_from_gsd,
