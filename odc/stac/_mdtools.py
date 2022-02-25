@@ -5,6 +5,8 @@ Utilities for translating STAC Items to EO3 Datasets.
 """
 
 import datetime
+from copy import copy
+from functools import partial
 from typing import Any, Dict, List, Optional, Set, Tuple, TypeVar, Union
 from warnings import warn
 
@@ -21,10 +23,17 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterExtension
 from toolz import dicttoolz
 
-from ._model import RasterBandMetadata
+from ._model import (
+    ParsedItem,
+    RasterBandMetadata,
+    RasterCollectionMetadata,
+    RasterSource,
+)
 
 T = TypeVar("T")
 ConversionConfig = Dict[str, Any]
+
+BAND_DEFAULTS = RasterBandMetadata("float32", float("nan"), "1")
 
 EPSG4326 = CRS("EPSG:4326")
 
@@ -294,7 +303,10 @@ def band2grid_from_gsd(assets: Dict[str, pystac.asset.Asset]) -> Dict[str, str]:
 
 def alias_map_from_eo(item: pystac.item.Item, quiet: bool = False) -> Dict[str, str]:
     """
-    Generate mapping ``common name -> canonical name`` for all unique common names defined on the Item eo extension.
+    Generate mapping ``common name -> canonical name``.
+
+    For all unique common names defined on the Item eo extension record mapping to the canonical
+    name. Non-unique common names are ignored with a warning unless ``quiet`` flag is set.
 
     :param item: STAC :class:`~pystac.item.Item` to process
     :param quiet: Do not print warning if duplicate common names are found, defaults to False
@@ -338,13 +350,25 @@ def normalise_product_name(name: str) -> str:
 
 
 def norm_band_metadata(
-    v: Union[RasterBandMetadata, Dict[str, Any]]
+    v: Union[RasterBandMetadata, Dict[str, Any]],
+    fallback: RasterBandMetadata = BAND_DEFAULTS,
 ) -> RasterBandMetadata:
     if isinstance(v, RasterBandMetadata):
         return v
     return RasterBandMetadata(
-        v.get("data_type", "uint16"), v.get("nodata", 0), v.get("unit", "1")
+        v.get("data_type", fallback.data_type),
+        v.get("nodata", fallback.nodata),
+        v.get("unit", fallback.unit),
     )
+
+
+def _norm_band_cfg(
+    cfg: Dict[str, Any]
+) -> Tuple[RasterBandMetadata, Dict[str, RasterBandMetadata]]:
+    fallback = norm_band_metadata(cfg.get("*", {}))
+    return fallback, {
+        k: norm_band_metadata(v, fallback) for k, v in cfg.items() if k != "*"
+    }
 
 
 def mk_sample_item(collection: pystac.collection.Collection) -> pystac.item.Item:
@@ -371,3 +395,136 @@ def mk_sample_item(collection: pystac.collection.Collection) -> pystac.item.Item
         item.add_asset(name, pystac.asset.Asset.from_dict(_asset))
 
     return item
+
+
+def _collection_id(item: pystac.item.Item) -> str:
+    # choose first that is set
+    # 1. collection_id
+    # 2. odc:product
+    # 3. "_"
+    if item.collection_id is None:
+        # early ODC data
+        return str(item.properties.get("odc:product", "_"))
+    return str(item.collection_id)
+
+
+def extract_collection_metadata(
+    item: pystac.item.Item, cfg: Optional[ConversionConfig] = None
+) -> RasterCollectionMetadata:
+    """
+    Use sample item to figure out raster bands within the collection.
+
+    1. Decide which assets contain raster data
+    2. Extract metadata about about rasters from STAC or from ``cfg``
+    3. See if ``proj`` data is available and group bands by resolution
+    4. Construct alias map from common names and user config
+
+    :param item: Representative STAC item from a collection.
+    :param cfg: Optional user configuration
+    :return: :py:class:`~odc.stac._model.RasterCollectionMetadata`
+    """
+    # TODO: split this in-to smaller functions
+    # pylint: disable=too-many-locals
+    if cfg is None:
+        cfg = {}
+
+    collection_id = _collection_id(item)
+
+    _cfg = copy(cfg.get("*", {}))
+    _cfg.update(cfg.get(collection_id, {}))
+    quiet = _cfg.get("warnings", "all") == "ignore"
+    ignore_proj: bool = _cfg.get("ignore_proj", False)
+    band_defaults, band_cfg = _norm_band_cfg(_cfg.get("assets", {}))
+
+    def _keep(kv, check_proj):
+        name, asset = kv
+        if name in band_cfg:
+            return True
+        return is_raster_data(asset, check_proj=check_proj)
+
+    has_proj = False if ignore_proj else has_proj_ext(item)
+    data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.itemfilter(
+        partial(_keep, check_proj=has_proj), item.assets
+    )
+    if len(data_bands) == 0 and has_proj is True:
+        # Proj is enabled but no Asset has all the proj data
+        has_proj = False
+        data_bands = dicttoolz.itemfilter(partial(_keep, check_proj=False), item.assets)
+        _cfg.update(ignore_proj=True)
+
+    if len(data_bands) == 0:
+        raise ValueError("Unable to find any bands")
+
+    bands: Dict[str, RasterBandMetadata] = {}
+
+    # 1. If band in user config -- use that
+    # 2. Use data from raster extension (with fallback to "*" config)
+    # 3. Use config for "*" from user config as fallback
+    for name, asset in data_bands.items():
+        bm = band_cfg.get(name, None)
+        if bm is None:
+            bm = band_metadata(asset, band_defaults)
+        bands[name] = copy(bm)
+
+    aliases = alias_map_from_eo(item, quiet=quiet)
+    aliases.update(_cfg.get("aliases", {}))
+
+    # We assume that grouping of data bands into grids is consistent across
+    # entire collection, so we compute it once and keep it
+    if has_proj:
+        _, band2grid = compute_eo3_grids(data_bands)
+    else:
+        band2grid = band2grid_from_gsd(data_bands)
+
+    return RasterCollectionMetadata(
+        collection_id,
+        bands=bands,
+        aliases=aliases,
+        has_proj=has_proj,
+        band2grid=band2grid,
+    )
+
+
+def parse_item(
+    item: pystac.item.Item, template: RasterCollectionMetadata
+) -> ParsedItem:
+    """
+    Extract raster band information relevant for data loading.
+
+    :param item: STAC Item
+    :param template: Common collection level information
+    :return: ``ParsedItem``
+    """
+    band2grid = template.band2grid
+    has_proj = False if template.has_proj is False else has_proj_ext(item)
+    _assets = item.assets
+
+    _grids: Dict[str, GeoBox] = {}
+    bands: Dict[str, RasterSource] = {}
+
+    def _get_grid(grid_name: str, asset: pystac.asset.Asset) -> GeoBox:
+        grid = _grids.get(grid_name, None)
+        if grid is not None:
+            return grid
+        grid = asset_geobox(asset)
+        _grids[grid_name] = grid
+        return grid
+
+    for band, meta in template.bands.items():
+        asset = _assets.get(band)
+        if asset is None:
+            warn(f"Missing asset with name: {band}")
+            continue
+
+        grid_name = band2grid.get(band, "default")
+        geobox: Optional[GeoBox] = _get_grid(grid_name, asset) if has_proj else None
+
+        uri = asset.get_absolute_href()
+        if uri is None:
+            raise ValueError(
+                f"Can not determine absolute path for band: {band}"
+            )  # pragma: nocover (https://github.com/stac-utils/pystac/issues/754)
+
+        bands[band] = RasterSource(uri=uri, geobox=geobox, meta=meta)
+
+    return ParsedItem(template, bands)

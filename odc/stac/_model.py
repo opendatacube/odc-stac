@@ -1,7 +1,7 @@
 """Metadata and data loading model classes."""
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Dict, Optional
 
 from odc.geo.geobox import GeoBox
 
@@ -30,6 +30,57 @@ class RasterBandMetadata:
 
 
 @dataclass
+class RasterCollectionMetadata:
+    """
+    Information about raster data in a collection.
+
+    We assume that assets with the same names have the same kind of raster data across items within
+    a collection. This is built from the combination of data collected from STAC and user
+    configuration if supplied.
+    """
+
+    name: str
+    """Collection name."""
+
+    bands: Dict[str, RasterBandMetadata]
+    """
+    Bands are assets that contain raster data.
+
+    This controls which assets are extracted from STAC.
+    """
+
+    aliases: Dict[str, str]
+    """
+    Alias map ``alias -> asset name``.
+
+    Used to rename bands at load time.
+    """
+
+    has_proj: bool
+    """
+    Whether to expect/look for ``proj`` extension on item assets.
+
+    Proj data extraction can be disabled by the user with config. It is also disabled if it was not
+    detected in the first item.
+    """
+
+    band2grid: Dict[str, str]
+    """
+    Band name to grid name mapping.
+
+    Bands that share the same geometry map to the same grid name. Usually all bands share one common
+    grid with the name ``default``. Here again we assume that this grouping of bands to grids is
+    stable across the entire collection. This information is used to decide default projection and
+    resolution at load time.
+
+    Right now grid information is only extracted from STAC, so any savings from looking up this
+    information once across all bands that share common grid is relatively insignificant, but if we
+    ever support looking that up from the actual raster data this can speed up the process. This
+    also reduces memory pressure somewhat as many bands will share one grid object.
+    """
+
+
+@dataclass
 class RasterSource:
     """
     Captures known information about a single band.
@@ -49,6 +100,21 @@ class RasterSource:
 
     meta: Optional[RasterBandMetadata] = None
     """Expected raster dtype/nodata."""
+
+
+@dataclass
+class ParsedItem:
+    """
+    Captures essentials parts for data loading from a STAC Item.
+
+    Only includes raster bands of interest.
+    """
+
+    collection: RasterCollectionMetadata
+    """Collection this Item is part of."""
+
+    bands: Dict[str, RasterSource]
+    """Raster bands."""
 
 
 @dataclass

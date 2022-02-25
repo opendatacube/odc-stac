@@ -138,6 +138,14 @@ def sentinel_odc():
 
 
 @pytest.fixture
+def relative_href_only(ga_landsat_stac: pystac.item.Item):
+    item = pystac.Item.from_dict(ga_landsat_stac.to_dict())
+    item = item.make_asset_hrefs_relative()
+    item.remove_links("self")
+    return item
+
+
+@pytest.fixture
 def s2_dataset(sentinel_stac_ms_with_raster_ext):
     (ds,) = stac2ds(
         [sentinel_stac_ms_with_raster_ext], cfg={"*": {"warnings": "ignore"}}

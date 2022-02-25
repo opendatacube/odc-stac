@@ -5,7 +5,7 @@ import pystac.asset
 import pystac.collection
 import pystac.item
 import pytest
-from common import mk_stac_item
+from common import STAC_CFG, mk_stac_item
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
@@ -19,22 +19,6 @@ from odc.stac._eo3converter import (
     stac2ds,
 )
 from odc.stac._mdtools import RasterBandMetadata, has_proj_ext
-
-STAC_CFG = {
-    "sentinel-2-l2a": {
-        "assets": {
-            "*": RasterBandMetadata("uint16", 0, "1"),
-            "SCL": RasterBandMetadata("uint8", 0, "1"),
-            "visual": dict(data_type="uint8", nodata=0, unit="1"),
-        },
-        "aliases": {  # Work around duplicate rededge common_name
-            "rededge": "B05",
-            "rededge1": "B05",
-            "rededge2": "B06",
-            "rededge3": "B07",
-        },
-    }
-}
 
 
 def test_mk_product():
