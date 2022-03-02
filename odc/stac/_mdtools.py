@@ -501,6 +501,10 @@ def parse_item(
 
     _grids: Dict[str, GeoBox] = {}
     bands: Dict[str, RasterSource] = {}
+    geometry: Optional[Geometry] = None
+
+    if item.geometry is not None:
+        geometry = Geometry(item.geometry, EPSG4326)
 
     def _get_grid(grid_name: str, asset: pystac.asset.Asset) -> GeoBox:
         grid = _grids.get(grid_name, None)
@@ -527,4 +531,4 @@ def parse_item(
 
         bands[band] = RasterSource(uri=uri, geobox=geobox, meta=meta)
 
-    return ParsedItem(template, bands)
+    return ParsedItem(template, bands, geometry)

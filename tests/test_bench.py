@@ -9,7 +9,13 @@ from odc.stac.bench import (
     run_bench,
 )
 
-CFG = {"*": {"warnings": "ignore"}}
+CFG = {
+    "*": {
+        "warnings": "ignore",
+        # for every asset in every product default to uint16 with nodata=0
+        "assets": {"*": {"data_type": "uint16", "nodata": 0}},
+    }
+}
 
 
 @pytest.fixture(scope="module")

@@ -5,10 +5,8 @@ Utilities for translating STAC Items to EO3 Datasets.
 """
 
 import uuid
-from copy import copy
-from functools import partial, singledispatch
+from functools import singledispatch
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
-from warnings import warn
 
 import pystac.asset
 import pystac.collection
@@ -17,25 +15,19 @@ import pystac.item
 from datacube.index.eo3 import prep_eo3
 from datacube.index.index import default_metadata_type_docs
 from datacube.model import Dataset, DatasetType, metadata_from_doc
-from odc.geo import Geometry
+from odc.geo import CRS
+from odc.geo.geobox import GeoBox
 from toolz import dicttoolz
 
 from ._mdtools import (
     EPSG4326,
     ConversionConfig,
-    RasterBandMetadata,
-    alias_map_from_eo,
-    asset_geobox,
-    band2grid_from_gsd,
-    band_metadata,
-    compute_eo3_grids,
-    has_proj_ext,
-    is_raster_data,
+    extract_collection_metadata,
     mk_1x1_geobox,
     mk_sample_item,
-    norm_band_metadata,
-    normalise_product_name,
+    parse_item,
 )
+from ._model import ParsedItem, RasterBandMetadata, RasterCollectionMetadata
 
 # uuid.uuid5(uuid.NAMESPACE_URL, "https://stacspec.org")
 UUID_NAMESPACE_STAC = uuid.UUID("55d26088-a6d0-5c77-bf9a-3a7f3c6a6dab")
@@ -61,54 +53,33 @@ STAC_TO_EO3_RENAMES = {
 )
 
 
-def mk_product(
-    name: str,
-    bands: Iterable[str],
-    cfg: Dict[str, Any],
-    aliases: Optional[Dict[str, str]] = None,
-) -> DatasetType:
-    """
-    Generate ODC Product from simplified config.
-
-    :param name: Product name
-    :param bands: List of band names
-    :param cfg: Band configuration, band_name -> Config mapping
-    :param aliases: Map of aliases ``alias -> band name``
-    :return: Constructed ODC Product with EO3 metadata type
-    """
-    if aliases is None:
-        aliases = {}
-
-    _cfg: Dict[str, RasterBandMetadata] = {
-        name: norm_band_metadata(meta) for name, meta in cfg.items()
-    }
-    band_aliases: Dict[str, List[str]] = {}
-    for alias, canonical_name in aliases.items():
-        band_aliases.setdefault(canonical_name, []).append(alias)
-
+def _to_product(md: RasterCollectionMetadata) -> DatasetType:
     def make_band(
         name: str,
-        cfg: Dict[str, RasterBandMetadata],
+        band: RasterBandMetadata,
         band_aliases: Dict[str, List[str]],
     ) -> Dict[str, Any]:
-        info = cfg.get(name, cfg.get("*", RasterBandMetadata("uint16", 0, "1")))
         aliases = band_aliases.get(name)
 
         # map to ODC names for raster:bands
         doc: Dict[str, Any] = {
             "name": name,
-            "dtype": info.data_type,
-            "nodata": info.nodata,
-            "units": info.unit,
+            "dtype": band.data_type,
+            "nodata": band.nodata,
+            "units": band.unit,
         }
         if aliases is not None:
             doc["aliases"] = aliases
         return doc
 
+    band_aliases = md.band_aliases()
     doc = {
-        "name": normalise_product_name(name),
+        "name": md.name,
         "metadata_type": "eo3",
-        "measurements": [make_band(band, _cfg, band_aliases) for band in bands],
+        "metadata": {"product": {"name": md.name}},
+        "measurements": [
+            make_band(name, band, band_aliases) for name, band in md.bands.items()
+        ],
     }
     return DatasetType(_eo3, doc)
 
@@ -137,95 +108,10 @@ def infer_dc_product_from_item(
 
     :param item: Sample STAC Item from a collection
     :param cfg: Dictionary of configuration, see below
-
-    .. code-block:: yaml
-
-       sentinel-2-l2a:  # < name of the collection, i.e. ``.collection_id``
-         assets:
-           "*":  # Band named "*" contains band info for "most" bands
-             data_type: uint16
-             nodata: 0
-             unit: "1"
-           SCL:  # Those bands that are different than "most"
-             data_type: uint8
-             nodata: 0
-             unit: "1"
-         aliases:  #< unique alias -> canonical map
-           rededge: B05
-           rededge1: B05
-           rededge2: B06
-           rededge3: B07
-         uuid:          # Rules for constructing UUID for Datasets
-           mode: auto   # auto|random|native(expect .id to contain valid UUID string)
-           extras:      # List of extra keys from properties to include (mode=auto)
-           - "s2:generation_time"
-
-         warnings: ignore  # ignore|all  (default all)
-
-       some-other-collection:
-         assets:
-         #...
-
-       "*": # Applies to all collections if not defined on a collection
-         warnings: ignore
     """
-    # pylint: disable=too-many-locals
-    if cfg is None:
-        cfg = {}
-
-    collection_id = _collection_id(item)
-
-    _cfg = copy(cfg.get("*", {}))
-    _cfg.update(cfg.get(collection_id, {}))
-
-    quiet = _cfg.get("warnings", "all") == "ignore"
-    band_cfg = _cfg.get("assets", {})
-    ignore_proj = _cfg.get("ignore_proj", False)
-
-    def _keep(kv, check_proj):
-        name, asset = kv
-        if name in band_cfg:
-            return True
-        return is_raster_data(asset, check_proj=check_proj)
-
-    has_proj = False if ignore_proj else has_proj_ext(item)
-    data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.itemfilter(
-        partial(_keep, check_proj=has_proj), item.assets
-    )
-    if len(data_bands) == 0 and has_proj is True:
-        # Proj is enabled but no Asset has all the proj data
-        has_proj = False
-        data_bands = dicttoolz.itemfilter(partial(_keep, check_proj=False), item.assets)
-        _cfg.update(ignore_proj=True)
-
-    if len(data_bands) == 0:
-        raise ValueError("Unable to find any bands")
-
-    aliases = alias_map_from_eo(item, quiet=quiet)
-    aliases.update(_cfg.get("aliases", {}))
-
-    # 1. If band in user config -- use that
-    # 2. Use data from raster extension (with fallback to "*" config)
-    # 3. Use config for "*" from user config as fallback
-    band_defaults = norm_band_metadata(band_cfg.get("*", {}))
-    for name, asset in data_bands.items():
-        if name not in band_cfg:
-            bm = band_metadata(asset, band_defaults)
-            if bm is not band_defaults:
-                band_cfg[name] = bm
-
-    product = mk_product(collection_id, data_bands, band_cfg, aliases)
-
-    # We assume that grouping of data bands into grids is consistent across
-    # entire collection, so we compute it once and keep it on a product object
-    # at least for now.
-    if has_proj:
-        _, band2grid = compute_eo3_grids(data_bands)
-    else:
-        band2grid = band2grid_from_gsd(data_bands)
-
-    _cfg["band2grid"] = band2grid
-    setattr(product, "_stac_cfg", _cfg)  # pylint: disable=protected-access
+    md = extract_collection_metadata(item, cfg)
+    product = _to_product(md)
+    setattr(product, "_md", md)  # pylint: disable=protected-access
     return product
 
 
@@ -263,66 +149,55 @@ def _compute_uuid(
     return uuid.uuid5(UUID_NAMESPACE_STAC, hash_text)
 
 
-def item_to_ds(item: pystac.item.Item, product: DatasetType) -> Dataset:
-    """
-    Construct Dataset object from STAC Item and previously constructed Product.
+def _to_grid(gbox: GeoBox) -> Dict[str, Any]:
+    return {"shape": gbox.shape.yx, "transform": gbox.transform[:6]}
 
-    :raises ValueError: when not all assets share the same CRS
-    """
-    # pylint: disable=too-many-locals
-    _cfg = getattr(product, "_stac_cfg", {})
-    band2grid: Dict[str, str] = _cfg.get("band2grid", {})
-    ignore_proj: bool = _cfg.get("ignore_proj", False)
 
-    has_proj = False if ignore_proj else has_proj_ext(item)
-    measurements: Dict[str, Dict[str, Any]] = {}
+def _to_dataset(
+    item: ParsedItem,
+    properties: Dict[str, Any],
+    ds_uuid: uuid.UUID,
+    product: DatasetType,
+) -> Dataset:
+    md = item.collection
+    band2grid = md.band2grid
     grids: Dict[str, Dict[str, Any]] = {}
-    crs = None
-    _assets = item.assets
+    measurements: Dict[str, Dict[str, Any]] = {}
+    crs: Optional[CRS] = None
 
-    for band in product.measurements:
-        asset = _assets.get(band, None)
-        if asset is None:
-            warn(f"Missing asset with name: {band}")
-            continue
-        measurements[band] = {"path": asset.href}
+    for name, src in item.bands.items():
+        m: Dict[str, Any] = {"path": src.uri}
+        if src.band != 1:
+            m["band"] = src.band
+        measurements[name] = m
 
-        # Only compute grids when proj extension is enabled
-        if not has_proj:
+        if not md.has_proj:
             continue
 
-        grid_name = band2grid.get(band, "default")
+        grid_name = band2grid.get(name, "default")
         if grid_name != "default":
-            measurements[band]["grid"] = grid_name
+            m["grid"] = grid_name
+
+        gbox = src.geobox
+        if gbox is None:
+            continue
+
+        if crs is None:
+            crs = gbox.crs
 
         if grid_name not in grids:
-            geobox = asset_geobox(_assets[band])
-            grids[grid_name] = dict(shape=geobox.shape, transform=geobox.transform)
-            if crs is None:
-                crs = geobox.crs
-            elif crs != geobox.crs:
-                raise ValueError(
-                    "Expect all assets to share common CRS"
-                )  # pragma: no cover
+            grids[grid_name] = _to_grid(gbox)
 
-    # No proj metadata: make up 1x1 Grid in EPSG4326 instead
-    if not has_proj:
-        # TODO: support partial proj, when only CRS is known but not shape/transform
-        # - get native CRS
-        # - compute bounding box in native CRS
-        # - construct 1x1 geobox in native CRS
+    if len(grids) == 0:
+        if item.geometry is None:
+            raise ValueError("Item without footprint")
 
-        geom = Geometry(item.geometry, EPSG4326)
-        geobox = mk_1x1_geobox(geom)
-        crs = geobox.crs
-        grids["default"] = dict(shape=geobox.shape, transform=geobox.transform)
+        gbox = mk_1x1_geobox(item.geometry)
+        grids["default"] = _to_grid(gbox)
+        crs = gbox.crs
 
-    assert crs is not None
-
-    uuid_cfg = _cfg.get("uuid", {})
-    ds_uuid = _compute_uuid(
-        item, mode=uuid_cfg.get("mode", "auto"), extras=uuid_cfg.get("extras", [])
-    )
+    if crs is None:
+        crs = EPSG4326
 
     ds_doc = {
         "id": str(ds_uuid),
@@ -332,12 +207,34 @@ def item_to_ds(item: pystac.item.Item, product: DatasetType) -> Dataset:
         "location": "",
         "measurements": measurements,
         "properties": dicttoolz.keymap(
-            lambda k: STAC_TO_EO3_RENAMES.get(k, k), item.properties
+            lambda k: STAC_TO_EO3_RENAMES.get(k, k), properties
         ),
         "lineage": {},
     }
 
     return Dataset(product, prep_eo3(ds_doc), uris=[ds_doc.get("location", "")])
+
+
+def _item_to_ds(
+    item: pystac.item.Item, product: DatasetType, cfg: Optional[ConversionConfig] = None
+) -> Dataset:
+    """
+    Construct Dataset object from STAC Item and previously constructed Product.
+
+    :raises ValueError: when not all assets share the same CRS
+    """
+    # pylint: disable=too-many-locals
+    if cfg is None:
+        cfg = {}
+
+    md: RasterCollectionMetadata = getattr(product, "_md")
+    uuid_cfg = cfg.get("uuid", {})
+    ds_uuid = _compute_uuid(
+        item, mode=uuid_cfg.get("mode", "auto"), extras=uuid_cfg.get("extras", [])
+    )
+    _item = parse_item(item, md)
+
+    return _to_dataset(_item, item.properties, ds_uuid, product)
 
 
 def stac2ds(
@@ -415,7 +312,7 @@ def stac2ds(
             product = infer_dc_product(item, cfg)
             products[collection_id] = product
 
-        yield item_to_ds(item, product)
+        yield _item_to_ds(item, product, cfg)
 
 
 @infer_dc_product.register(pystac.collection.Collection)
@@ -428,6 +325,9 @@ def infer_dc_product_from_collection(
     :param collection: STAC Collection
     :param cfg: Configuration dictionary
     """
+    # pylint: disable=protected-access
     if cfg is None:
         cfg = {}
-    return infer_dc_product(mk_sample_item(collection), cfg)
+    product = infer_dc_product(mk_sample_item(collection), cfg)
+    product._md.has_proj = not cfg.get(product.name, {}).get("ignore_proj", False)
+    return product
