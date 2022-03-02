@@ -1,8 +1,9 @@
 """Metadata and data loading model classes."""
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
+from odc.geo import Geometry
 from odc.geo.geobox import GeoBox
 
 
@@ -79,6 +80,18 @@ class RasterCollectionMetadata:
     also reduces memory pressure somewhat as many bands will share one grid object.
     """
 
+    def band_aliases(self) -> Dict[str, List[str]]:
+        """
+        Compute inverse of alias mapping.
+
+        :return:
+          Mapping from canonical name to a list of defined aliases.
+        """
+        out: Dict[str, List[str]] = {}
+        for alias, cn in self.aliases.items():
+            out.setdefault(cn, []).append(alias)
+        return out
+
 
 @dataclass
 class RasterSource:
@@ -115,6 +128,9 @@ class ParsedItem:
 
     bands: Dict[str, RasterSource]
     """Raster bands."""
+
+    geometry: Optional[Geometry] = None
+    """Footprint of the dataset."""
 
 
 @dataclass

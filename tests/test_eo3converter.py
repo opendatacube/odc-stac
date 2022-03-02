@@ -11,55 +11,8 @@ from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
 from toolz import dicttoolz
 
-from odc.stac._eo3converter import (
-    _compute_uuid,
-    infer_dc_product,
-    item_to_ds,
-    mk_product,
-    stac2ds,
-)
-from odc.stac._mdtools import RasterBandMetadata, has_proj_ext
-
-
-def test_mk_product():
-    p = mk_product(
-        "some-product",
-        ["a", "b"],
-        {
-            "*": RasterBandMetadata("uint8", 0, "1"),
-            "b": RasterBandMetadata("int16", -999, "BB"),
-        },
-        {"A": "a", "B": "b", "bb": "b"},
-    )
-
-    assert p.name == "some_product"
-    assert p.metadata_type.name == "eo3"
-    assert set(p.measurements) == {"a", "b"}
-    assert p.measurements["a"].dtype == "uint8"
-    assert p.measurements["a"].nodata == 0
-    assert p.measurements["a"].units == "1"
-    assert p.measurements["a"].aliases == ["A"]
-
-    assert p.measurements["b"].dtype == "int16"
-    assert p.measurements["b"].nodata == -999
-    assert p.measurements["b"].units == "BB"
-    assert p.canonical_measurement("B") == "b"
-    assert p.canonical_measurement("bb") == "b"
-
-    p = mk_product(
-        "Some Product",
-        ["a", "b", "c"],
-        {},
-    )
-
-    assert p.name == "Some_Product"
-    assert set(p.measurements) == {"a", "b", "c"}
-    assert p.metadata_type.name == "eo3"
-
-    for m in p.measurements.values():
-        assert m.dtype == "uint16"
-        assert m.nodata == 0
-        assert m.units == "1"
+from odc.stac._eo3converter import _compute_uuid, _item_to_ds, infer_dc_product, stac2ds
+from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext
 
 
 def test_infer_product_collection(
@@ -76,7 +29,8 @@ def test_infer_product_collection(
     assert product.canonical_measurement("blue") == "B02"
 
     # check band2grid
-    b2g = product._stac_cfg["band2grid"]
+    md: RasterCollectionMetadata = product._md
+    b2g = md.band2grid
     assert b2g["B02"] == "default"
     assert b2g["B01"] == "g60"
     assert set(b2g.values()) == set("default g20 g60".split(" "))
@@ -84,7 +38,7 @@ def test_infer_product_collection(
 
     # Check that we can use product derived this way on an Item
     item = sentinel_stac_ms_with_raster_ext.clone()
-    ds = item_to_ds(item, product)
+    ds = _item_to_ds(item, product)
     geobox = native_geobox(ds, basis="B02")
     assert geobox.shape == (10980, 10980)
     assert geobox.crs == "EPSG:32606"
@@ -123,7 +77,7 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
     assert product.canonical_measurement("rededge2") == "B06"
     assert product.canonical_measurement("rededge3") == "B07"
 
-    assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
+    assert set(product._md.band2grid) == set(product.measurements)
 
     _stac = dicttoolz.dissoc(sentinel_stac_ms.to_dict(), "collection")
     item_no_collection = pystac.item.Item.from_dict(_stac)
@@ -145,7 +99,7 @@ def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.
     assert product.canonical_measurement("red") == "B04"
     assert product.canonical_measurement("green") == "B03"
     assert product.canonical_measurement("blue") == "B02"
-    assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
+    assert set(product._md.band2grid) == set(product.measurements)
 
 
 def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
@@ -156,7 +110,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
 
     with pytest.warns(UserWarning, match="`rededge`"):
         product = infer_dc_product(item, STAC_CFG)
-    ds = item_to_ds(item, product)
+    ds = _item_to_ds(item, product)
 
     assert set(ds.measurements) == set(product.measurements)
     assert ds.crs is not None
@@ -177,7 +131,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
     item = item0.clone()
     item.assets.pop("B01")
     with pytest.warns(UserWarning, match="Missing asset"):
-        ds = item_to_ds(item, product)
+        ds = _item_to_ds(item, product, STAC_CFG)
 
     # Test no eo extension case
     item = item0.clone()
@@ -209,7 +163,7 @@ def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
         product = infer_dc_product(item, STAC_CFG)
 
     geom = Geometry(item.geometry, "EPSG:4326")
-    ds = item_to_ds(item, product)
+    ds = _item_to_ds(item, product, STAC_CFG)
     assert ds.crs == "EPSG:4326"
     assert ds.extent is not None
     assert ds.extent.contains(geom)
