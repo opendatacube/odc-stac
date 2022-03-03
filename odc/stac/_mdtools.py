@@ -5,6 +5,7 @@ Utilities for translating STAC Items to EO3 Datasets.
 """
 
 import datetime
+from collections import Counter
 from copy import copy
 from functools import partial
 from typing import (
@@ -14,6 +15,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
     Set,
     Tuple,
     TypeVar,
@@ -26,7 +28,7 @@ import pystac.collection
 import pystac.errors
 import pystac.item
 from affine import Affine
-from odc.geo import CRS, Geometry, wh_
+from odc.geo import CRS, Geometry, Resolution, wh_
 from odc.geo.geobox import GeoBox
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
@@ -558,3 +560,22 @@ def parse_items(
             md_cache[collection_id] = md
 
         yield parse_item(item, md)
+
+
+def _auto_load_params(
+    items: Sequence[ParsedItem], bands: Optional[Sequence[str]] = None
+) -> Optional[Tuple[CRS, Resolution]]:
+    def _key(item: ParsedItem) -> Optional[Tuple[CRS, Resolution]]:
+        gbx = item.geoboxes(bands)
+        if len(gbx) == 0:
+            return None
+        g, *_ = gbx
+        return (g.crs, g.resolution)
+
+    best = Counter(filter(lambda x: x is not None, map(_key, items))).most_common(1)
+    if len(best) == 0:
+        return None
+    best, _ = best[0]
+    assert best is not None  # filter is too hard for mypy
+    crs, res = best
+    return (crs, res)

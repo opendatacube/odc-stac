@@ -11,6 +11,7 @@ from pystac.extensions.projection import ProjectionExtension
 
 from odc.stac._mdtools import (
     RasterBandMetadata,
+    _auto_load_params,
     asset_geobox,
     band_metadata,
     compute_eo3_grids,
@@ -20,6 +21,7 @@ from odc.stac._mdtools import (
     parse_item,
     parse_items,
 )
+from odc.stac._model import ParsedItem
 
 
 def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):
@@ -272,3 +274,34 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
         assert band.geobox is None
 
     assert xx.geoboxes() == ()
+
+    assert _auto_load_params([xx] * 3) is None
+
+
+@pytest.fixture
+def parsed_item_s2(sentinel_stac_ms: pystac.item.Item):
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        (item,) = parse_items([sentinel_stac_ms], STAC_CFG)
+    yield item
+
+
+def test_auto_load_params(parsed_item_s2: ParsedItem):
+    xx = parsed_item_s2
+    assert len(xx.geoboxes()) == 3
+    crs = xx.geoboxes()[0].crs
+
+    _10m = xx.bands["B02"].geobox.resolution
+    _20m = xx.bands["B05"].geobox.resolution
+    _60m = xx.bands["B01"].geobox.resolution
+
+    assert _10m.xy == (10, -10)
+    assert _20m.xy == (20, -20)
+    assert _60m.xy == (60, -60)
+
+    assert _auto_load_params([]) is None
+    assert _auto_load_params([xx]) == (crs, _10m)
+    assert _auto_load_params([xx] * 3) == (crs, _10m)
+
+    assert _auto_load_params([xx], ["B01"]) == (crs, _60m)
+    assert _auto_load_params([xx] * 3, ["B01", "B05", "B06"]) == (crs, _20m)
+    assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m)
