@@ -22,6 +22,7 @@ from toolz import dicttoolz
 from ._mdtools import (
     EPSG4326,
     ConversionConfig,
+    _collection_id,
     extract_collection_metadata,
     mk_1x1_geobox,
     mk_sample_item,
@@ -82,13 +83,6 @@ def _to_product(md: RasterCollectionMetadata) -> DatasetType:
         ],
     }
     return DatasetType(_eo3, doc)
-
-
-def _collection_id(item: pystac.item.Item) -> str:
-    if item.collection_id is None:
-        # workaround for some early ODC data
-        return str(item.properties.get("odc:product", "_"))
-    return str(item.collection_id)
 
 
 @singledispatch
@@ -303,8 +297,7 @@ def stac2ds(
     """
     products: Dict[str, DatasetType] = {} if product_cache is None else product_cache
     for item in items:
-        collection_id = item.collection_id or "_"
-        collection_id = str(collection_id)
+        collection_id = _collection_id(item)
         product = products.get(collection_id)
 
         # Have not seen this collection yet, figure it out
