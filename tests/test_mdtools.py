@@ -18,6 +18,7 @@ from odc.stac._mdtools import (
     has_proj_ext,
     is_raster_data,
     parse_item,
+    parse_items,
 )
 
 
@@ -218,6 +219,10 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item):
     assert set(xx.bands) == S2_ALL_BANDS
 
     assert xx.bands["B02"].geobox is not None
+
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        (yy,) = list(parse_items(iter([item]), STAC_CFG))
+        assert xx == yy
 
     # Test missing band case
     item = pystac.Item.from_dict(item0.to_dict())

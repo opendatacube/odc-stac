@@ -7,7 +7,18 @@ Utilities for translating STAC Items to EO3 Datasets.
 import datetime
 from copy import copy
 from functools import partial
-from typing import Any, Dict, List, Optional, Set, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 from warnings import warn
 
 import pystac.asset
@@ -532,3 +543,18 @@ def parse_item(
         bands[band] = RasterSource(uri=uri, geobox=geobox, meta=meta)
 
     return ParsedItem(template, bands, geometry)
+
+
+def parse_items(
+    items: Iterable[pystac.item.Item], cfg: Optional[ConversionConfig] = None
+) -> Iterator[ParsedItem]:
+    md_cache: Dict[str, RasterCollectionMetadata] = {}
+
+    for item in items:
+        collection_id = _collection_id(item)
+        md = md_cache.get(collection_id)
+        if md is None:
+            md = extract_collection_metadata(item, cfg)
+            md_cache[collection_id] = md
+
+        yield parse_item(item, md)
