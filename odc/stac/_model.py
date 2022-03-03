@@ -1,7 +1,7 @@
 """Metadata and data loading model classes."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 from odc.geo import Geometry
 from odc.geo.geobox import GeoBox
@@ -131,6 +131,27 @@ class ParsedItem:
 
     geometry: Optional[Geometry] = None
     """Footprint of the dataset."""
+
+    def geoboxes(self, bands: Optional[Sequence[str]] = None) -> Tuple[GeoBox, ...]:
+        """
+        Unique ``GeoBox``s, highest resolution first.
+
+        :param bands: which bands to consider, default is all
+        """
+        if bands is None:
+            bands = list(self.bands)
+
+        def _resolution(g: GeoBox) -> float:
+            return min(g.resolution.map(abs).xy)
+
+        gbx: Set[GeoBox] = set()
+        for name in bands:
+            b = self.bands.get(name, None)
+            if b is not None:
+                if b.geobox is not None:
+                    gbx.add(b.geobox)
+
+        return tuple(sorted(gbx, key=_resolution))
 
 
 @dataclass

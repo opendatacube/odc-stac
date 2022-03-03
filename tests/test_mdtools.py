@@ -217,8 +217,19 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item):
     xx = parse_item(item, md)
 
     assert set(xx.bands) == S2_ALL_BANDS
-
     assert xx.bands["B02"].geobox is not None
+
+    assert xx.geoboxes() == xx.geoboxes(S2_ALL_BANDS)
+    assert xx.geoboxes(["B02", "B03"]) == (xx.bands["B02"].geobox,)
+    assert xx.geoboxes(["B01", "B02", "B03"]) == (
+        xx.bands["B02"].geobox,
+        xx.bands["B01"].geobox,
+    )
+    assert xx.geoboxes() == (
+        xx.bands["B02"].geobox,  # 10m
+        xx.bands["B05"].geobox,  # 20m
+        xx.bands["B01"].geobox,  # 60m
+    )
 
     with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
         (yy,) = list(parse_items(iter([item]), STAC_CFG))
@@ -259,3 +270,5 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
     xx = parse_item(item, md)
     for band in xx.bands.values():
         assert band.geobox is None
+
+    assert xx.geoboxes() == ()
