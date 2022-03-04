@@ -23,12 +23,26 @@ from typing import (
 )
 from warnings import warn
 
+import odc.geo.xr  # pylint: disable=unused-import
 import pystac.asset
 import pystac.collection
 import pystac.errors
 import pystac.item
+import shapely.geometry
 from affine import Affine
-from odc.geo import CRS, Geometry, Resolution, wh_
+from odc.geo import (
+    CRS,
+    XY,
+    Geometry,
+    MaybeCRS,
+    Resolution,
+    SomeResolution,
+    geom,
+    res_,
+    wh_,
+    xy_,
+)
+from odc.geo.crs import norm_crs
 from odc.geo.geobox import GeoBox
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
@@ -176,18 +190,18 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
     return ext in RASTER_FILE_EXTENSIONS
 
 
-def mk_1x1_geobox(geom: Geometry) -> GeoBox:
+def mk_1x1_geobox(g: Geometry) -> GeoBox:
     """
     Construct 1x1 pixels GeoBox tightly enclosing supplied geometry.
 
     :param geom: Geometry in whatever projection
     :return: GeoBox object such that geobox.extent.contains(geom) is True, geobox.shape == (1,1)
     """
-    x1, y1, x2, y2 = geom.boundingbox
+    x1, y1, x2, y2 = g.boundingbox
     # note that Y axis is inverted
     #   0,0 -> X_min, Y_max
     #   1,1 -> X_max, Y_min
-    return GeoBox((1, 1), Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), geom.crs)
+    return GeoBox((1, 1), Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), g.crs)
 
 
 def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
@@ -579,3 +593,177 @@ def _auto_load_params(
     assert best is not None  # filter is too hard for mypy
     crs, res = best
     return (crs, res)
+
+
+def _geojson_to_shapely(xx: Any) -> shapely.geometry.base.BaseGeometry:
+    _type = xx.get("type", None)
+
+    if _type is None:
+        raise ValueError("Not a valid GeoJSON")
+
+    _type = _type.lower()
+    if _type == "featurecollection":
+        features = xx.get("features", [])
+        if len(features) == 1:
+            return shapely.geometry.shape(features[0]["geometry"])
+
+        return shapely.geometry.GeometryCollection(
+            [shapely.geometry.shape(feature["geometry"]) for feature in features]
+        )
+
+    if _type == "feature":
+        return shapely.geometry.shape(xx["geometry"])
+
+    return shapely.geometry.shape(xx)
+
+
+def _normalize_geometry(xx: Any) -> Geometry:
+    if isinstance(xx, shapely.geometry.base.BaseGeometry):
+        return Geometry(xx, "epsg:4326")
+
+    if isinstance(xx, Geometry):
+        return xx
+
+    if isinstance(xx, dict):
+        return Geometry(_geojson_to_shapely(xx), "epsg:4326")
+
+    # GeoPandas
+    _geo = getattr(xx, "__geo_interface__", None)
+    if _geo is None:
+        raise ValueError("Can't interpret value as geometry")
+
+    _crs = getattr(xx, "crs", "epsg:4326")
+    return Geometry(_geojson_to_shapely(_geo), _crs)
+
+
+def _compute_bbox(items: Iterable[ParsedItem], crs: CRS) -> geom.BoundingBox:
+    def _bbox(item: ParsedItem) -> geom.BoundingBox:
+        g = item.geometry
+        assert g is not None
+        return g.to_crs(crs).boundingbox
+
+    return geom.bbox_intersection(map(_bbox, items))
+
+
+def _output_geobox(
+    items: Sequence[ParsedItem],
+    bands: Optional[Sequence[str]] = None,
+    *,
+    crs: MaybeCRS = None,
+    resolution: Optional[SomeResolution] = None,
+    align: Optional[Union[float, int, XY[float]]] = None,
+    geobox: Optional[GeoBox] = None,
+    like: Optional[Any] = None,
+    geopolygon: Optional[Any] = None,
+    bbox: Optional[Tuple[float, float, float, float]] = None,
+    lon: Optional[Tuple[float, float]] = None,
+    lat: Optional[Tuple[float, float]] = None,
+    x: Optional[Tuple[float, float]] = None,
+    y: Optional[Tuple[float, float]] = None,
+) -> Optional[GeoBox]:
+    # pylint: disable=too-many-locals,too-many-branches
+
+    # geobox, like --> GeoBox
+    # lon,lat      --> geopolygon[epsg:4326]
+    # bbox         --> geopolygon[epsg:4326]
+    # x,y,crs      --> geopolygon[crs]
+    # [items]      --> crs, geopolygon[crs]
+    # [items]      --> crs, resolution
+    # geopolygon, crs, resolution[, align] --> GeoBox
+
+    params = {
+        k
+        for k, v in dict(
+            x=x,
+            y=y,
+            lon=lon,
+            lat=lat,
+            crs=crs,
+            resolution=resolution,
+            align=align,
+            like=like,
+            geopolygon=geopolygon,
+            geobox=geobox,
+        ).items()
+        if v is not None
+    }
+    if align is not None:
+        if isinstance(align, (int, float)):
+            align = xy_(align, align)
+
+    def report_extra_args(args: Set[str], primary: str):
+        if len(args) > 0:
+            raise ValueError(
+                f"Too many arguments when using `{primary}=`: {','.join(args)}"
+            )
+
+    def check_arg_sets(*args: str) -> bool:
+        x = params & set(args)
+        if len(x) == 0 or len(x) == len(args):
+            return True
+        return False
+
+    if geobox is not None:
+        report_extra_args(params - {"geobox"}, "geobox")
+        return geobox
+    if like is not None:
+        if isinstance(like, GeoBox):
+            return like
+        _odc = getattr(like, "odc", None)
+        if _odc is None or _odc.geobox is None:
+            raise ValueError("No geospatial info on `like=` input")
+
+        report_extra_args(params - {"like"}, "like")
+        return _odc.geobox
+
+    if not check_arg_sets("x", "y"):
+        raise ValueError("Need to supply both x= and y=")
+
+    if not check_arg_sets("lon", "lat"):
+        raise ValueError("Need to supply both lon= and lat=")
+
+    crs = norm_crs(crs)
+
+    # Normalize  x.y|lon.lat|bbox|geopolygon arguments to a geopolygon|None
+    if geopolygon is not None:
+        report_extra_args(
+            params - {"geopolygon", "crs", "align", "resolution"}, "geopolygon"
+        )
+    elif bbox is not None:
+        x0, y0, x1, y1 = bbox
+        geopolygon = geom.box(x0, y0, x1, y1, EPSG4326)
+    elif lat is not None and lon is not None:
+        # lon=(x0, x1), lat=(y0, y1)
+        report_extra_args(
+            params - {"lon", "lat", "crs", "align", "resolution"}, "lon,lat"
+        )
+        x0, x1 = sorted(lon)
+        y0, y1 = sorted(lat)
+        geopolygon = geom.box(x0, y0, x1, y1, EPSG4326)
+    elif x is not None and y is not None:
+        if crs is None:
+            raise ValueError("Need to supply `crs=` when using `x=`, `y=`.")
+        report_extra_args(params - {"x", "y", "crs", "align", "resolution"}, "x,y")
+        x0, x1 = sorted(x)
+        y0, y1 = sorted(y)
+        geopolygon = geom.box(x0, y0, x1, y1, crs)
+
+    if crs is None or resolution is None:
+        rr = _auto_load_params(items, bands)
+        if rr is None:
+            # no automatic or user-defined res/crs
+            return None
+        _crs, _res = rr
+        crs = with_default(crs, _crs)
+        resolution = res_(with_default(resolution, _res))
+
+    if geopolygon is not None:
+        geopolygon = _normalize_geometry(geopolygon)
+        return GeoBox.from_geopolygon(
+            geopolygon, resolution=resolution, crs=crs, align=align
+        )
+
+    # compute from parsed items
+    x0, y0, x1, y1 = _compute_bbox(items, crs)
+    geopolygon = geom.box(x0, y0, x1, y1, crs)
+    return GeoBox.from_geopolygon(geopolygon, resolution=resolution, align=align)
