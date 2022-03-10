@@ -16,7 +16,7 @@ dependencies:
   - pandas
   - pystac >=1.1.0
   - toolz
-  - xarray ~= 0.20.1
+  - xarray ~=0.20.1
 
   # For tests
   - pytest
@@ -47,8 +47,8 @@ dependencies:
   - mypy
   - pylint
 
-  - pip=20
+  - pip =20
   - pip:
       # dev
       - shed
-      - git+https://github.com/opendatacube/odc-geo.git@0f5310940a2e57d2b94753e41b7551816defdf44
+      - odc-geo >=0.1.1a2
