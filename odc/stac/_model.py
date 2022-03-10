@@ -1,7 +1,7 @@
 """Metadata and data loading model classes."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from odc.geo import Geometry
 from odc.geo.geobox import GeoBox
@@ -160,9 +160,6 @@ class RasterLoadParams:
     Captures data loading configuration.
     """
 
-    src: RasterSource
-    """Source band."""
-
     dtype: Optional[str] = None
     """Output dtype, default same as source."""
 
@@ -185,14 +182,32 @@ class RasterLoadParams:
     present and use this value instead.
     """
 
-    def __post_init__(self) -> None:
-        meta = self.src.meta
+    use_overviews: bool = True
+    """
+    Disable use of overview images.
 
-        if meta is None:
-            return
+    Set to ``False`` to always read from the main image ignoring overview images
+    even present in the data source.
+    """
 
-        if self.dtype is None:
-            self.dtype = meta.data_type
+    resampling: str = "nearest"
+    """Resampling method to use."""
 
-        if self.fill_value is None:
-            self.fill_value = meta.nodata
+    @staticmethod
+    def same_as(src: Union[RasterBandMetadata, RasterSource]) -> "RasterLoadParams":
+        """Construct from source object."""
+        if isinstance(src, RasterBandMetadata):
+            meta = src
+        else:
+            meta = src.meta or RasterBandMetadata()
+
+        dtype = meta.data_type
+        if dtype is None:
+            dtype = "float32"
+
+        return RasterLoadParams(dtype=dtype, fill_value=meta.nodata)
+
+    @property
+    def nearest(self) -> bool:
+        """Report True if nearest resampling is used."""
+        return self.resampling == "nearest"
