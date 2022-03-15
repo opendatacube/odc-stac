@@ -187,7 +187,7 @@ class RasterLoadParams:
     Disable use of overview images.
 
     Set to ``False`` to always read from the main image ignoring overview images
-    even present in the data source.
+    even when present in the data source.
     """
 
     resampling: str = "nearest"
