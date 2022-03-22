@@ -13,7 +13,12 @@ import pystac.collection
 import pystac.errors
 import pystac.item
 from datacube.index.eo3 import prep_eo3
-from datacube.index.index import default_metadata_type_docs
+
+try:
+    from datacube.index.index import default_metadata_type_docs  # type: ignore
+except ImportError:
+    from datacube.index.abstract import default_metadata_type_docs  # type: ignore
+
 from datacube.model import Dataset, DatasetType, metadata_from_doc
 from odc.geo import CRS
 from odc.geo.geobox import GeoBox
