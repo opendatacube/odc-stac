@@ -18,6 +18,9 @@ dependencies:
   - toolz
   - xarray ~=0.20.1
 
+  # For mypy
+  - types-python-dateutil
+
   # For tests
   - pytest
   - pytest-httpserver
@@ -51,4 +54,4 @@ dependencies:
   - pip:
       # dev
       - shed
-      - odc-geo >=0.1.1a2
+      - git+https://github.com/opendatacube/odc-geo@ba82dc74bb3ff8018eb05c6836e714cc8ca15040
