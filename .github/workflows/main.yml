@@ -29,6 +29,7 @@ jobs:
           python -m pip install --upgrade \
            toml \
            wheel \
+           packaging \
            twine
           python -m pip freeze
 
