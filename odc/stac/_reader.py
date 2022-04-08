@@ -6,7 +6,7 @@ Utilities for reading pixels from raster files.
 """
 
 import math
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import rasterio
@@ -134,6 +134,23 @@ def _do_read(
         )
 
     return (rr.roi_dst, _dst)
+
+
+def src_geobox(src: Union[str, RasterSource]) -> GeoBox:
+    """
+    Get GeoBox of the source.
+
+    1. If src is RasterSource with .geobox populated return that
+    2. Else open file and read it
+    """
+    if isinstance(src, RasterSource):
+        if src.geobox is not None:
+            return src.geobox
+
+        src = src.uri
+
+    with rasterio.open(src, "r") as f:
+        return _rio_geobox(f)
 
 
 def rio_read(
