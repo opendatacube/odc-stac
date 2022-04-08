@@ -9,72 +9,72 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Setup Python
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.8
+      - name: Setup Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.8
 
-    - uses: actions/cache@v2
-      id: wheels_cache
-      with:
-        path: ./wheels
-        key: wheels-${{ github.sha }}
+      - uses: actions/cache@v2
+        id: wheels_cache
+        with:
+          path: ./wheels
+          key: wheels-${{ github.sha }}
 
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade setuptools
-        python -m pip install --upgrade \
-         toml \
-         wheel \
-         twine
-        python -m pip freeze
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade setuptools
+          python -m pip install --upgrade \
+           toml \
+           wheel \
+           twine
+          python -m pip freeze
 
-    - name: Build Clean Packages
-      run: |
-        mkdir -p ./wheels/clean
-        python setup.py bdist_wheel --dist-dir ./wheels/clean/
-        python setup.py sdist --dist-dir ./wheels/clean/
-        find ./wheels/clean -type f
+      - name: Build Clean Packages
+        run: |
+          mkdir -p ./wheels/clean
+          python setup.py bdist_wheel --dist-dir ./wheels/clean/
+          python setup.py sdist --dist-dir ./wheels/clean/
+          find ./wheels/clean -type f
 
-    - name: Patch Package Versions
-      run: |
-        find . -name _version.py | xargs python ./scripts/patch_version.py ${GITHUB_RUN_NUMBER:-0}
+      - name: Patch Package Versions
+        run: |
+          find . -name _version.py | xargs python ./scripts/patch_version.py ${GITHUB_RUN_NUMBER:-0}
 
-    - name: Build Dev Packages
-      run: |
-        mkdir -p ./wheels/dev
-        python setup.py bdist_wheel --dist-dir ./wheels/dev/
-        python setup.py sdist --dist-dir ./wheels/dev/
-        find ./wheels/dev -type f
+      - name: Build Dev Packages
+        run: |
+          mkdir -p ./wheels/dev
+          python setup.py bdist_wheel --dist-dir ./wheels/dev/
+          python setup.py sdist --dist-dir ./wheels/dev/
+          find ./wheels/dev -type f
 
   build-test-env-base:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - uses: actions/cache@v2
-      id: conda_cache
-      with:
-        path: /tmp/test_env
-        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+      - uses: actions/cache@v2
+        id: conda_cache
+        with:
+          path: /tmp/test_env
+          key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
-    - uses: conda-incubator/setup-miniconda@v2
-      if: steps.conda_cache.outputs.cache-hit != 'true'
-      with:
-        channels: conda-forge,defaults
-        channel-priority: true
-        activate-environment: ""
-        mamba-version: "*"
-        use-mamba: true
+      - uses: conda-incubator/setup-miniconda@v2
+        if: steps.conda_cache.outputs.cache-hit != 'true'
+        with:
+          channels: conda-forge,defaults
+          channel-priority: true
+          activate-environment: ""
+          mamba-version: "*"
+          use-mamba: true
 
-    - name: Dump Conda Environment Info
-      shell: bash -l {0}
-      if: steps.conda_cache.outputs.cache-hit != 'true'
-      run: |
+      - name: Dump Conda Environment Info
+        shell: bash -l {0}
+        if: steps.conda_cache.outputs.cache-hit != 'true'
+        run: |
           conda info
           conda list
           mamba -V
@@ -82,18 +82,17 @@ jobs:
           conda config --show
           printenv | sort
 
-    - name: Build Python Environment for Testing
-      shell: bash -l {0}
-      if: steps.conda_cache.outputs.cache-hit != 'true'
-      run: |
-        mamba env create -f tests/test-env-py38.yml -p /tmp/test_env
+      - name: Build Python Environment for Testing
+        shell: bash -l {0}
+        if: steps.conda_cache.outputs.cache-hit != 'true'
+        run: |
+          mamba env create -f tests/test-env-py38.yml -p /tmp/test_env
 
-    - name: Check Python Env
-      shell: bash -l {0}
-      if: steps.conda_cache.outputs.cache-hit != 'true'
-      run: |
-        mamba env export -p /tmp/test_env
-
+      - name: Check Python Env
+        shell: bash -l {0}
+        if: steps.conda_cache.outputs.cache-hit != 'true'
+        run: |
+          mamba env export -p /tmp/test_env
 
   run-black-check:
     runs-on: ubuntu-latest
@@ -101,24 +100,23 @@ jobs:
       - build-test-env-base
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Get Conda Environment from Cache
-      uses: actions/cache@v2
-      id: conda_cache
-      with:
-        path:  /tmp/test_env
-        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+      - uses: actions/checkout@v2
+      - name: Get Conda Environment from Cache
+        uses: actions/cache@v2
+        id: conda_cache
+        with:
+          path: /tmp/test_env
+          key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
-    - name: Update PATH
-      shell: bash
-      run: |
-        echo "/tmp/test_env/bin" >> $GITHUB_PATH
+      - name: Update PATH
+        shell: bash
+        run: |
+          echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
-    - name: Check formatting (black)
-      shell: bash
-      run: |
-       black --check --diff .
-
+      - name: Check formatting (black)
+        shell: bash
+        run: |
+          black --check --diff .
 
   run-pylint:
     runs-on: ubuntu-latest
@@ -126,29 +124,28 @@ jobs:
       - build-test-env-base
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Get Conda Environment from Cache
-      uses: actions/cache@v2
-      id: conda_cache
-      with:
-        path:  /tmp/test_env
-        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+      - uses: actions/checkout@v2
+      - name: Get Conda Environment from Cache
+        uses: actions/cache@v2
+        id: conda_cache
+        with:
+          path: /tmp/test_env
+          key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
-    - name: Update PATH
-      shell: bash
-      run: |
-        echo "/tmp/test_env/bin" >> $GITHUB_PATH
+      - name: Update PATH
+        shell: bash
+        run: |
+          echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
-    - name: Install in Edit mode
-      shell: bash
-      run: |
-        pip install -e . --no-deps
+      - name: Install in Edit mode
+        shell: bash
+        run: |
+          pip install -e . --no-deps
 
-    - name: Check with pylint
-      shell: bash
-      run: |
-        pylint -v odc
-
+      - name: Check with pylint
+        shell: bash
+        run: |
+          pylint -v odc
 
   run-mypy:
     runs-on: ubuntu-latest
@@ -156,24 +153,23 @@ jobs:
       - build-test-env-base
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Get Conda Environment from Cache
-      uses: actions/cache@v2
-      id: conda_cache
-      with:
-        path:  /tmp/test_env
-        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+      - uses: actions/checkout@v2
+      - name: Get Conda Environment from Cache
+        uses: actions/cache@v2
+        id: conda_cache
+        with:
+          path: /tmp/test_env
+          key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
-    - name: Update PATH
-      shell: bash
-      run: |
-        echo "/tmp/test_env/bin" >> $GITHUB_PATH
+      - name: Update PATH
+        shell: bash
+        run: |
+          echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
-    - name: Check with mypy
-      shell: bash
-      run: |
-        mypy odc
-
+      - name: Check with mypy
+        shell: bash
+        run: |
+          mypy odc
 
   test-with-coverage:
     runs-on: ubuntu-latest
@@ -183,66 +179,64 @@ jobs:
       - run-black-check
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Get Conda Environment from Cache
-      uses: actions/cache@v2
-      id: conda_cache
-      with:
-        path: /tmp/test_env
+      - name: Get Conda Environment from Cache
+        uses: actions/cache@v2
+        id: conda_cache
+        with:
+          path: /tmp/test_env
 
-        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+          key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
-    - name: Update PATH
-      shell: bash
-      run: |
-        echo "/tmp/test_env/bin" >> $GITHUB_PATH
+      - name: Update PATH
+        shell: bash
+        run: |
+          echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
-    - name: Install in Edit mode
-      shell: bash
-      run: |
-        pip install -e . --no-deps
+      - name: Install in Edit mode
+        shell: bash
+        run: |
+          pip install -e . --no-deps
 
+      - name: Start Test DB
+        shell: bash
+        run: |
+          echo "Launching test db"
+          pgdata=$(pwd)/.dbdata
+          initdb -D ${pgdata} --auth-host=md5 --encoding=UTF8
+          pg_ctl -D ${pgdata} -l "${pgdata}/pg.log" start
+          createdb datacube
+          datacube system init
 
-    - name: Start Test DB
-      shell: bash
-      run: |
-        echo "Launching test db"
-        pgdata=$(pwd)/.dbdata
-        initdb -D ${pgdata} --auth-host=md5 --encoding=UTF8
-        pg_ctl -D ${pgdata} -l "${pgdata}/pg.log" start
-        createdb datacube
-        datacube system init
+        env:
+          DATACUBE_DB_URL: postgresql:///datacube
 
-      env:
-        DATACUBE_DB_URL: postgresql:///datacube
+      - name: Run Tests
+        shell: bash
+        run: |
+          datacube system check
 
-    - name: Run Tests
-      shell: bash
-      run: |
-        datacube system check
+          echo "Running Tests"
+          pytest --cov=. \
+          --cov-report=html \
+          --cov-report=xml:coverage.xml \
+          --timeout=30 \
+          tests
 
-        echo "Running Tests"
-        pytest --cov=. \
-        --cov-report=html \
-        --cov-report=xml:coverage.xml \
-        --timeout=30 \
-        tests
+        env:
+          AWS_DEFAULT_REGION: us-west-2
+          DASK_TEMPORARY_DIRECTORY: /tmp/dask
+          DATACUBE_DB_URL: postgresql:///datacube
 
-      env:
-        AWS_DEFAULT_REGION: us-west-2
-        DASK_TEMPORARY_DIRECTORY: /tmp/dask
-        DATACUBE_DB_URL: postgresql:///datacube
+      - name: Upload Coverage
+        if: |
+          github.repository == 'opendatacube/odc-stac'
 
-    - name: Upload Coverage
-      if: |
-        github.repository == 'opendatacube/odc-stac'
-
-      uses: codecov/codecov-action@v1
-      with:
-        fail_ci_if_error: false
-        verbose: false
-
+        uses: codecov/codecov-action@v1
+        with:
+          fail_ci_if_error: false
+          verbose: false
 
   test-wheels:
     runs-on: ubuntu-latest
@@ -253,92 +247,92 @@ jobs:
       - build-wheels
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Get Wheels from Cache
-      uses: actions/cache@v2
-      id: wheels_cache
-      with:
-        path: ./wheels
-        key: wheels-${{ github.sha }}
+      - name: Get Wheels from Cache
+        uses: actions/cache@v2
+        id: wheels_cache
+        with:
+          path: ./wheels
+          key: wheels-${{ github.sha }}
 
-    - name: Get Conda Environment from Cache
-      uses: actions/cache@v2
-      id: conda_cache
-      with:
-        path: /tmp/test_env
-        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+      - name: Get Conda Environment from Cache
+        uses: actions/cache@v2
+        id: conda_cache
+        with:
+          path: /tmp/test_env
+          key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
-    - name: Update PATH
-      shell: bash
-      run: |
-        echo "/tmp/test_env/bin" >> $GITHUB_PATH
+      - name: Update PATH
+        shell: bash
+        run: |
+          echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
-    - name: Install wheels for testing
-      shell: bash
-      run: |
-        which python
-        which createdb
-        which datacube
+      - name: Install wheels for testing
+        shell: bash
+        run: |
+          which python
+          which createdb
+          which datacube
 
-        ls -lh wheels/clean
-        python -m pip install --no-deps wheels/clean/*whl
-        python -m pip check || true
+          ls -lh wheels/clean
+          python -m pip install --no-deps wheels/clean/*whl
+          python -m pip check || true
 
-    - name: Start Test DB
-      shell: bash
-      run: |
-        echo "Launching test db"
-        pgdata=$(pwd)/.dbdata
-        initdb -D ${pgdata} --auth-host=md5 --encoding=UTF8
-        pg_ctl -D ${pgdata} -l "${pgdata}/pg.log" start
-        createdb datacube
-        datacube system init
+      - name: Start Test DB
+        shell: bash
+        run: |
+          echo "Launching test db"
+          pgdata=$(pwd)/.dbdata
+          initdb -D ${pgdata} --auth-host=md5 --encoding=UTF8
+          pg_ctl -D ${pgdata} -l "${pgdata}/pg.log" start
+          createdb datacube
+          datacube system init
 
-      env:
-        DATACUBE_DB_URL: postgresql:///datacube
+        env:
+          DATACUBE_DB_URL: postgresql:///datacube
 
-    - name: Run Tests
-      shell: bash
-      run: |
-        datacube system check
+      - name: Run Tests
+        shell: bash
+        run: |
+          datacube system check
 
-        echo "Running Tests"
-        pytest --timeout=30 tests
+          echo "Running Tests"
+          pytest --timeout=30 tests
 
-      env:
-        AWS_DEFAULT_REGION: us-west-2
-        DASK_TEMPORARY_DIRECTORY: /tmp/dask
-        DATACUBE_DB_URL: postgresql:///datacube
+        env:
+          AWS_DEFAULT_REGION: us-west-2
+          DASK_TEMPORARY_DIRECTORY: /tmp/dask
+          DATACUBE_DB_URL: postgresql:///datacube
 
   build-notebooks:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - uses: actions/cache@v2
-      id: nb_cache
-      with:
-        path: docs/notebooks
-        key: docs-notebooks-${{ hashFiles('notebooks/*.py') }}
+      - uses: actions/cache@v2
+        id: nb_cache
+        with:
+          path: docs/notebooks
+          key: docs-notebooks-${{ hashFiles('notebooks/*.py') }}
 
-    - name: Run Notebooks
-      if: steps.nb_cache.outputs.cache-hit != 'true'
-      run: |
-        docker pull $DKR
+      - name: Run Notebooks
+        if: steps.nb_cache.outputs.cache-hit != 'true'
+        run: |
+          docker pull $DKR
 
-        nb_dir=docs/notebooks
-        mkdir -p $nb_dir
-        for src in $(find notebooks -type f -maxdepth 1 -name '*py'); do
-           dst="$nb_dir/$(basename ${src%%.py}.ipynb)"
-           echo "$src -> $dst"
-           docker run -i --entrypoint ./binder/render-nb-pipe.sh $DKR <$src >$dst
-        done
-        ls -lh $nb_dir
+          nb_dir=docs/notebooks
+          mkdir -p $nb_dir
+          for src in $(find notebooks -type f -maxdepth 1 -name '*py'); do
+             dst="$nb_dir/$(basename ${src%%.py}.ipynb)"
+             echo "$src -> $dst"
+             docker run -i --entrypoint ./binder/render-nb-pipe.sh $DKR <$src >$dst
+          done
+          ls -lh $nb_dir
 
-      env:
-        DKR: kirillodc/odc-stac-binder:latest
+        env:
+          DKR: kirillodc/odc-stac-binder:latest
 
   check-docs:
     runs-on: ubuntu-latest
@@ -349,59 +343,59 @@ jobs:
       - build-notebooks
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Get Rendered Notebooks
-      uses: actions/cache@v2
-      id: nb_cache
-      with:
-        path: docs/notebooks
-        key: docs-notebooks-${{ hashFiles('notebooks/*.py') }}
+      - name: Get Rendered Notebooks
+        uses: actions/cache@v2
+        id: nb_cache
+        with:
+          path: docs/notebooks
+          key: docs-notebooks-${{ hashFiles('notebooks/*.py') }}
 
-    - name: Get Conda Environment from Cache
-      uses: actions/cache@v2
-      id: conda_cache
-      with:
-        path: /tmp/test_env
-        key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
+      - name: Get Conda Environment from Cache
+        uses: actions/cache@v2
+        id: conda_cache
+        with:
+          path: /tmp/test_env
+          key: ${{ runner.os }}-test-env-py38-${{ hashFiles('tests/test-env-py38.yml') }}
 
-    - name: Update PATH
-      shell: bash
-      run: |
-        echo "/tmp/test_env/bin" >> $GITHUB_PATH
+      - name: Update PATH
+        shell: bash
+        run: |
+          echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
-    - name: Install in Edit mode
-      shell: bash
-      run: |
-        pip install -e . --no-deps
+      - name: Install in Edit mode
+        shell: bash
+        run: |
+          pip install -e . --no-deps
 
-    - name: Build STAC docs
-      shell: bash
-      run: |
-        make -C docs html
+      - name: Build STAC docs
+        shell: bash
+        run: |
+          make -C docs html
 
-    - name: Deploy to Netlify
-      id: netlify
-      if: github.event_name == 'pull_request'
-      uses: nwtgck/actions-netlify@v1.0
-      with:
-        production-branch: 'main'
-        publish-dir: 'docs/_build/html'
-        deploy-message: "Deploy from GitHub Actions"
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        enable-pull-request-comment: true
-        enable-commit-comment: false
+      - name: Deploy to Netlify
+        id: netlify
+        if: github.event_name == 'pull_request'
+        uses: nwtgck/actions-netlify@v1.0
+        with:
+          production-branch: "main"
+          publish-dir: "docs/_build/html"
+          deploy-message: "Deploy from GitHub Actions"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pull-request-comment: true
+          enable-commit-comment: false
 
-      env:
-        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
-    - name: Print Notice
-      uses: actions/github-script@v5
-      if: github.event_name == 'pull_request'
-      env:
-        NETLIFY_URL: ${{ steps.netlify.outputs.deploy-url }}
-      with:
-        script: |
-          const {NETLIFY_URL} = process.env
-          core.notice(`Published to: ${NETLIFY_URL}`)
+      - name: Print Notice
+        uses: actions/github-script@v5
+        if: github.event_name == 'pull_request'
+        env:
+          NETLIFY_URL: ${{ steps.netlify.outputs.deploy-url }}
+        with:
+          script: |
+            const {NETLIFY_URL} = process.env
+            core.notice(`Published to: ${NETLIFY_URL}`)
