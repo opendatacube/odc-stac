@@ -23,7 +23,6 @@ from typing import (
 )
 from warnings import warn
 
-import odc.geo.xr  # pylint: disable=unused-import
 import pystac.asset
 import pystac.collection
 import pystac.errors
@@ -44,6 +43,7 @@ from odc.geo import (
 )
 from odc.geo.crs import norm_crs
 from odc.geo.geobox import GeoBox
+from odc.geo.xr import ODCExtension
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
@@ -578,8 +578,8 @@ def parse_items(
 
 def _auto_load_params(
     items: Sequence[ParsedItem], bands: Optional[Sequence[str]] = None
-) -> Optional[Tuple[CRS, Resolution]]:
-    def _key(item: ParsedItem) -> Optional[Tuple[CRS, Resolution]]:
+) -> Optional[Tuple[Optional[CRS], Resolution]]:
+    def _key(item: ParsedItem) -> Optional[Tuple[Optional[CRS], Resolution]]:
         gbx = item.geoboxes(bands)
         if len(gbx) == 0:
             return None
@@ -661,7 +661,7 @@ def _output_geobox(
     x: Optional[Tuple[float, float]] = None,
     y: Optional[Tuple[float, float]] = None,
 ) -> Optional[GeoBox]:
-    # pylint: disable=too-many-locals,too-many-branches
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-return-statements
 
     # geobox, like --> GeoBox
     # lon,lat      --> geopolygon[epsg:4326]
@@ -710,7 +710,11 @@ def _output_geobox(
         if isinstance(like, GeoBox):
             return like
         _odc = getattr(like, "odc", None)
-        if _odc is None or _odc.geobox is None:
+        if _odc is None:
+            raise ValueError("No geospatial info on `like=` input")
+
+        assert isinstance(_odc, ODCExtension)
+        if _odc.geobox is None:
             raise ValueError("No geospatial info on `like=` input")
 
         report_extra_args(params - {"like"}, "like")
@@ -754,8 +758,14 @@ def _output_geobox(
             # no automatic or user-defined res/crs
             return None
         _crs, _res = rr
-        crs = with_default(crs, _crs)
-        resolution = res_(with_default(resolution, _res))
+        if crs is None:
+            if _crs is None:
+                return None
+            crs = _crs
+        if resolution is None:
+            resolution = _res
+        else:
+            resolution = res_(resolution)
 
     if geopolygon is not None:
         geopolygon = _normalize_geometry(geopolygon)
