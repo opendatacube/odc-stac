@@ -102,7 +102,7 @@ def _do_read(
     rdr = src.ds
 
     if dst is not None:
-        _dst = dst[rr.roi_dst]
+        _dst = dst[rr.roi_dst]  # type: ignore
     else:
         _dst = np.ndarray(
             roi_shape(rr.roi_dst), dtype=_resolve_dst_dtype(src.dtype, cfg)

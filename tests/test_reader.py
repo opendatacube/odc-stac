@@ -5,7 +5,7 @@ import pytest
 from numpy import ma
 from numpy.testing import assert_array_equal
 from odc.geo.geobox import GeoBox
-from odc.geo.testutils import xr_zeros
+from odc.geo.xr import xr_zeros
 
 from odc.stac._model import RasterLoadParams, RasterSource
 from odc.stac._reader import (

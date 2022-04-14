@@ -142,7 +142,7 @@ class ParsedItem:
             bands = list(self.bands)
 
         def _resolution(g: GeoBox) -> float:
-            return min(g.resolution.map(abs).xy)
+            return min(g.resolution.map(abs).xy)  # type: ignore
 
         gbx: Set[GeoBox] = set()
         for name in bands:

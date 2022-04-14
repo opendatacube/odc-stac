@@ -17,6 +17,7 @@ dependencies:
   - pystac >=1.1.0
   - toolz
   - xarray ~=0.20.1
+  - odc-geo >=0.1.2
 
   # For mypy
   - types-python-dateutil
@@ -54,4 +55,3 @@ dependencies:
   - pip:
       # dev
       - shed
-      - git+https://github.com/opendatacube/odc-geo@ba82dc74bb3ff8018eb05c6836e714cc8ca15040
