@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import distributed
+import geopandas as gpd
 import pystac
 import pystac.collection
 import pystac.item
@@ -235,3 +236,19 @@ def _strip_links(gjson):
     for item in gjson["features"]:
         item["links"] = []
     return gjson
+
+
+@pytest.fixture()
+def gpd_natural_earth():
+    yield gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+
+
+@pytest.fixture()
+def gpd_iso3(gpd_natural_earth):
+    def _get(iso3, crs=None):
+        gg = gpd_natural_earth[gpd_natural_earth.iso_a3 == "AUS"]
+        if crs is not None:
+            gg = gg.to_crs(crs)
+        return gg
+
+    yield _get

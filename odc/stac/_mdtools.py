@@ -37,7 +37,6 @@ from odc.geo import (
     Resolution,
     SomeResolution,
     geom,
-    res_,
     wh_,
     xy_,
 )
@@ -645,7 +644,7 @@ def _compute_bbox(items: Iterable[ParsedItem], crs: CRS) -> geom.BoundingBox:
     return geom.bbox_intersection(map(_bbox, items))
 
 
-def _output_geobox(
+def output_geobox(
     items: Sequence[ParsedItem],
     bands: Optional[Sequence[str]] = None,
     *,
@@ -727,6 +726,10 @@ def _output_geobox(
         raise ValueError("Need to supply both lon= and lat=")
 
     crs = norm_crs(crs)
+    query_crs: Optional[CRS] = None
+    if geopolygon is not None:
+        geopolygon = _normalize_geometry(geopolygon)
+        query_crs = geopolygon.crs
 
     # Normalize  x.y|lon.lat|bbox|geopolygon arguments to a geopolygon|None
     if geopolygon is not None:
@@ -754,21 +757,22 @@ def _output_geobox(
 
     if crs is None or resolution is None:
         rr = _auto_load_params(items, bands)
-        if rr is None:
-            # no automatic or user-defined res/crs
-            return None
-        _crs, _res = rr
+        if rr is not None:
+            _crs, _res = rr
+        else:
+            _crs, _res = None, None
+
         if crs is None:
-            if _crs is None:
-                return None
-            crs = _crs
+            crs = _crs or query_crs
+
         if resolution is None:
             resolution = _res
-        else:
-            resolution = res_(resolution)
+
+        if resolution is None or crs is None:
+            return None
 
     if geopolygon is not None:
-        geopolygon = _normalize_geometry(geopolygon)
+        assert isinstance(geopolygon, Geometry)
         return GeoBox.from_geopolygon(
             geopolygon, resolution=resolution, crs=crs, align=align
         )

@@ -8,7 +8,7 @@ import xarray
 from odc.geo import XY, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox
 
-from ._mdtools import ConversionConfig, _output_geobox, parse_items
+from ._mdtools import ConversionConfig, output_geobox, parse_items
 from ._model import ParsedItem
 
 
@@ -274,7 +274,7 @@ def load(
             patch_urls(ds, edit=patch_url, bands=bands) for ds in parsed_items
         ]
 
-    gbox = _output_geobox(
+    gbox = output_geobox(
         parsed_items,
         bands=bands,
         crs=crs,
