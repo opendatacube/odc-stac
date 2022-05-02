@@ -30,8 +30,8 @@ def patch_urls(
             for k, src in item.bands.items()
         }
     else:
-        # TODO: alias handling?
-        bands = set(bands)
+        aliases = item.collection.aliases
+        bands = set(aliases.get(b, b) for b in bands)
         _bands = {
             k: dataclasses.replace(src, uri=edit(src.uri) if k in bands else src.uri)
             for k, src in item.bands.items()
