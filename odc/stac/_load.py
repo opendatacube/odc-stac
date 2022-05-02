@@ -1,15 +1,24 @@
 """stac.load - dc.load from STAC Items."""
 import dataclasses
-from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union, cast
 
+import numpy as np
 import pystac
 import pystac.item
-import xarray
+import xarray as xr
+from dask import array as da
 from odc.geo import XY, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox
+from odc.geo.xr import wrap_xr
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
-from ._model import ParsedItem
+from ._model import ParsedItem, RasterCollectionMetadata
+
+
+def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
+    for item in items:
+        return item.collection
+    raise ValueError("Can't load empty sequence")
 
 
 def patch_urls(
@@ -64,7 +73,7 @@ def load(
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
     **kw,
-) -> xarray.Dataset:
+) -> xr.Dataset:
     """
      STAC :class:`~pystac.item.Item` to :class:`xarray.Dataset`.
 
@@ -260,18 +269,15 @@ def load(
         bands = kw.pop("measurements", None)
 
     # normalize args
-    # dc.load has distinction between query crs and output_crs
-    # but output_crs name can be confusing, especially that resolution is not output_resolution,
-    # so we treat crs same as output_crs
-    output_crs: MaybeCRS = kw.pop("output_crs", None)
-    if output_crs is None and crs is not None:
-        crs = output_crs
+    # dc.load compatible name for crs is `output_crs`
+    if crs is None:
+        crs = cast(MaybeCRS, kw.pop("output_crs", None))
 
     parsed_items = list(parse_items(items, cfg=stac_cfg))
 
     if patch_url is not None:
         parsed_items = [
-            patch_urls(ds, edit=patch_url, bands=bands) for ds in parsed_items
+            patch_urls(item, edit=patch_url, bands=bands) for item in parsed_items
         ]
 
     gbox = output_geobox(
@@ -293,4 +299,22 @@ def load(
     if gbox is None:
         raise ValueError("Failed to auto-guess CRS/resolution.")
 
-    return xarray.Dataset()
+    # use dummy for now we'll test geobox, groupby and time dimension with that first
+    nt = len(parsed_items)
+
+    def _dummy(dtype):
+        _shape = (nt, *gbox.shape.yx)
+        if chunks is None:
+            return np.zeros(_shape, dtype=dtype)
+
+        _chunks = (1, *tuple(chunks.get(dim, -1) for dim in gbox.dimensions))
+        return da.zeros(_shape, dtype=dtype, chunks=_chunks)
+
+    collection = _collection(parsed_items)
+    mm = collection.resolve_bands(bands)
+    data_bands = {
+        name: wrap_xr(_dummy(m.data_type), gbox, nodata=m.nodata)
+        for name, m in mm.items()
+    }
+
+    return xr.Dataset(data_bands)  # type: ignore
