@@ -191,9 +191,7 @@ def rio_read(
         if src.band > rdr.count:
             raise ValueError(f"No band {src.band} in '{src.uri}'")
 
-        rr: ReprojectInfo = compute_reproject_roi(
-            _rio_geobox(rdr), dst_geobox, ttol=ttol
-        )
+        rr = compute_reproject_roi(_rio_geobox(rdr), dst_geobox, ttol=ttol)
 
         if cfg.use_overviews and rr.read_shrink > 1:
             ovr_idx = _pick_overview(rr.read_shrink, rdr.overviews(src.band))
