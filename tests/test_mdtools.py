@@ -7,17 +7,22 @@ import pystac.item
 import pystac.utils
 import pytest
 from common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
+from odc.geo import geom
+from odc.geo.geobox import GeoBox
+from odc.geo.xr import xr_zeros
 from pystac.extensions.projection import ProjectionExtension
 
 from odc.stac._mdtools import (
     RasterBandMetadata,
     _auto_load_params,
+    _normalize_geometry,
     asset_geobox,
     band_metadata,
     compute_eo3_grids,
     extract_collection_metadata,
     has_proj_ext,
     is_raster_data,
+    output_geobox,
     parse_item,
     parse_items,
 )
@@ -305,3 +310,122 @@ def test_auto_load_params(parsed_item_s2: ParsedItem):
     assert _auto_load_params([xx], ["B01"]) == (crs, _60m)
     assert _auto_load_params([xx] * 3, ["B01", "B05", "B06"]) == (crs, _20m)
     assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m)
+
+
+def test_norm_geom(gpd_iso3):
+    g = geom.box(0, -1, 10, 1, "epsg:4326")
+
+    assert _normalize_geometry(g) is g
+    assert _normalize_geometry(g.geom) == g
+    assert _normalize_geometry(g.json) == g
+
+    assert _normalize_geometry(g.geojson()) == g
+    assert (
+        _normalize_geometry(dict(type="FeatureCollection", features=[g.geojson()])) == g
+    )
+
+    g = gpd_iso3("AUS")
+    assert g.crs == "epsg:4326"
+    assert _normalize_geometry(g).crs == "epsg:4326"
+
+    g = gpd_iso3("AUS", "epsg:3577")
+    assert g.crs == "epsg:3577"
+    assert _normalize_geometry(g).crs == "epsg:3577"
+
+    with pytest.raises(ValueError):
+        _ = _normalize_geometry({})  # not a valid geojson
+
+    with pytest.raises(ValueError):
+        _ = _normalize_geometry(object())  # Can't interpret value as geometry
+
+
+def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
+    au = gpd_iso3("AUS", "epsg:3577")
+
+    gbox = output_geobox([], geopolygon=au, resolution=100, crs="epsg:3857")
+    assert gbox is not None
+    assert gbox.crs == "epsg:3857"
+    assert gbox.resolution.xy == (100, -100)
+
+    # default CRS to that of the polygon
+    gbox = output_geobox([], geopolygon=au, resolution=100)
+    assert gbox is not None
+    assert gbox.crs == "epsg:3577"
+    assert gbox.resolution.xy == (100, -100)
+
+    gbox = output_geobox([parsed_item_s2], geopolygon=au, resolution=100)
+    assert gbox is not None
+    assert gbox.crs == parsed_item_s2.crs()
+    assert gbox.resolution.xy == (100, -100)
+
+    gbox = output_geobox([parsed_item_s2])
+    assert gbox is not None
+    assert gbox.crs == parsed_item_s2.crs()
+    assert gbox.resolution.xy == (10, -10)
+
+    # like/gbox
+    assert output_geobox([], geobox=gbox) == gbox
+    assert output_geobox([], like=gbox) == gbox
+    assert output_geobox([], like=xr_zeros(gbox[:10, :20])) == gbox[:10, :20]
+
+    # no resolution/crs
+    assert output_geobox([], bbox=[0, 1, 2, 3]) is None
+    assert output_geobox([], bbox=[0, 1, 2, 3], resolution=10) is None
+    assert output_geobox([], bbox=[0, 1, 2, 3], crs="epsg:4326") is None
+
+    # lon-lat/x-y/bbox
+    gbox = GeoBox.from_bbox((0, -10, 100, 25), resolution=1)
+    assert gbox.boundingbox == (0, -10, 100, 25)
+    bbox = gbox.boundingbox
+
+    assert gbox == output_geobox(
+        [],
+        x=bbox.range_x,
+        y=bbox.range_y,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+    )
+
+    assert gbox == output_geobox(
+        [],
+        lon=bbox.range_x,
+        lat=bbox.range_y,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+    )
+
+    assert gbox == output_geobox(
+        [],
+        bbox=bbox.bbox,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+    )
+
+    assert gbox == output_geobox(
+        [],
+        bbox=bbox.bbox,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+        align=0,
+    )
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        # not enough args
+        {"x": (0, 10)},
+        {"y": (0, 10)},
+        {"lon": (0, 1)},
+        {"lat": (0, 1)},
+        {"x": (0, 1), "y": (1, 2)},
+        # too many args
+        {"lat": (0, 1), "lon": (1, 2), "x": (3, 4), "y": (5, 6)},
+        {"lat": (0, 1), "lon": (1, 2), "geopolygon": geom.box(0, 0, 1, 1, "epsg:4326")},
+        # bad args
+        {"like": object()},
+    ],
+)
+def test_output_gbox_bads(kw):
+    with pytest.raises(ValueError):
+        _ = output_geobox([], **kw)
