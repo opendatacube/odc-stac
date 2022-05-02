@@ -1,10 +1,12 @@
 """Metadata and data loading model classes."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Set, Tuple, TypeVar, Union
 
 from odc.geo import CRS, Geometry
 from odc.geo.geobox import GeoBox
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -92,6 +94,14 @@ class RasterCollectionMetadata:
             out.setdefault(cn, []).append(alias)
         return out
 
+    def resolve_bands(
+        self, bands: Optional[Union[str, Sequence[str]]] = None
+    ) -> Dict[str, RasterBandMetadata]:
+        """
+        Query bands taking care of aliases.
+        """
+        return _resolve_aliases(self.bands, self.aliases, bands)
+
 
 @dataclass
 class RasterSource:
@@ -145,8 +155,9 @@ class ParsedItem:
             return min(g.resolution.map(abs).xy)  # type: ignore
 
         gbx: Set[GeoBox] = set()
+        aliases = self.collection.aliases
         for name in bands:
-            b = self.bands.get(name, None)
+            b = self.bands.get(aliases.get(name, name), None)
             if b is not None:
                 if b.geobox is not None:
                     gbx.add(b.geobox)
@@ -162,6 +173,14 @@ class ParsedItem:
                 return gbox.crs
 
         return None
+
+    def resolve_bands(
+        self, bands: Optional[Union[str, Sequence[str]]] = None
+    ) -> Dict[str, RasterSource]:
+        """
+        Query bands taking care of aliases.
+        """
+        return _resolve_aliases(self.bands, self.collection.aliases, bands)
 
 
 @dataclass
@@ -221,3 +240,23 @@ class RasterLoadParams:
     def nearest(self) -> bool:
         """Report True if nearest resampling is used."""
         return self.resampling == "nearest"
+
+
+def _resolve_aliases(
+    src: Dict[str, T],
+    aliases: Dict[str, str],
+    bands: Optional[Union[str, Sequence[str]]] = None,
+) -> Dict[str, T]:
+    if bands is None:
+        bands = list(src)
+    if isinstance(bands, str):
+        bands = [bands]
+
+    out: Dict[str, T] = {}
+    for name in bands:
+        src_name = aliases.get(name, name)
+        if src_name not in src:
+            raise ValueError(f"No such band or alias: '{name}'")
+        out[name] = src[src_name]
+
+    return out
