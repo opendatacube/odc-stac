@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple, Union
 
-from odc.geo import Geometry
+from odc.geo import CRS, Geometry
 from odc.geo.geobox import GeoBox
 
 
@@ -152,6 +152,16 @@ class ParsedItem:
                     gbx.add(b.geobox)
 
         return tuple(sorted(gbx, key=_resolution))
+
+    def crs(self, bands: Optional[Sequence[str]] = None) -> Optional[CRS]:
+        """
+        First non-null CRS across assets.
+        """
+        for gbox in self.geoboxes(bands):
+            if gbox.crs is not None:
+                return gbox.crs
+
+        return None
 
 
 @dataclass
