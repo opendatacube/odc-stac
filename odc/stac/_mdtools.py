@@ -59,7 +59,7 @@ from ._model import (
 T = TypeVar("T")
 ConversionConfig = Dict[str, Any]
 
-BAND_DEFAULTS = RasterBandMetadata("float32", float("nan"), "1")
+BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")
 
 EPSG4326 = CRS("EPSG:4326")
 
