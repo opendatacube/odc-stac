@@ -695,6 +695,7 @@ def output_geobox(
             align=align,
             like=like,
             geopolygon=geopolygon,
+            bbox=bbox,
             geobox=geobox,
         ).items()
         if v is not None
@@ -750,9 +751,9 @@ def output_geobox(
             params - {"geopolygon", "crs", "align", "resolution"}, "geopolygon"
         )
     elif bbox is not None:
+        report_extra_args(params - {"bbox", "crs", "align", "resolution"}, "bbox")
         x0, y0, x1, y1 = bbox
         geopolygon = geom.box(x0, y0, x1, y1, EPSG4326)
-        report_extra_args(params - {"bbox", "crs", "align", "resolution"}, "bbox")
     elif lat is not None and lon is not None:
         # lon=(x0, x1), lat=(y0, y1)
         report_extra_args(
