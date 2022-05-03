@@ -27,6 +27,9 @@ from odc.stac._mdtools import (
     parse_items,
 )
 from odc.stac._model import ParsedItem
+from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
+
+GBOX = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
 
 
 def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):
@@ -434,3 +437,94 @@ def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
 def test_output_gbox_bads(kw):
     with pytest.raises(ValueError):
         _ = output_geobox([], **kw)
+
+
+def test_mk_parsed_item():
+    fmt = "%Y-%m-%d"
+    item = mk_parsed_item(
+        [b_("b1"), b_("b2")],
+        "2020-01-10",
+        start_datetime="2020-01-01",
+        end_datetime="2020-01-31",
+    )
+
+    assert item.datetime.strftime(fmt) == "2020-01-10"
+    assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1].strftime(fmt) == "2020-01-31"
+    assert item.geometry is None
+    assert item.crs() is None
+    assert item.collection.has_proj is False
+
+    assert set(item.bands) == set(["b1", "b2"])
+    assert item.bands["b1"].uri.endswith("b1.tif")
+
+    item = mk_parsed_item(
+        [b_("b1"), b_("b2")],
+        datetime=None,
+        start_datetime="2020-01-01",
+        end_datetime="2020-01-31",
+    )
+
+    assert item.datetime is None
+    assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1].strftime(fmt) == "2020-01-31"
+
+    item = mk_parsed_item(
+        [b_("b1"), b_("b2")],
+        "2020-01-10",
+        start_datetime="2020-01-01",
+        end_datetime=None,
+    )
+    assert item.datetime.strftime(fmt) == "2020-01-10"
+    assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1] is None
+
+    gbox = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
+    item = mk_parsed_item(
+        [b_("b1", geobox=gbox), b_("b2", geobox=gbox)],
+        "2020-01-10",
+    )
+    assert item.geometry is not None
+    assert item.geometry.crs == "epsg:4326"
+    assert item.crs() == "epsg:3857"
+    assert item.geoboxes() == (gbox,)
+    assert item.collection.has_proj is True
+
+
+@pytest.mark.parametrize(
+    "parsed_item",
+    [
+        mk_parsed_item(
+            [b_("band")], None, "2020-01-01", "2021-12-31T23:59:59.9999999Z"
+        ),
+        mk_parsed_item([b_("b1"), b_("b2", nodata=10)], "2020-01-01"),
+        mk_parsed_item(
+            [
+                b_("b1", dtype="float32", geobox=GBOX),
+                b_("b2", nodata=10, geobox=GBOX),
+            ],
+            "2020-01-01",
+        ),
+        mk_parsed_item(
+            [
+                b_("b1", dtype="float32", geobox=GBOX),
+                b_("b2", dtype="int32", nodata=-99, geobox=GBOX.zoom_out(2)),
+            ],
+            "2020-01-01",
+            "2020-01-01",
+            "2021-12-31T23:59:59.9999999Z",
+        ),
+    ],
+)
+def test_round_trip(parsed_item: ParsedItem):
+    item = to_stac_item(parsed_item)
+    md = extract_collection_metadata(item)
+
+    assert parsed_item.collection == md
+    assert parsed_item == parse_item(item, md)
+
+    item = to_stac_item(parsed_item, href="file:///data/item/1.json")
+    md = extract_collection_metadata(item)
+
+    assert parsed_item.collection == md
+    assert parsed_item == parse_item(item, md)
