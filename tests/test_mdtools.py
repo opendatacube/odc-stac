@@ -424,7 +424,9 @@ def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
         {"x": (0, 1), "y": (1, 2)},
         # too many args
         {"lat": (0, 1), "lon": (1, 2), "x": (3, 4), "y": (5, 6)},
+        {"lat": (0, 1), "lon": (1, 2), "bbox": (0, 1, 2, 3)},
         {"lat": (0, 1), "lon": (1, 2), "geopolygon": geom.box(0, 0, 1, 1, "epsg:4326")},
+        {"bbox": (0, 0, 1, 1), "geopolygon": geom.box(0, 0, 1, 1, "epsg:4326")},
         # bad args
         {"like": object()},
     ],
