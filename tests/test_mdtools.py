@@ -222,6 +222,9 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item):
         md = extract_collection_metadata(item, STAC_CFG)
 
     xx = parse_item(item, md)
+    assert xx.datetime_range == (None, None)
+    assert xx.datetime == item.datetime
+    assert xx.nominal_datetime == item.datetime
 
     assert set(xx.bands) == S2_ALL_BANDS
     assert xx.bands["B02"].geobox is not None

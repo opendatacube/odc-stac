@@ -1,5 +1,6 @@
 """Metadata and data loading model classes."""
 
+import datetime as dt
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Set, Tuple, TypeVar, Union
 
@@ -142,6 +143,12 @@ class ParsedItem:
     geometry: Optional[Geometry] = None
     """Footprint of the dataset."""
 
+    datetime: Optional[dt.datetime] = None
+    """Nominal timestamp."""
+
+    datetime_range: Tuple[Optional[dt.datetime], Optional[dt.datetime]] = None, None
+    """Time period covered."""
+
     def geoboxes(self, bands: Optional[Sequence[str]] = None) -> Tuple[GeoBox, ...]:
         """
         Unique ``GeoBox``s, highest resolution first.
@@ -181,6 +188,21 @@ class ParsedItem:
         Query bands taking care of aliases.
         """
         return _resolve_aliases(self.bands, self.collection.aliases, bands)
+
+    @property
+    def nominal_datetime(self) -> dt.datetime:
+        """
+        Resolve timestamp to a single value.
+
+        - datetime if set
+        - start_datetime if set
+        - end_datetime if set
+        - raise ValueError otherwise
+        """
+        for ts in [self.datetime, *self.datetime_range]:
+            if ts is not None:
+                return ts
+        raise ValueError("Timestamp was not populated.")
 
 
 @dataclass
