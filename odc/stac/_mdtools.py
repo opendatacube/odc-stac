@@ -261,15 +261,20 @@ def compute_eo3_grids(
     Assets must have ProjectionExtension with shape, transform and crs information
     populated.
     """
-    # pylint: disable=too-many-locals
-
     assert len(assets) > 0
+
+    geoboxes = dicttoolz.valmap(asset_geobox, assets)
+    return _group_geoboxes(geoboxes)
+
+
+def _group_geoboxes(
+    geoboxes: Dict[str, GeoBox]
+) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
+    # pylint: disable=too-many-locals
 
     def gbox_name(geobox: GeoBox) -> str:
         gsd = geobox_gsd(geobox)
         return f"g{gsd:g}"
-
-    geoboxes = dicttoolz.valmap(asset_geobox, assets)
 
     # GeoBox to list of bands that share same footprint
     grids: Dict[GeoBox, List[str]] = {}
