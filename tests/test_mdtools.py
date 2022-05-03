@@ -180,7 +180,7 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
 
     for band in md.bands.values():
         assert band.data_type == "float32"
-        assert math.isnan(band.nodata)
+        assert band.nodata is None
         assert band.unit == "1"
 
     # Test multiple CRS unhappy path
