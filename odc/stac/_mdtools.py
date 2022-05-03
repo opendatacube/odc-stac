@@ -521,6 +521,7 @@ def parse_item(
     :param template: Common collection level information
     :return: ``ParsedItem``
     """
+    # pylint: disable=too-many-locals
     band2grid = template.band2grid
     has_proj = False if template.has_proj is False else has_proj_ext(item)
     _assets = item.assets
@@ -557,7 +558,14 @@ def parse_item(
 
         bands[band] = RasterSource(uri=uri, geobox=geobox, meta=meta)
 
-    return ParsedItem(template, bands, geometry)
+    md = item.common_metadata
+    return ParsedItem(
+        template,
+        bands,
+        geometry,
+        datetime=item.datetime,
+        datetime_range=(md.start_datetime, md.end_datetime),
+    )
 
 
 def parse_items(
