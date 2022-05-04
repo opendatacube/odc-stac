@@ -324,7 +324,8 @@ def load(
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
-    _grouped = _group_items(_parsed, groupby)
+    ((mid_lon, _),) = gbox.extent.centroid.to_crs("epsg:4326").points
+    _grouped = _group_items(_parsed, groupby, mid_lon)
     tss = _extract_timestamps(_grouped)
     nt = len(tss)
     collection = _collection(_parsed)
@@ -346,7 +347,9 @@ def _extract_timestamps(grouped: List[List[ParsedItem]]) -> List[datetime]:
 
 
 def _group_items(
-    items: List[ParsedItem], groupby: str = "time"
+    items: List[ParsedItem],
+    groupby: str = "time",
+    lon: Optional[float] = None,
 ) -> List[List[ParsedItem]]:
     def _time(xx: ParsedItem):
         # group by timestamp, sort by (timestamp, id)
@@ -354,7 +357,10 @@ def _group_items(
 
     def _solar_day(xx: ParsedItem):
         # group by solar day date component, but sort by (solar day timestamp, id)
-        ts = xx.solar_date
+        if lon is None:
+            ts = xx.solar_date
+        else:
+            ts = xx.solar_date_at(lon)
         return (ts.date(), ts, xx.id)
 
     if groupby == "nothing":
