@@ -565,11 +565,13 @@ def parse_item(
 
     md = item.common_metadata
     return ParsedItem(
+        item.id,
         template,
         bands,
         geometry,
         datetime=item.datetime,
         datetime_range=(md.start_datetime, md.end_datetime),
+        href=item.get_self_href(),
     )
 
 
