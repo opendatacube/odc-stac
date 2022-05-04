@@ -1,6 +1,7 @@
 """stac.load - dc.load from STAC Items."""
 import dataclasses
 import itertools
+from datetime import datetime
 from typing import (
     Any,
     Callable,
@@ -324,15 +325,24 @@ def load(
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
     _grouped = _group_items(_parsed, groupby)
-    nt = len(_grouped)
+    tss = _extract_timestamps(_grouped)
+    nt = len(tss)
     collection = _collection(_parsed)
     mm = collection.resolve_bands(bands)
     data_bands = {
-        name: wrap_xr(_dummy(nt, m.data_type), gbox, nodata=m.nodata)
+        name: wrap_xr(_dummy(nt, m.data_type), gbox, nodata=m.nodata, time=tss)
         for name, m in mm.items()
     }
 
     return xr.Dataset(data_bands)  # type: ignore
+
+
+def _extract_timestamps(grouped: List[List[ParsedItem]]) -> List[datetime]:
+    def _ts(group: List[ParsedItem]) -> datetime:
+        assert len(group) > 0
+        return group[0].nominal_datetime.replace(tzinfo=None)
+
+    return list(map(_ts, grouped))
 
 
 def _group_items(
