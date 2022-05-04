@@ -204,6 +204,28 @@ class ParsedItem:
                 return ts
         raise ValueError("Timestamp was not populated.")
 
+    @property
+    def mid_longitude(self) -> Optional[float]:
+        """
+        Return longitude of the center point.
+
+        used for "solar day" computation.
+        """
+        if self.geometry is None:
+            return None
+        ((lon, _),) = self.geometry.centroid.to_crs("epsg:4326").points
+        return lon
+
+    @property
+    def solar_date(self) -> dt.datetime:
+        """
+        Nominal datetime adjusted by longitude.
+        """
+        lon = self.mid_longitude
+        if lon is None:
+            return self.nominal_datetime
+        return _convert_to_solar_time(self.nominal_datetime, lon)
+
 
 @dataclass
 class RasterLoadParams:
@@ -282,3 +304,10 @@ def _resolve_aliases(
         out[name] = src[src_name]
 
     return out
+
+
+def _convert_to_solar_time(utc: dt.datetime, longitude: float) -> dt.datetime:
+    # offset_seconds snapped to 1 hour increments
+    #    1/15 == 24/360 (hours per degree of longitude)
+    offset_seconds = int(longitude / 15) * 3600
+    return utc + dt.timedelta(seconds=offset_seconds)
