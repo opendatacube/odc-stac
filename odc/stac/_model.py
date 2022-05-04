@@ -232,6 +232,12 @@ class ParsedItem:
             return self.nominal_datetime
         return _convert_to_solar_time(self.nominal_datetime, lon)
 
+    def solar_date_at(self, lon: float) -> dt.datetime:
+        """
+        Nominal datetime adjusted by longitude.
+        """
+        return _convert_to_solar_time(self.nominal_datetime, lon)
+
 
 @dataclass
 class RasterLoadParams:

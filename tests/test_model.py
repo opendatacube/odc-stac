@@ -44,10 +44,12 @@ def test_solar_day():
     xx = _mk(15.1, "2020-01-02T12:13:14Z")
     assert xx.nominal_datetime != xx.solar_date
     assert xx.nominal_datetime + dt.timedelta(seconds=3600) == xx.solar_date
+    assert xx.nominal_datetime + dt.timedelta(seconds=3600) == xx.solar_date_at(20)
 
     xx = _mk(-15.1, "2020-01-02T12:13:14Z")
     assert xx.nominal_datetime != xx.solar_date
     assert xx.nominal_datetime - dt.timedelta(seconds=3600) == xx.solar_date
+    assert xx.nominal_datetime - dt.timedelta(seconds=3600) == xx.solar_date_at(-20)
 
     xx = mk_parsed_item([b_("b1")], datetime="2000-01-02")
     assert xx.geometry is None
