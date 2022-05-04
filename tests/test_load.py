@@ -1,13 +1,16 @@
-from copy import deepcopy
 from unittest.mock import MagicMock
 
 import pystac
 import pystac.item
 import pytest
 import shapely.geometry
+from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtension
 
+from odc.stac._load import _group_items
 from odc.stac._load import load as stac_load
+from odc.stac._model import ParsedItem
+from odc.stac.testing.stac import b_, mk_parsed_item
 
 
 def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
@@ -135,3 +138,37 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
             geopolygon=geopolygon,
         ).nir.odc.geobox
     )
+
+
+def test_group_items():
+    def _mk(id: str, lon: float, datetime: str):
+        gbox = GeoBox.from_bbox([lon - 0.1, 0, lon + 0.1, 1], shape=(100, 100))
+        return mk_parsed_item([b_("b1", gbox)], datetime=datetime, id=id)
+
+    # check no-op case first
+    assert _group_items([], "time") == []
+    assert _group_items([], "nothing") == []
+    assert _group_items([], "solar_day") == []
+
+    aa = _mk("a", 15 * 10, "2020-01-02T23:59Z")
+    b1 = _mk("b1", 15 * 10 + 1, "2020-01-03T00:01Z")
+    b2 = _mk("b2", 15 * 10 + 2, "2020-01-03T00:01Z")
+    cc = _mk("c", 0, "2020-01-02T23:59Z")
+
+    assert _group_items([aa, b1, b2], "nothing") == [[aa], [b1], [b2]]
+    assert _group_items([aa, b2, b1], "nothing") == [[aa], [b1], [b2]]
+    assert _group_items([b1, aa, b2], "nothing") == [[aa], [b1], [b2]]
+    assert _group_items([cc, aa, b1, b2], "nothing") == [[aa], [cc], [b1], [b2]]
+
+    assert _group_items([aa, b1, b2], "time") == [[aa], [b1, b2]]
+    assert _group_items([b1, aa, b2], "time") == [[aa], [b1, b2]]
+    assert _group_items([b2, aa, b1], "time") == [[aa], [b1, b2]]
+    assert _group_items([aa, cc, b1, b2], "time") == [[aa, cc], [b1, b2]]
+
+    assert _group_items([aa, b1, b2], "solar_day") == [[aa, b1, b2]]
+    assert _group_items([b1, aa, b2], "solar_day") == [[aa, b1, b2]]
+    assert _group_items([b2, aa, b1], "solar_day") == [[aa, b1, b2]]
+    assert _group_items([aa, b1, b2, cc], "solar_day") == [[cc], [aa, b1, b2]]
+
+    with pytest.raises(ValueError):
+        _ = _group_items([aa], groupby="no-such-mode")
