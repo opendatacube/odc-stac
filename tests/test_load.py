@@ -23,6 +23,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
     assert isinstance(xx.B02.odc, ODCExtension)
     assert xx.B02.shape[0] == 1
     assert xx.B02.odc.geobox.crs == "EPSG:3857"
+    assert xx.time.dtype == "datetime64[ns]"
 
     # Test dc.load name for bands, and alias support
     with pytest.warns(UserWarning, match="`rededge`"):
@@ -169,6 +170,8 @@ def test_group_items():
     assert _group_items([b1, aa, b2], "solar_day") == [[aa, b1, b2]]
     assert _group_items([b2, aa, b1], "solar_day") == [[aa, b1, b2]]
     assert _group_items([aa, b1, b2, cc], "solar_day") == [[cc], [aa, b1, b2]]
+
+    assert _group_items([aa, b1, b2, cc], "solar_day", 150 + 1) == [[aa, cc, b1, b2]]
 
     with pytest.raises(ValueError):
         _ = _group_items([aa], groupby="no-such-mode")
