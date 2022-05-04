@@ -513,17 +513,12 @@ def test_mk_parsed_item():
             "2020-01-01",
             "2020-01-01",
             "2021-12-31T23:59:59.9999999Z",
+            href="file:///date/item/1.json",
         ),
     ],
 )
 def test_round_trip(parsed_item: ParsedItem):
     item = to_stac_item(parsed_item)
-    md = extract_collection_metadata(item)
-
-    assert parsed_item.collection == md
-    assert parsed_item == parse_item(item, md)
-
-    item = to_stac_item(parsed_item, href="file:///data/item/1.json")
     md = extract_collection_metadata(item)
 
     assert parsed_item.collection == md

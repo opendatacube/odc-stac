@@ -2,7 +2,6 @@
 Making STAC items for testing.
 """
 from datetime import datetime, timezone
-from typing import Optional
 
 import pystac.asset
 import pystac.item
@@ -19,6 +18,8 @@ from .._model import (
     RasterCollectionMetadata,
     RasterSource,
 )
+
+# pylint: disable=redefined-builtin,too-many-arguments
 
 STAC_DATE_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 STAC_DATE_FMT_SHORT = "%Y-%m-%dT%H:%M:%SZ"
@@ -47,7 +48,6 @@ def b_(
     bidx=1,
     prefix="http://example.com/items/",
 ):
-    # pylint: disable=too-many-arguments
     if uri is None:
         uri = f"{prefix}{name}.tif"
     meta = RasterBandMetadata(dtype, nodata, unit)
@@ -59,7 +59,9 @@ def mk_parsed_item(
     datetime=None,
     start_datetime=None,
     end_datetime=None,
+    id="some-item",
     collection="some-collection",
+    href=None,
 ) -> ParsedItem:
     """
     Construct parsed stac item for testing.
@@ -95,11 +97,13 @@ def mk_parsed_item(
     )
 
     return ParsedItem(
+        id,
         collection,
         bands,
         geometry=geometry,
         datetime=datetime,
         datetime_range=(start_datetime, end_datetime),
+        href=href,
     )
 
 
@@ -116,10 +120,7 @@ def _add_proj(gbox: GeoBox, xx):
             proj.wkt2 = crs.wkt
 
 
-def to_stac_item(
-    item: ParsedItem, id: str = "item", href: Optional[str] = None
-) -> pystac.item.Item:
-    # pylint: disable=redefined-builtin
+def to_stac_item(item: ParsedItem) -> pystac.item.Item:
     gg = item.geometry
 
     props = {}
@@ -128,7 +129,7 @@ def to_stac_item(
             props[n] = dt.strftime(STAC_DATE_FMT)
 
     xx = pystac.item.Item(
-        id,
+        item.id,
         geometry=gg.json if gg is not None else None,
         bbox=list(gg.boundingbox.bbox) if gg is not None else None,
         datetime=item.datetime,
@@ -168,7 +169,7 @@ def to_stac_item(
         if bb.geobox is not None:
             _add_proj(bb.geobox, asset)
 
-    if href is not None:
-        xx.set_self_href(href)
+    if item.href is not None:
+        xx.set_self_href(item.href)
 
     return xx

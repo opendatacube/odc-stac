@@ -134,6 +134,9 @@ class ParsedItem:
     Only includes raster bands of interest.
     """
 
+    id: str
+    """Item id copied from STAC."""
+
     collection: RasterCollectionMetadata
     """Collection this Item is part of."""
 
@@ -148,6 +151,9 @@ class ParsedItem:
 
     datetime_range: Tuple[Optional[dt.datetime], Optional[dt.datetime]] = None, None
     """Time period covered."""
+
+    href: Optional[str] = None
+    """Self link from stac item."""
 
     def geoboxes(self, bands: Optional[Sequence[str]] = None) -> Tuple[GeoBox, ...]:
         """
