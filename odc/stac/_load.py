@@ -1,6 +1,18 @@
 """stac.load - dc.load from STAC Items."""
 import dataclasses
-from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union, cast
+import itertools
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
 import numpy as np
 import pystac
@@ -105,7 +117,8 @@ def load(
 
      :param groupby:
         Controls what items get placed in to the same pixel plane,
-        supported values are "time" or "solar_day", default is "time"
+        supported values are "time", "solar_day" and "nothing",
+        default is "time"
 
      :param resampling:
         Controls resampling strategy, can be specified per band
@@ -273,15 +286,13 @@ def load(
     if crs is None:
         crs = cast(MaybeCRS, kw.pop("output_crs", None))
 
-    parsed_items = list(parse_items(items, cfg=stac_cfg))
+    if groupby is None:
+        groupby = "time"
 
-    if patch_url is not None:
-        parsed_items = [
-            patch_urls(item, edit=patch_url, bands=bands) for item in parsed_items
-        ]
+    _parsed = list(parse_items(items, cfg=stac_cfg))
 
     gbox = output_geobox(
-        parsed_items,
+        _parsed,
         bands=bands,
         crs=crs,
         resolution=resolution,
@@ -300,9 +311,8 @@ def load(
         raise ValueError("Failed to auto-guess CRS/resolution.")
 
     # use dummy for now we'll test geobox, groupby and time dimension with that first
-    nt = len(parsed_items)
 
-    def _dummy(dtype):
+    def _dummy(nt, dtype):
         _shape = (nt, *gbox.shape.yx)
         if chunks is None:
             return np.zeros(_shape, dtype=dtype)
@@ -310,11 +320,47 @@ def load(
         _chunks = (1, *tuple(chunks.get(dim, -1) for dim in gbox.dimensions))
         return da.zeros(_shape, dtype=dtype, chunks=_chunks)
 
-    collection = _collection(parsed_items)
+    if patch_url is not None:
+        _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
+
+    _grouped = _group_items(_parsed, groupby)
+    nt = len(_grouped)
+    collection = _collection(_parsed)
     mm = collection.resolve_bands(bands)
     data_bands = {
-        name: wrap_xr(_dummy(m.data_type), gbox, nodata=m.nodata)
+        name: wrap_xr(_dummy(nt, m.data_type), gbox, nodata=m.nodata)
         for name, m in mm.items()
     }
 
     return xr.Dataset(data_bands)  # type: ignore
+
+
+def _group_items(
+    items: List[ParsedItem], groupby: str = "time"
+) -> List[List[ParsedItem]]:
+    def _time(xx: ParsedItem):
+        # group by timestamp, sort by (timestamp, id)
+        return (xx.nominal_datetime, xx.id)
+
+    def _solar_day(xx: ParsedItem):
+        # group by solar day date component, but sort by (solar day timestamp, id)
+        ts = xx.solar_date
+        return (ts.date(), ts, xx.id)
+
+    if groupby == "nothing":
+        items = sorted(items, key=_time)
+        return [[item] for item in items]
+
+    key = {
+        "time": _time,
+        "solar_day": _solar_day,
+    }.get(groupby, None)
+
+    if key is None:
+        raise ValueError(f"Groupby '{groupby}' is not a valid option.")
+
+    assert key is not None
+    grouper = lambda xx: key(xx)[0]
+
+    items = sorted(items, key=key)
+    return [list(group) for _, group in itertools.groupby(items, grouper)]
