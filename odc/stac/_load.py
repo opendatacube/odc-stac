@@ -67,7 +67,7 @@ def load(
     items: Iterable[pystac.item.Item],
     bands: Optional[Union[str, Sequence[str]]] = None,
     *,
-    groupby: Optional[str] = None,
+    groupby: Optional[str] = "time",
     resampling: Optional[Union[str, Dict[str, str]]] = None,
     chunks: Optional[Dict[str, int]] = None,
     # Geo selection
@@ -118,7 +118,7 @@ def load(
 
      :param groupby:
         Controls what items get placed in to the same pixel plane,
-        supported values are "time", "solar_day" and "nothing",
+        supported values are "time", "solar_day" and "id",
         default is "time"
 
      :param resampling:
@@ -288,7 +288,7 @@ def load(
         crs = cast(MaybeCRS, kw.pop("output_crs", None))
 
     if groupby is None:
-        groupby = "time"
+        groupby = "id"
 
     _parsed = list(parse_items(items, cfg=stac_cfg))
 
@@ -348,7 +348,7 @@ def _extract_timestamps(grouped: List[List[ParsedItem]]) -> List[datetime]:
 
 def _group_items(
     items: List[ParsedItem],
-    groupby: str = "time",
+    groupby: str,
     lon: Optional[float] = None,
 ) -> List[List[ParsedItem]]:
     def _time(xx: ParsedItem):
@@ -363,7 +363,7 @@ def _group_items(
             ts = xx.solar_date_at(lon)
         return (ts.date(), ts, xx.id)
 
-    if groupby == "nothing":
+    if groupby == "id":
         items = sorted(items, key=_time)
         return [[item] for item in items]
 

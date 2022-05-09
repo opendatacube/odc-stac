@@ -148,7 +148,7 @@ def test_group_items():
 
     # check no-op case first
     assert _group_items([], "time") == []
-    assert _group_items([], "nothing") == []
+    assert _group_items([], "id") == []
     assert _group_items([], "solar_day") == []
 
     aa = _mk("a", 15 * 10, "2020-01-02T23:59Z")
@@ -156,10 +156,10 @@ def test_group_items():
     b2 = _mk("b2", 15 * 10 + 2, "2020-01-03T00:01Z")
     cc = _mk("c", 0, "2020-01-02T23:59Z")
 
-    assert _group_items([aa, b1, b2], "nothing") == [[aa], [b1], [b2]]
-    assert _group_items([aa, b2, b1], "nothing") == [[aa], [b1], [b2]]
-    assert _group_items([b1, aa, b2], "nothing") == [[aa], [b1], [b2]]
-    assert _group_items([cc, aa, b1, b2], "nothing") == [[aa], [cc], [b1], [b2]]
+    assert _group_items([aa, b1, b2], "id") == [[aa], [b1], [b2]]
+    assert _group_items([aa, b2, b1], "id") == [[aa], [b1], [b2]]
+    assert _group_items([b1, aa, b2], "id") == [[aa], [b1], [b2]]
+    assert _group_items([cc, aa, b1, b2], "id") == [[aa], [cc], [b1], [b2]]
 
     assert _group_items([aa, b1, b2], "time") == [[aa], [b1, b2]]
     assert _group_items([b1, aa, b2], "time") == [[aa], [b1, b2]]
