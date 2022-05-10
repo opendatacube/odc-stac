@@ -10,7 +10,7 @@ from odc.geo.geobox import GeoBox
 T = TypeVar("T")
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class RasterBandMetadata:
     """
     Common raster metadata per band.
@@ -33,7 +33,7 @@ class RasterBandMetadata:
     """Units of the pixel data."""
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class RasterCollectionMetadata:
     """
     Information about raster data in a collection.
@@ -104,7 +104,7 @@ class RasterCollectionMetadata:
         return _resolve_aliases(self.bands, self.aliases, bands)
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class RasterSource:
     """
     Captures known information about a single band.
@@ -126,7 +126,7 @@ class RasterSource:
     """Expected raster dtype/nodata."""
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class ParsedItem:
     """
     Captures essentials parts for data loading from a STAC Item.
@@ -237,6 +237,9 @@ class ParsedItem:
         Nominal datetime adjusted by longitude.
         """
         return _convert_to_solar_time(self.nominal_datetime, lon)
+
+    def __hash__(self) -> int:
+        return hash((self.id, self.collection.name))
 
 
 @dataclass

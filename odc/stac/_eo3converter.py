@@ -4,6 +4,7 @@ STAC -> EO3 utilities.
 Utilities for translating STAC Items to EO3 Datasets.
 """
 
+import dataclasses
 import uuid
 from functools import singledispatch
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
@@ -327,5 +328,9 @@ def infer_dc_product_from_collection(
     if cfg is None:
         cfg = {}
     product = infer_dc_product(mk_sample_item(collection), cfg)
-    product._md.has_proj = not cfg.get(product.name, {}).get("ignore_proj", False)
+
+    # unless configured to ignore projection info assume that it will be present
+    ignore_proj = cfg.get(product.name, {}).get("ignore_proj", False)
+    if not ignore_proj:
+        product._md = dataclasses.replace(product._md, has_proj=True)
     return product
