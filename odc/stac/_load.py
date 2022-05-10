@@ -88,193 +88,193 @@ def load(
     **kw,
 ) -> xr.Dataset:
     """
-     STAC :class:`~pystac.item.Item` to :class:`xarray.Dataset`.
+    STAC :class:`~pystac.item.Item` to :class:`xarray.Dataset`.
 
-     Load several STAC :class:`~pystac.item.Item` objects (from the same or similar
-     collections) as an :class:`xarray.Dataset`.
+    Load several STAC :class:`~pystac.item.Item` objects (from the same or similar
+    collections) as an :class:`xarray.Dataset`.
 
-     This method can load pixel data directly on a local machine or construct a Dask
-     graph that can be processed on a remote cluster.
+    This method can load pixel data directly on a local machine or construct a Dask
+    graph that can be processed on a remote cluster.
 
-     .. code-block:: python
+    .. code-block:: python
 
-        catalog = pystac.Client.open(...)
-        query = catalog.search(...)
-        xx = odc.stac.load(
-            query.get_items(),
-            bands=["red", "green", "blue"],
-        )
-        xx.red.plot.imshow(col="time")
+       catalog = pystac.Client.open(...)
+       query = catalog.search(...)
+       xx = odc.stac.load(
+           query.get_items(),
+           bands=["red", "green", "blue"],
+       )
+       xx.red.plot.imshow(col="time")
 
 
-     :param items:
-        Iterable of STAC :class:`~pystac.Item` to load
+    :param items:
+       Iterable of STAC :class:`~pystac.item.Item` to load
 
-     :param bands:
-        List of band names to load, defaults to All. Also accepts
-        single band name as input
+    :param bands:
+       List of band names to load, defaults to All. Also accepts
+       single band name as input
 
-     .. rubric:: Common Options
+    .. rubric:: Common Options
 
-     :param groupby:
-        Controls what items get placed in to the same pixel plane,
-        supported values are "time", "solar_day" and "id",
-        default is "time"
+    :param groupby:
+       Controls what items get placed in to the same pixel plane,
+       supported values are "time", "solar_day" and "id",
+       default is "time"
 
-     :param resampling:
-        Controls resampling strategy, can be specified per band
+    :param resampling:
+       Controls resampling strategy, can be specified per band
 
-     :param chunks:
-        Rather than loading pixel data directly, construct
-        Dask backed arrays. ``chunks={'x': 2048, 'y': 2048}``
+    :param chunks:
+       Rather than loading pixel data directly, construct
+       Dask backed arrays. ``chunks={'x': 2048, 'y': 2048}``
 
-     .. rubric:: Control Pixel Grid of Output
+    .. rubric:: Control Pixel Grid of Output
 
-     There are many ways to control footprint and resolution of returned data. The most
-     precise way is to use :py:class:`~odc.geo.geobox.GeoBox`, ``geobox=GeoBox(..)``.
-     Similarly one can use ``like=xx`` to match pixel grid to previously loaded data
-     (``xx = odc.stac.load(...)``).
+    There are many ways to control footprint and resolution of returned data. The most
+    precise way is to use :py:class:`~odc.geo.geobox.GeoBox`, ``geobox=GeoBox(..)``.
+    Similarly one can use ``like=xx`` to match pixel grid to previously loaded data
+    (``xx = odc.stac.load(...)``).
 
-     Other common way is to configure crs and resolution only
+    Other common way is to configure crs and resolution only
 
-     .. code-block:: python
+    .. code-block:: python
 
-        xx = odc.stac.load(...
-            crs="EPSG:3857",
-            resolution=10)
+       xx = odc.stac.load(...
+           crs="EPSG:3857",
+           resolution=10)
 
-        # resolution units must match CRS
-        # here we assume 1 degree == 111km to load at roughly
-        # the same 10m resolution as statement above.
-        yy = odc.stac.load(...
-            crs="EPSG:4326",
-            resolution=0.00009009)
+       # resolution units must match CRS
+       # here we assume 1 degree == 111km to load at roughly
+       # the same 10m resolution as statement above.
+       yy = odc.stac.load(...
+           crs="EPSG:4326",
+           resolution=0.00009009)
 
-     By default :py:func:`odc.stac.load` loads all available pixels in the requested
-     projection and resolution. To limit extent of loaded data you have to supply bounds via
-     either ``geobox=`` or ``like=`` parameters (these also select projection and resolution).
-     Alternatively use a pair of ``x, y`` or ``lon, lat`` parameters. ``x, y`` allows you to
-     specify bounds in the output projection, while ``lon, lat`` operate in degrees. You can also
-     use ``bbox`` which is equivalent to ``lon, lat``.
+    By default :py:func:`odc.stac.load` loads all available pixels in the requested
+    projection and resolution. To limit extent of loaded data you have to supply bounds via
+    either ``geobox=`` or ``like=`` parameters (these also select projection and resolution).
+    Alternatively use a pair of ``x, y`` or ``lon, lat`` parameters. ``x, y`` allows you to
+    specify bounds in the output projection, while ``lon, lat`` operate in degrees. You can also
+    use ``bbox`` which is equivalent to ``lon, lat``.
 
-     It should be noted that returned data is likely to reach outside of the requested bounds by
-     fraction of a pixel when using ``bbox``, ``x, y`` or ``lon, lat`` mechanisms. This is due to
-     pixel grid "snapping". Pixel edges will still start at ``N*pixel_size`` where ``N is int``
-     regardless of the requested bounding box.
+    It should be noted that returned data is likely to reach outside of the requested bounds by
+    fraction of a pixel when using ``bbox``, ``x, y`` or ``lon, lat`` mechanisms. This is due to
+    pixel grid "snapping". Pixel edges will still start at ``N*pixel_size`` where ``N is int``
+    regardless of the requested bounding box.
 
-     :param crs:
-        Load data in a given CRS
+    :param crs:
+       Load data in a given CRS
 
-     :param resolution:
-        Set resolution of output in ``Y, X`` order, it is common for ``Y`` to be negative,
-        e.g. ``resolution=(-10, 10)``. Resolution must be supplied in the units of the
-        output CRS, so they are commonly in meters for *Projected* and in degrees for
-        *Geographic* CRSs. ``resolution=10`` is equivalent to ``resolution=(-10, 10)``.
+    :param resolution:
+       Set resolution of output in ``Y, X`` order, it is common for ``Y`` to be negative,
+       e.g. ``resolution=(-10, 10)``. Resolution must be supplied in the units of the
+       output CRS, so they are commonly in meters for *Projected* and in degrees for
+       *Geographic* CRSs. ``resolution=10`` is equivalent to ``resolution=(-10, 10)``.
 
-     :param bbox:
-        Specify bounding box in Lon/Lat. ``[min(lon), min(lat), max(lon), max(lat)]``
+    :param bbox:
+       Specify bounding box in Lon/Lat. ``[min(lon), min(lat), max(lon), max(lat)]``
 
-     :param lon:
-        Define output bounds in Lon/Lat
-     :param lat:
-        Define output bounds in Lon/Lat
+    :param lon:
+       Define output bounds in Lon/Lat
+    :param lat:
+       Define output bounds in Lon/Lat
 
-     :param x:
-        Define output bounds in output projection coordinate units
-     :param y:
-        Define output bounds in output projection coordinate units
+    :param x:
+       Define output bounds in output projection coordinate units
+    :param y:
+       Define output bounds in output projection coordinate units
 
-     :param align:
-        Control pixel snapping, default is to align pixel grid to ``X``/``Y``
-        axis such that pixel edges lie on the axis.
+    :param align:
+       Control pixel snapping, default is to align pixel grid to ``X``/``Y``
+       axis such that pixel edges lie on the axis.
 
-     :param geobox:
-        Allows to specify exact region/resolution/projection using
-        :class:`~odc.geo.geobox.GeoBox` object
+    :param geobox:
+       Allows to specify exact region/resolution/projection using
+       :class:`~odc.geo.geobox.GeoBox` object
 
-     :param like:
-        Match output grid to the data loaded previously.
+    :param like:
+       Match output grid to the data loaded previously.
 
-     :param geopolygon:
-        Limit returned result to a bounding box of a given geometry. This could be an
-        instance of :class:`~odc.geo.geom.Geometry`, GeoJSON dictionary,
-        GeoPandas DataFrame, or any object implementing ``__geo_interface__``. We assume
-        ``EPSG:4326`` projection for dictionary and Shapely inputs. CRS information available
-        on GeoPandas inputs should be understood correctly.
+    :param geopolygon:
+       Limit returned result to a bounding box of a given geometry. This could be an
+       instance of :class:`~odc.geo.geom.Geometry`, GeoJSON dictionary,
+       GeoPandas DataFrame, or any object implementing ``__geo_interface__``. We assume
+       ``EPSG:4326`` projection for dictionary and Shapely inputs. CRS information available
+       on GeoPandas inputs should be understood correctly.
 
-     .. rubric:: STAC Related Options
+    .. rubric:: STAC Related Options
 
-     :param stac_cfg:
-        Controls interpretation of :py:class:`pystac.Item`. Mostly used to specify "missing"
-        metadata like pixel data types.
+    :param stac_cfg:
+       Controls interpretation of :py:class:`pystac.Item`. Mostly used to specify "missing"
+       metadata like pixel data types.
 
-     :param patch_url:
-        Optionally transform url of every band before loading
+    :param patch_url:
+       Optionally transform url of every band before loading
 
     :return:
-        :py:class:`xarray.Dataset` with requested bands populated
+       :py:class:`xarray.Dataset` with requested bands populated
 
 
-     .. rubric:: Complete Example Code
+    .. rubric:: Complete Example Code
 
-     .. code-block:: python
+    .. code-block:: python
 
-        import planetary_computer as pc
-        from pystac_client import Client
+       import planetary_computer as pc
+       from pystac_client import Client
 
-        from odc import stac
+       from odc import stac
 
-        catalog = Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")
-        query = catalog.search(
-            collections=["sentinel-2-l2a"],
-            datetime="2019-06-06",
-            query={"s2:mgrs_tile": dict(eq="06VVN")},
-        )
+       catalog = Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")
+       query = catalog.search(
+           collections=["sentinel-2-l2a"],
+           datetime="2019-06-06",
+           query={"s2:mgrs_tile": dict(eq="06VVN")},
+       )
 
-        xx = stac.load(
-            query.get_items(),
-            bands=["red", "green", "blue"],
-            resolution=100,  # 1/10 of the native 10m resolution
-            patch_url=pc.sign,
-        )
-        xx.red.plot.imshow(col="time", size=8, aspect=1)
+       xx = stac.load(
+           query.get_items(),
+           bands=["red", "green", "blue"],
+           resolution=100,  # 1/10 of the native 10m resolution
+           patch_url=pc.sign,
+       )
+       xx.red.plot.imshow(col="time", size=8, aspect=1)
 
 
-     .. rubric:: Example Optional Configuration
+    .. rubric:: Example Optional Configuration
 
-     Sometimes data source might be missing some optional STAC extensions. With ``stac_cfg=`` parameter
-     one can supply that information at load time. Configuration is per collection per asset. You can
-     provide information like pixel data type, ``nodata`` value used, ``unit`` attribute and band aliases
-     you would like to use.
+    Sometimes data source might be missing some optional STAC extensions. With ``stac_cfg=`` parameter
+    one can supply that information at load time. Configuration is per collection per asset. You can
+    provide information like pixel data type, ``nodata`` value used, ``unit`` attribute and band aliases
+    you would like to use.
 
-     Sample ``stac_cfg={..}`` parameter:
+    Sample ``stac_cfg={..}`` parameter:
 
-     .. code-block:: yaml
+    .. code-block:: yaml
 
-        sentinel-2-l2a:  # < name of the collection, i.e. ``.collection_id``
-          assets:
-            "*":  # Band named "*" contains band info for "most" bands
-              data_type: uint16
-              nodata: 0
-              unit: "1"
-            SCL:  # Those bands that are different than "most"
-              data_type: uint8
-              nodata: 0
-              unit: "1"
-          aliases:  #< unique alias -> canonical map
-            rededge: B05
-            rededge1: B05
-            rededge2: B06
-            rededge3: B07
+       sentinel-2-l2a:  # < name of the collection, i.e. ``.collection_id``
+         assets:
+           "*":  # Band named "*" contains band info for "most" bands
+             data_type: uint16
+             nodata: 0
+             unit: "1"
+           SCL:  # Those bands that are different than "most"
+             data_type: uint8
+             nodata: 0
+             unit: "1"
+         aliases:  #< unique alias -> canonical map
+           rededge: B05
+           rededge1: B05
+           rededge2: B06
+           rededge3: B07
 
-          warnings: ignore  # ignore|all  (default all)
+         warnings: ignore  # ignore|all  (default all)
 
-        some-other-collection:
-          assets:
-          #...
+       some-other-collection:
+         assets:
+         #...
 
-        "*": # Applies to all collections if not defined on a collection
-          warnings: ignore
+       "*": # Applies to all collections if not defined on a collection
+         warnings: ignore
 
     """
     # pylint: disable=unused-argument
