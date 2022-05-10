@@ -246,7 +246,7 @@ def gpd_natural_earth():
 @pytest.fixture()
 def gpd_iso3(gpd_natural_earth):
     def _get(iso3, crs=None):
-        gg = gpd_natural_earth[gpd_natural_earth.iso_a3 == "AUS"]
+        gg = gpd_natural_earth[gpd_natural_earth.iso_a3 == iso3]
         if crs is not None:
             gg = gg.to_crs(crs)
         return gg
