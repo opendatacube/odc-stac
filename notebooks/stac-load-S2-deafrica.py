@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.13.6
+#       jupytext_version: 1.13.8
 #   kernelspec:
-#     display_name: 'Python 3.8.12 64-bit (''stac'': conda)'
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -24,54 +24,25 @@
 # ## Import Required Packages
 
 # %%
-from pystac_client import Client
+import pprint
 
+from pystac_client import Client
 from odc.stac import stac_load, configure_rio
+from get_product_config import get_product_config
 
 # %% [markdown]
 # ## Set Collection Configuration
 #
-# The configuration dictionary is determined from the product's definition, available at https://explorer.digitalearth.africa/products/s2_l2a#definition-doc
+# The purpose of the configuration dictionary is to supply some optional STAC extensions that a data source might be missing. This missing information includes,  pixel data type, nodata value, unit attribute and band aliases. The configuration dictionary is passed to the `odc.stac.load` `stac_cfg=` parameter in order to supply the missing information at load time. 
 #
-# All assets except SCL have the same configuration. SCL uses `uint8` rather than `uint16`.
-#
-# In the configuration, we also supply the aliases for each band. This means we can load data by band name rather than band number.
+# The configuration is per collection per asset and is determined from the product's definition. The Sentinel-2 product definition is available at https://explorer.digitalearth.africa/products/s2_l2a.
 
 # %%
-config = {
-    "s2_l2a": {
-        "assets": {
-            "*": {
-                "data_type": "uint16",
-                "nodata": 0,
-                "unit": "1",
-            },
-            "SCL": {
-                "data_type": "uint8",
-                "nodata": 0,
-                "unit": "1",
-            },
-        },
-        "aliases": {
-            "costal_aerosol": "B01",
-            "blue": "B02",
-            "green": "B03",
-            "red": "B04",
-            "red_edge_1": "B05",
-            "red_edge_2": "B06",
-            "red_edge_3": "B07",
-            "nir": "B08",
-            "nir_narrow": "B08A",
-            "water_vapour": "B09",
-            "swir_1": "B11",
-            "swir_2": "B12",
-            "mask": "SCL",
-            "aerosol_optical_thickness": "AOT",
-            "scene_average_water_vapour": "WVP",
-        },
-    }
-}
-
+product_name = "s2_l2a"
+# Set the profile to specify that the product is a Digital Earth Africa product.
+profile = "deafrica"
+config = get_product_config(product_name, profile)
+pprint.pprint(config)
 
 # %% [markdown]
 # ## Set AWS Configuration
@@ -111,7 +82,7 @@ start_date = "2020-09-01"
 end_date = "2020-12-01"
 
 # Set the STAC collections
-collections = ["s2_l2a"]
+collections = [product_name]
 
 
 # %% [markdown]
