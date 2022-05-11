@@ -14,10 +14,13 @@ dependencies:
 
   # planetary-computer lib for URL signing
   - planetary-computer
+  
+  # other odc tools
+  - odc-algo >=0.2.2
+  - odc-geo >=0.1.2
 
   # from kirill-odc
   - odc-ui >=0.2.0a3
-  - odc-algo >=0.2.2
   - odc-cloud
   - odc-dscache >=0.2.2
 
