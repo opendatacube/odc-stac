@@ -8,7 +8,7 @@ import pystac.utils
 import pytest
 from common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
 from odc.geo import geom
-from odc.geo.geobox import GeoBox
+from odc.geo.geobox import GeoBox, geobox_union_conservative
 from odc.geo.xr import xr_zeros
 from pystac.extensions.projection import ProjectionExtension
 
@@ -414,6 +414,23 @@ def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
         crs=gbox.crs,
         align=0,
     )
+
+
+def test_output_geobox_from_items():
+    cc = 0
+
+    def mk_item(gbox: GeoBox, time="2020-01-10"):
+        nonlocal cc
+        cc = cc + 1
+        return mk_parsed_item(
+            [b_("b1", geobox=gbox), b_("b2", geobox=gbox)], time, id=f"item-{cc}"
+        )
+
+    gboxes = [GBOX, GBOX.left, GBOX.right.pad(3)]
+
+    gbox = output_geobox([mk_item(gbox) for gbox in gboxes])
+    assert gbox.crs == GBOX.crs
+    assert geobox_union_conservative(gboxes) == gbox
 
 
 @pytest.mark.parametrize(

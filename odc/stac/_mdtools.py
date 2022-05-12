@@ -656,7 +656,7 @@ def _compute_bbox(items: Iterable[ParsedItem], crs: CRS) -> geom.BoundingBox:
         assert g is not None
         return g.to_crs(crs).boundingbox
 
-    return geom.bbox_intersection(map(_bbox, items))
+    return geom.bbox_union(map(_bbox, items))
 
 
 def output_geobox(
