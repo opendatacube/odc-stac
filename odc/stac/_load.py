@@ -6,9 +6,12 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Hashable,
     Iterable,
+    Iterator,
     List,
     Optional,
+    Protocol,
     Sequence,
     Tuple,
     Union,
@@ -21,11 +24,29 @@ import pystac.item
 import xarray as xr
 from dask import array as da
 from odc.geo import XY, MaybeCRS, SomeResolution
-from odc.geo.geobox import GeoBox
-from odc.geo.xr import wrap_xr
+from odc.geo.geobox import GeoBox, GeoboxTiles
+from odc.geo.xr import xr_coords
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
-from ._model import ParsedItem, RasterCollectionMetadata
+from ._model import (
+    ParsedItem,
+    RasterBandMetadata,
+    RasterCollectionMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
+from ._reader import _nodata_mask, _resolve_src_nodata, rio_read
+
+DEFAULT_CHUNK_FOR_LOAD = 2048
+"""Used to partition load when not using Dask."""
+
+
+class MkArray(Protocol):
+    """Internal interface."""
+
+    # pylint: disable=too-few-public-methods
+    def __call__(self, shape: Tuple[int, ...], dtype: Any, /, name: Hashable) -> Any:
+        ...
 
 
 def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
@@ -62,7 +83,7 @@ def patch_urls(
     return dataclasses.replace(item, bands=_bands)
 
 
-# pylint: disable=too-many-arguments,too-many-locals
+# pylint: disable=too-many-arguments,too-many-locals,too-many-statements
 def load(
     items: Iterable[pystac.item.Item],
     bands: Optional[Union[str, Sequence[str]]] = None,
@@ -277,7 +298,7 @@ def load(
          warnings: ignore
 
     """
-    # pylint: disable=unused-argument
+    # pylint: disable=unused-argument,too-many-branches
     if bands is None:
         # dc.load name for bands is measurements
         bands = kw.pop("measurements", None)
@@ -311,31 +332,157 @@ def load(
     if gbox is None:
         raise ValueError("Failed to auto-guess CRS/resolution.")
 
-    # use dummy for now we'll test geobox, groupby and time dimension with that first
+    if chunks is not None:
+        chunk_shape = _resolve_chunk_shape(gbox, chunks)
+    else:
+        chunk_shape = _resolve_chunk_shape(
+            gbox,
+            {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
+        )
 
-    def _dummy(nt, dtype):
-        _shape = (nt, *gbox.shape.yx)
-        if chunks is None:
-            return np.zeros(_shape, dtype=dtype)
+    if resampling is None:
+        resampling = "nearest"
 
-        _chunks = (1, *tuple(chunks.get(dim, -1) for dim in gbox.dimensions))
-        return da.zeros(_shape, dtype=dtype, chunks=_chunks)
+    debug = kw.get("debug", False)
+
+    # Check we have all the bands of interest
+    # will raise ValueError if no such band/alias
+    collection = _collection(_parsed)
+    bands_to_load = collection.resolve_bands(bands)
 
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
+    # Time dimension
     ((mid_lon, _),) = gbox.extent.centroid.to_crs("epsg:4326").points
     _grouped = _group_items(_parsed, groupby, mid_lon)
     tss = _extract_timestamps(_grouped)
-    nt = len(tss)
-    collection = _collection(_parsed)
-    mm = collection.resolve_bands(bands)
-    data_bands = {
-        name: wrap_xr(_dummy(nt, m.data_type), gbox, nodata=m.nodata, time=tss)
-        for name, m in mm.items()
-    }
 
-    return xr.Dataset(data_bands)  # type: ignore
+    # Spatio-temporal binning
+    gbt = GeoboxTiles(gbox, chunk_shape)
+    tyx_bins = dict(_tyx_bins(_grouped, gbt, include_empties=True))
+
+    def _with_debug_info(ds: xr.Dataset) -> xr.Dataset:
+        # expose data for debugging
+        if debug:
+            from types import SimpleNamespace  # pylint: disable=import-outside-toplevel
+
+            ds.encoding.update(
+                debug=SimpleNamespace(
+                    gbt=gbt,
+                    mid_lon=mid_lon,
+                    grouped=_grouped,
+                    tyx_bins=tyx_bins,
+                    bands_to_load=bands_to_load,
+                )
+            )
+
+        return ds
+
+    if chunks is not None:
+        # Dask case: dummy for now
+        def _dummy_da(shape: Tuple[int, ...], dtype: Any, /, name: Hashable) -> Any:
+            chunks = (1,) * (len(shape) - 2) + chunk_shape
+            return da.zeros(shape, dtype=dtype, chunks=chunks)
+
+        return _with_debug_info(_mk_empty_dataset(gbox, tss, bands_to_load, _dummy_da))
+
+    ds = _mk_empty_dataset(gbox, tss, bands_to_load)
+
+    # do direct load
+    for band_name, dv in ds.data_vars.items():
+        # TODO: per band resampling config
+        assert isinstance(resampling, str)
+        read_cfg = RasterLoadParams(
+            resampling=resampling,
+            use_overviews=True,
+            dtype=str(dv.dtype),
+            fill_value=dv.attrs.get("nodata", None),
+        )
+
+        for idx, _items in tyx_bins.items():
+            if debug:
+                _idx = ",".join(f"{i:2d}" for i in idx)
+                print(f"({_idx})..{len(_items)}")
+
+            yx_roi = gbt.roi[idx[1:]]
+            dst_gbox = gbox[yx_roi]
+
+            dst_roi = (idx[0], *yx_roi)
+            dst_slice = dv.data[dst_roi]
+            srcs = [item.resolve_bands([band_name])[band_name] for item in _items]
+            _ = _fill_2d_slice(srcs, dst_gbox, read_cfg, dst_slice)
+
+    return _with_debug_info(ds)
+
+
+def _fill_2d_slice(
+    srcs: List[RasterSource],
+    dst_gbox: GeoBox,
+    cfg: RasterLoadParams,
+    dst: Any,
+) -> Any:
+    # TODO: support masks not just nodata based fusing
+    #
+    # ``nodata``     marks missing pixels, but it might be None (everything is valid)
+    # ``fill_value`` is the initial value to use, it's equal to ``nodata`` when set,
+    #                otherwise defaults to .nan for floats and 0 for integers
+    assert dst.shape == dst_gbox.shape.yx
+    nodata = _resolve_src_nodata(cfg.fill_value, cfg)
+
+    if nodata is None:
+        fill_value = float("nan") if dst.dtype.kind == "f" else 0
+    else:
+        fill_value = nodata
+
+    np.copyto(dst, fill_value)
+    if len(srcs) == 0:
+        return dst
+
+    src, *rest = srcs
+    _roi, pix = rio_read(src, cfg, dst_gbox, dst=dst)
+
+    for src in rest:
+        # first valid pixel takes precedence over others
+        _roi, pix = rio_read(src, cfg, dst_gbox)
+
+        # nodata mask takes care of nan when working with floats
+        # so you can still get proper mask even when nodata is None
+        # when working with float32 data.
+        missing = _nodata_mask(dst[_roi], nodata)
+        np.copyto(dst[_roi], pix, where=missing)
+
+    return dst
+
+
+def _mk_empty_dataset(
+    gbox: GeoBox,
+    time: List[datetime],
+    bands: Dict[str, RasterBandMetadata],
+    alloc: Optional[MkArray] = None,
+) -> xr.Dataset:
+    _shape = (len(time), *gbox.shape.yx)
+    coords = xr_coords(gbox)
+    crs_coord_name: Hashable = list(coords)[-1]
+    coords["time"] = xr.DataArray(time, dims=("time",))
+    dims = ("time", *gbox.dimensions)
+
+    def _alloc(shape: Tuple[int, ...], dtype: str, name: Hashable) -> Any:
+        if alloc is not None:
+            return alloc(shape, dtype, name=name)
+        return np.empty(shape, dtype=dtype)
+
+    def _maker(name: Hashable, band: RasterBandMetadata) -> xr.DataArray:
+        data = _alloc(_shape, band.data_type or "float32", name=name)
+        attrs = {}
+        if band.nodata is not None:
+            attrs["nodata"] = band.nodata
+
+        xx = xr.DataArray(data=data, coords=coords, dims=dims, attrs=attrs)
+        xx.encoding.update(grid_mapping=crs_coord_name)
+        return xx
+
+    return xr.Dataset({name: _maker(name, band) for name, band in bands.items()})
 
 
 def _extract_timestamps(grouped: List[List[ParsedItem]]) -> List[datetime]:
@@ -380,3 +527,41 @@ def _group_items(
 
     items = sorted(items, key=key)
     return [list(group) for _, group in itertools.groupby(items, grouper)]
+
+
+def _tiles(item: ParsedItem, gbt: GeoboxTiles) -> Iterator[Tuple[int, int]]:
+    # TODO: should probably prefer native geometry if set in proj
+    # TODO: extract geometry from geobox if proj data is available
+    if item.geometry is None:
+        raise ValueError("Can not process items without defined footprint")
+    yield from gbt.tiles(item.geometry)
+
+
+def _tyx_bins(
+    grouped: List[List[ParsedItem]],
+    gbt: GeoboxTiles,
+    include_empties: bool = False,
+) -> Iterator[Tuple[Tuple[int, int, int], List[ParsedItem]]]:
+    for t_idx, group in enumerate(grouped):
+        _yx: Dict[Tuple[int, int], List[ParsedItem]] = {}
+        if include_empties:
+            _yx = {(iy, ix): [] for iy, ix in np.ndindex(gbt.shape.yx)}
+
+        for item in group:
+            for idx in _tiles(item, gbt):
+                _yx.setdefault(idx, []).append(item)
+
+        yield from (((t_idx, *idx), items) for idx, items in _yx.items())
+
+
+def _resolve_chunk_shape(gbox: GeoBox, chunks: Dict[str, int]) -> Tuple[int, int]:
+    def _norm_dim(chunk: int, sz: int) -> int:
+        if chunk < 0 or chunk > sz:
+            return sz
+        return chunk
+
+    ny, nx = [
+        _norm_dim(chunks.get(dim, chunks.get(fallback_dim, -1)), n)
+        for dim, fallback_dim, n in zip(gbox.dimensions, ["y", "x"], gbox.shape.yx)
+    ]
+    return ny, nx
