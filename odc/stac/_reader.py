@@ -14,7 +14,7 @@ import rasterio.enums
 import rasterio.warp
 from odc.geo.geobox import GeoBox
 from odc.geo.overlap import ReprojectInfo, compute_reproject_roi
-from odc.geo.roi import NormalizedROI, roi_shape, w_
+from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
 from odc.geo.warp import resampling_s2rio
 
 from ._model import RasterLoadParams, RasterSource
@@ -111,6 +111,14 @@ def _do_read(
     src_nodata0 = rdr.nodatavals[src.bidx - 1]
     src_nodata = _resolve_src_nodata(src_nodata0, cfg)
     dst_nodata = _resolve_dst_nodata(_dst.dtype, cfg, src_nodata)
+
+    if roi_is_empty(rr.roi_dst):
+        return (rr.roi_dst, _dst)
+
+    if roi_is_empty(rr.roi_src):
+        # no overlap case
+        np.copyto(_dst, dst_nodata)
+        return (rr.roi_dst, _dst)
 
     if rr.paste_ok and rr.read_shrink == 1:
         rdr.read(src.bidx, out=_dst, window=w_[rr.roi_src])
