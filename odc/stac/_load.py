@@ -47,7 +47,26 @@ class MkArray(Protocol):
 
     # pylint: disable=too-few-public-methods
     def __call__(self, shape: Tuple[int, ...], dtype: Any, /, name: Hashable) -> Any:
-        ...
+        ...  # pragma: no cover
+
+
+@dataclasses.dataclass(frozen=True)
+class _LoadChunkTask:
+    band: str
+    srcs: List[RasterSource]
+    cfg: RasterLoadParams
+    gbt: GeoboxTiles
+    idx_tyx: Tuple[int, int, int]
+
+    @property
+    def dst_roi(self):
+        t, y, x = self.idx_tyx
+        return (t, *self.gbt.roi[y, x])
+
+    @property
+    def dst_gbox(self) -> GeoBox:
+        _, y, x = self.idx_tyx
+        return self.gbt[y, x]
 
 
 def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
@@ -375,20 +394,29 @@ def load(
 
     def _with_debug_info(ds: xr.Dataset) -> xr.Dataset:
         # expose data for debugging
-        if debug:
-            from types import SimpleNamespace  # pylint: disable=import-outside-toplevel
+        if not debug:
+            return ds
 
-            ds.encoding.update(
-                debug=SimpleNamespace(
-                    gbt=gbt,
-                    mid_lon=mid_lon,
-                    grouped=_grouped,
-                    tyx_bins=tyx_bins,
-                    bands_to_load=bands_to_load,
-                )
+        from types import SimpleNamespace  # pylint: disable=import-outside-toplevel
+
+        ds.encoding.update(
+            debug=SimpleNamespace(
+                gbt=gbt,
+                mid_lon=mid_lon,
+                grouped=_grouped,
+                tyx_bins=tyx_bins,
+                bands_to_load=bands_to_load,
+                load_cfg=load_cfg,
             )
-
+        )
         return ds
+
+    def _task_stream(bands: List[str]) -> Iterator[_LoadChunkTask]:
+        for band_name in bands:
+            cfg = load_cfg[band_name]
+            for tyx_idx, _items in tyx_bins.items():
+                srcs = [item[band_name] for item in _items]
+                yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
 
     if chunks is not None:
         # Dask case: dummy for now
@@ -400,22 +428,11 @@ def load(
 
     ds = _mk_empty_dataset(gbox, tss, load_cfg)
 
-    # do direct load
-    for band_name, dv in ds.data_vars.items():
-        _cfg = load_cfg[band_name]
-
-        for idx, _items in tyx_bins.items():
-            if debug:
-                _idx = ",".join(f"{i:2d}" for i in idx)
-                print(f"({_idx})..{len(_items)}")
-
-            yx_roi = gbt.roi[idx[1:]]
-            dst_gbox = gbox[yx_roi]
-
-            dst_roi = (idx[0], *yx_roi)
-            dst_slice = dv.data[dst_roi]
-            srcs = [item[band_name] for item in _items]
-            _ = _fill_2d_slice(srcs, dst_gbox, _cfg, dst_slice)
+    for task in _task_stream(bands):
+        if debug:
+            print(f"{task.band}[{task.idx_tyx}]")
+        dst_slice = ds[task.band].data[task.dst_roi]
+        _ = _fill_2d_slice(task.srcs, task.dst_gbox, task.cfg, dst_slice)
 
     return _with_debug_info(ds)
 
