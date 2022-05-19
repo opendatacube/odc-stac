@@ -7,9 +7,9 @@ import shapely.geometry
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtension
 
-from odc.stac._load import _group_items
+from odc.stac._load import _group_items, _resolve_load_cfg
 from odc.stac._load import load as stac_load
-from odc.stac._model import ParsedItem
+from odc.stac._model import RasterLoadParams
 from odc.stac.testing.stac import b_, mk_parsed_item
 
 
@@ -175,3 +175,39 @@ def test_group_items():
 
     with pytest.raises(ValueError):
         _ = _group_items([aa], groupby="no-such-mode")
+
+
+def test_resolve_load_cfg():
+    rlp = RasterLoadParams
+    assert _resolve_load_cfg({}) == {}
+
+    item = mk_parsed_item(
+        [
+            b_("a", dtype="int8", nodata=-1),
+            b_("b", dtype="float64"),
+        ]
+    )
+
+    assert set(item.collection) == set(["a", "b"])
+    assert item.collection["a"].data_type == "int8"
+    assert item.collection["b"].data_type == "float64"
+
+    cfg = _resolve_load_cfg(item.collection.bands, resampling="average")
+    assert cfg["a"] == rlp("int8", -1, resampling="average")
+    assert cfg["b"] == rlp("float64", None, resampling="average")
+
+    cfg = _resolve_load_cfg(
+        item.collection.bands,
+        resampling={"*": "mode", "b": "sum"},
+        nodata=-999,
+        dtype="int64",
+    )
+    assert cfg["a"] == rlp("int64", -999, resampling="mode")
+    assert cfg["b"] == rlp("int64", -999, resampling="sum")
+
+    cfg = _resolve_load_cfg(
+        item.collection.bands,
+        dtype={"a": "float32"},
+    )
+    assert cfg["a"] == rlp("float32", -1)
+    assert cfg["b"] == rlp("float64", None)
