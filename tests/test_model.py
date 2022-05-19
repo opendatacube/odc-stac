@@ -3,7 +3,13 @@ import datetime as dt
 import pytest
 from odc.geo.geobox import GeoBox
 
-from odc.stac._model import RasterBandMetadata, RasterLoadParams, RasterSource
+from odc.stac._model import (
+    ParsedItem,
+    RasterBandMetadata,
+    RasterCollectionMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
 from odc.stac.testing.stac import b_, mk_parsed_item
 
 
@@ -58,3 +64,64 @@ def test_solar_day():
     xx = _mk(10, None)
     with pytest.raises(ValueError):
         _ = xx.solar_date
+
+
+@pytest.fixture()
+def collection_ab() -> RasterCollectionMetadata:
+    return RasterCollectionMetadata(
+        "ab",
+        {
+            "a": RasterBandMetadata("uint8"),
+            "b": RasterBandMetadata("uint16"),
+        },
+        {"A": "a", "AA": "a", "B": "b"},
+        has_proj=True,
+        band2grid={},
+    )
+
+
+@pytest.fixture()
+def parsed_item_ab(collection_ab: RasterCollectionMetadata) -> ParsedItem:
+    return ParsedItem(
+        "item-ab",
+        collection_ab,
+        {k: RasterSource(k, meta=collection_ab[k]) for k in collection_ab},
+    )
+
+
+def test_collection(collection_ab: RasterCollectionMetadata):
+    xx = collection_ab
+
+    assert xx.canonical_name("B") == "b"
+    assert xx.canonical_name("AA") == "a"
+    assert xx["AA"].data_type == "uint8"
+    assert xx["b"].data_type == "uint16"
+
+    assert xx.resolve_bands("AA")["AA"] == xx["a"]
+    assert list(xx.resolve_bands(["a", "B"])) == ["a", "B"]
+    assert xx.resolve_bands(["a", "B"])["B"] is xx["b"]
+    assert xx.resolve_bands(["a", "B"])["a"] is xx["a"]
+    assert set(xx) == set(["a", "b"])
+
+    for k in "a AA A b B".split(" "):
+        assert xx.canonical_name(k) in xx.bands
+        assert k in xx
+        assert isinstance(xx[k], RasterBandMetadata)
+        assert xx[k] is xx[xx.canonical_name(k)]
+
+
+def test_parsed_item(parsed_item_ab: ParsedItem):
+    xx = parsed_item_ab
+    assert xx["AA"].meta.data_type == "uint8"
+    assert xx["b"].meta.data_type == "uint16"
+
+    assert xx.resolve_bands("AA")["AA"] == xx["a"]
+    assert list(xx.resolve_bands(["a", "B"])) == ["a", "B"]
+    assert xx.resolve_bands(["a", "B"])["B"] is xx["b"]
+    assert xx.resolve_bands(["a", "B"])["a"] is xx["a"]
+    assert set(xx) == set(["a", "b"])
+
+    for k in "a AA A b B".split(" "):
+        assert k in xx
+        assert isinstance(xx[k], RasterSource)
+        assert xx[k] is xx.resolve_bands(k)[k]

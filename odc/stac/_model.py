@@ -2,7 +2,18 @@
 
 import datetime as dt
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Set, Tuple, TypeVar, Union
+from typing import (
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 from odc.geo import CRS, Geometry
 from odc.geo.geobox import GeoBox
@@ -34,7 +45,7 @@ class RasterBandMetadata:
 
 
 @dataclass(eq=True, frozen=True)
-class RasterCollectionMetadata:
+class RasterCollectionMetadata(Mapping[str, RasterBandMetadata]):
     """
     Information about raster data in a collection.
 
@@ -103,6 +114,29 @@ class RasterCollectionMetadata:
         """
         return _resolve_aliases(self.bands, self.aliases, bands)
 
+    def canonical_name(self, band: str) -> str:
+        """
+        Canonical name for an alias.
+        """
+        return self.aliases.get(band, band)
+
+    def __getitem__(self, band: str) -> RasterBandMetadata:
+        """
+        Query band taking care of aliases.
+
+        :raises: :py:class:`KeyError`
+        """
+        return self.bands[self.canonical_name(band)]
+
+    def __len__(self) -> int:
+        return len(self.bands)
+
+    def __iter__(self) -> Iterator[str]:
+        yield from self.bands
+
+    def __contains__(self, __o: object) -> bool:
+        return __o in self.bands or __o in self.aliases
+
 
 @dataclass(eq=True, frozen=True)
 class RasterSource:
@@ -127,7 +161,7 @@ class RasterSource:
 
 
 @dataclass(eq=True, frozen=True)
-class ParsedItem:
+class ParsedItem(Mapping[str, RasterSource]):
     """
     Captures essentials parts for data loading from a STAC Item.
 
@@ -194,6 +228,25 @@ class ParsedItem:
         Query bands taking care of aliases.
         """
         return _resolve_aliases(self.bands, self.collection.aliases, bands)
+
+    def __getitem__(self, band: str) -> RasterSource:
+        """
+        Query band taking care of aliases.
+
+        :raises: :py:class:`KeyError`
+        """
+        return self.bands[self.collection.canonical_name(band)]
+
+    def __len__(self) -> int:
+        return len(self.bands)
+
+    def __iter__(self) -> Iterator[str]:
+        yield from self.bands
+
+    def __contains__(self, k: object) -> bool:
+        if not isinstance(k, str):
+            return False
+        return self.collection.canonical_name(k) in self.bands
 
     @property
     def nominal_datetime(self) -> dt.datetime:
@@ -302,8 +355,8 @@ class RasterLoadParams:
 
 
 def _resolve_aliases(
-    src: Dict[str, T],
-    aliases: Dict[str, str],
+    src: Mapping[str, T],
+    aliases: Mapping[str, str],
     bands: Optional[Union[str, Sequence[str]]] = None,
 ) -> Dict[str, T]:
     if bands is None:

@@ -410,7 +410,7 @@ def load(
 
             dst_roi = (idx[0], *yx_roi)
             dst_slice = dv.data[dst_roi]
-            srcs = [item.resolve_bands([band_name])[band_name] for item in _items]
+            srcs = [item[band_name] for item in _items]
             _ = _fill_2d_slice(srcs, dst_gbox, read_cfg, dst_slice)
 
     return _with_debug_info(ds)
