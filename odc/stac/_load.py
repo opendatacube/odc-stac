@@ -26,8 +26,9 @@ from dask import array as da
 from odc.geo import XY, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxTiles
 from odc.geo.xr import xr_coords
+from xarray.core.npcompat import DTypeLike
 
-from ._mdtools import ConversionConfig, output_geobox, parse_items
+from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
 from ._model import (
     ParsedItem,
     RasterBandMetadata,
@@ -90,6 +91,7 @@ def load(
     *,
     groupby: Optional[str] = "time",
     resampling: Optional[Union[str, Dict[str, str]]] = None,
+    dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
     chunks: Optional[Dict[str, int]] = None,
     # Geo selection
     crs: MaybeCRS = None,
@@ -144,6 +146,9 @@ def load(
 
     :param resampling:
        Controls resampling strategy, can be specified per band
+
+    :param dtype:
+       Force output dtype, can be specified per band
 
     :param chunks:
        Rather than loading pixel data directly, construct
@@ -340,15 +345,21 @@ def load(
             {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
         )
 
-    if resampling is None:
-        resampling = "nearest"
-
     debug = kw.get("debug", False)
 
     # Check we have all the bands of interest
     # will raise ValueError if no such band/alias
     collection = _collection(_parsed)
     bands_to_load = collection.resolve_bands(bands)
+    bands = list(bands_to_load)
+
+    load_cfg = _resolve_load_cfg(
+        bands_to_load,
+        resampling,
+        dtype=dtype,
+        use_overviews=kw.get("use_overviews", True),
+        nodata=kw.get("nodata", None),
+    )
 
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
@@ -385,20 +396,13 @@ def load(
             chunks = (1,) * (len(shape) - 2) + chunk_shape
             return da.zeros(shape, dtype=dtype, chunks=chunks)
 
-        return _with_debug_info(_mk_empty_dataset(gbox, tss, bands_to_load, _dummy_da))
+        return _with_debug_info(_mk_empty_dataset(gbox, tss, load_cfg, _dummy_da))
 
-    ds = _mk_empty_dataset(gbox, tss, bands_to_load)
+    ds = _mk_empty_dataset(gbox, tss, load_cfg)
 
     # do direct load
     for band_name, dv in ds.data_vars.items():
-        # TODO: per band resampling config
-        assert isinstance(resampling, str)
-        read_cfg = RasterLoadParams(
-            resampling=resampling,
-            use_overviews=True,
-            dtype=str(dv.dtype),
-            fill_value=dv.attrs.get("nodata", None),
-        )
+        _cfg = load_cfg[band_name]
 
         for idx, _items in tyx_bins.items():
             if debug:
@@ -411,9 +415,51 @@ def load(
             dst_roi = (idx[0], *yx_roi)
             dst_slice = dv.data[dst_roi]
             srcs = [item[band_name] for item in _items]
-            _ = _fill_2d_slice(srcs, dst_gbox, read_cfg, dst_slice)
+            _ = _fill_2d_slice(srcs, dst_gbox, _cfg, dst_slice)
 
     return _with_debug_info(ds)
+
+
+def _resolve_load_cfg(
+    bands: Dict[str, RasterBandMetadata],
+    resampling: Optional[Union[str, Dict[str, str]]] = None,
+    dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
+    use_overviews: bool = True,
+    nodata: Optional[float] = None,
+) -> Dict[str, RasterLoadParams]:
+    def _dtype(name: str, band_dtype: Optional[str], fallback: str) -> str:
+        if dtype is None:
+            return with_default(band_dtype, fallback)
+        if isinstance(dtype, dict):
+            return str(
+                with_default(
+                    dtype.get(name, dtype.get("*", band_dtype)),
+                    fallback,
+                )
+            )
+        return str(dtype)
+
+    def _resampling(name: str, fallback: str) -> str:
+        if resampling is None:
+            return fallback
+        if isinstance(resampling, dict):
+            return resampling.get(name, resampling.get("*", fallback))
+        return resampling
+
+    def _fill_value(band: RasterBandMetadata) -> Optional[float]:
+        if nodata is not None:
+            return nodata
+        return band.nodata
+
+    def _resolve(name: str, band: RasterBandMetadata) -> RasterLoadParams:
+        return RasterLoadParams(
+            _dtype(name, band.data_type, "float32"),
+            fill_value=_fill_value(band),
+            use_overviews=use_overviews,
+            resampling=_resampling(name, "nearest"),
+        )
+
+    return {name: _resolve(name, band) for name, band in bands.items()}
 
 
 def _fill_2d_slice(
@@ -458,7 +504,7 @@ def _fill_2d_slice(
 def _mk_empty_dataset(
     gbox: GeoBox,
     time: List[datetime],
-    bands: Dict[str, RasterBandMetadata],
+    bands: Dict[str, RasterLoadParams],
     alloc: Optional[MkArray] = None,
 ) -> xr.Dataset:
     _shape = (len(time), *gbox.shape.yx)
@@ -472,11 +518,12 @@ def _mk_empty_dataset(
             return alloc(shape, dtype, name=name)
         return np.empty(shape, dtype=dtype)
 
-    def _maker(name: Hashable, band: RasterBandMetadata) -> xr.DataArray:
-        data = _alloc(_shape, band.data_type or "float32", name=name)
+    def _maker(name: Hashable, band: RasterLoadParams) -> xr.DataArray:
+        assert band.dtype is not None
+        data = _alloc(_shape, band.dtype, name=name)
         attrs = {}
-        if band.nodata is not None:
-            attrs["nodata"] = band.nodata
+        if band.fill_value is not None:
+            attrs["nodata"] = band.fill_value
 
         xx = xr.DataArray(data=data, coords=coords, dims=dims, attrs=attrs)
         xx.encoding.update(grid_mapping=crs_coord_name)
