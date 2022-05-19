@@ -37,8 +37,10 @@ def _resolve_dst_dtype(src_dtype: str, cfg: RasterLoadParams) -> np.dtype:
 
 
 def _resolve_dst_nodata(
-    dst_dtype: np.dtype, cfg: RasterLoadParams, src_nodata: Optional[float] = None
-):
+    dst_dtype: np.dtype,
+    cfg: RasterLoadParams,
+    src_nodata: Optional[float] = None,
+) -> Optional[float]:
     # 1. Configuration
     # 2. np.nan for float32 outputs
     # 3. Fall back to source nodata
@@ -117,7 +119,8 @@ def _do_read(
 
     if roi_is_empty(rr.roi_src):
         # no overlap case
-        np.copyto(_dst, dst_nodata)
+        if dst_nodata is not None:
+            np.copyto(_dst, dst_nodata)
         return (rr.roi_dst, _dst)
 
     if rr.paste_ok and rr.read_shrink == 1:
