@@ -559,7 +559,7 @@ def parse_item(
         if uri is None:
             raise ValueError(
                 f"Can not determine absolute path for band: {band}"
-            )  # pragma: nocover (https://github.com/stac-utils/pystac/issues/754)
+            )  # pragma: no cover (https://github.com/stac-utils/pystac/issues/754)
 
         bands[band] = RasterSource(uri=uri, geobox=geobox, meta=meta)
 
