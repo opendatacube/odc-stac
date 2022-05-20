@@ -23,12 +23,14 @@ import pystac
 import pystac.item
 import xarray as xr
 from dask import array as da
+from dask.base import quote, tokenize
 from dask.utils import ndeepmap
 from odc.geo import XY, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxTiles
 from odc.geo.xr import xr_coords
 from xarray.core.npcompat import DTypeLike
 
+from ._dask import unpack_chunks
 from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
 from ._model import (
     ParsedItem,
@@ -74,6 +76,66 @@ class _LoadChunkTask:
     def dst_gbox(self) -> GeoBox:
         _, y, x = self.idx_tyx
         return self.gbt[y, x]
+
+
+class _DaskGraphBuilder:
+    # pylint: disable=too-few-public-methods
+
+    def __init__(
+        self,
+        cfg: Dict[str, RasterLoadParams],
+        items: List[ParsedItem],
+        tyx_bins: Dict[Tuple[int, int, int], List[int]],
+        gbt: GeoboxTiles,
+    ) -> None:
+        self.cfg = cfg
+        self.items = items
+        self.tyx_bins = tyx_bins
+        self.gbt = gbt
+        self._tk = tokenize(items, cfg, gbt, tyx_bins)
+
+    def __call__(
+        self,
+        shape: Tuple[int, ...],
+        dtype: DTypeLike,
+        /,
+        name: Hashable,
+    ) -> Any:
+        # pylint: disable=too-many-locals
+        assert len(shape) == 3
+        assert isinstance(name, str)
+        cfg = self.cfg[name]
+        assert dtype == cfg.dtype
+
+        cfg_key = f"cfg-{tokenize(cfg)}"
+        gbt_key = f"grid-{tokenize(self.gbt)}"
+
+        dsk: Dict[Hashable, Any] = {
+            cfg_key: cfg,
+            gbt_key: self.gbt,
+        }
+        tk = self._tk
+        band_key = f"{name}-{tk}"
+        md_key = f"md-{name}-{tk}"
+        shape_in_blocks = (shape[0], *self.gbt.shape.yx)
+        for idx, item in enumerate(self.items):
+            dsk[md_key, idx] = item[name]
+
+        for ti, yi, xi in np.ndindex(shape_in_blocks):
+            tyx_idx = (ti, yi, xi)
+            srcs = [(md_key, idx) for idx in self.tyx_bins.get(tyx_idx, [])]
+            dsk[band_key, ti, yi, xi] = (
+                _dask_loader_tyx,
+                srcs,
+                gbt_key,
+                quote((yi, xi)),
+                cfg_key,
+            )
+
+        chunk_shape = (1, *self.gbt.chunk_shape((0, 0)).yx)
+        chunks = unpack_chunks(chunk_shape, shape)
+
+        return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
 
 
 def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
@@ -433,16 +495,8 @@ def load(
 
     if chunks is not None:
         # Dask case: dummy for now
-        def _dummy_da(
-            shape: Tuple[int, ...],
-            dtype: DTypeLike,
-            /,
-            name: Hashable,
-        ) -> Any:
-            chunks = (1,) * (len(shape) - 2) + chunk_shape
-            return da.zeros(shape, dtype=dtype, chunks=chunks)
-
-        return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _dummy_da))
+        _loader = _DaskGraphBuilder(load_cfg, _parsed, tyx_bins, gbt)
+        return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
 
     ds = _mk_dataset(gbox, tss, load_cfg)
     _tasks = []
@@ -499,6 +553,18 @@ def _resolve_load_cfg(
         )
 
     return {name: _resolve(name, band) for name, band in bands.items()}
+
+
+def _dask_loader_tyx(
+    srcs: List[RasterSource],
+    gbt: GeoboxTiles,
+    iyx: Tuple[int, int],
+    cfg: RasterLoadParams,
+):
+    assert cfg.dtype is not None
+    gbox = gbt[iyx]
+    chunk = np.empty(gbox.shape.yx, dtype=cfg.dtype)
+    return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
 
 
 def _fill_2d_slice(
