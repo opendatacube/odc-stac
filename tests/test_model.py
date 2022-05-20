@@ -1,6 +1,7 @@
 import datetime as dt
 
 import pytest
+from dask.base import tokenize
 from odc.geo.geobox import GeoBox
 
 from odc.stac._model import (
@@ -28,7 +29,7 @@ def test_band_load_info():
 
 @pytest.mark.parametrize("lon", [0, -179, 179, 10, 23.4])
 def test_mid_longitude(lon: float):
-    gbox = GeoBox.from_bbox([lon - 0.1, 0, lon + 0.1, 1], shape=(100, 100))
+    gbox = GeoBox.from_bbox((lon - 0.1, 0, lon + 0.1, 1), shape=(100, 100))
     xx = mk_parsed_item([b_("b1", gbox)])
     assert xx.geometry is not None
     assert xx.geometry.crs == "epsg:4326"
@@ -39,7 +40,7 @@ def test_mid_longitude(lon: float):
 
 def test_solar_day():
     def _mk(lon: float, datetime):
-        gbox = GeoBox.from_bbox([lon - 0.1, 0, lon + 0.1, 1], shape=(100, 100))
+        gbox = GeoBox.from_bbox((lon - 0.1, 0, lon + 0.1, 1), shape=(100, 100))
         return mk_parsed_item([b_("b1", gbox)], datetime=datetime)
 
     for lon in [0, 1, 2, 3, 14, -1, -14, -3]:
@@ -102,12 +103,16 @@ def test_collection(collection_ab: RasterCollectionMetadata):
     assert xx.resolve_bands(["a", "B"])["B"] is xx["b"]
     assert xx.resolve_bands(["a", "B"])["a"] is xx["a"]
     assert set(xx) == set(["a", "b"])
+    assert len(xx) == 2
 
     for k in "a AA A b B".split(" "):
         assert xx.canonical_name(k) in xx.bands
         assert k in xx
         assert isinstance(xx[k], RasterBandMetadata)
         assert xx[k] is xx[xx.canonical_name(k)]
+
+    with pytest.raises(ValueError):
+        _ = xx.resolve_bands(["xxxxxxxx", "a"])
 
 
 def test_parsed_item(parsed_item_ab: ParsedItem):
@@ -120,8 +125,35 @@ def test_parsed_item(parsed_item_ab: ParsedItem):
     assert xx.resolve_bands(["a", "B"])["B"] is xx["b"]
     assert xx.resolve_bands(["a", "B"])["a"] is xx["a"]
     assert set(xx) == set(["a", "b"])
+    assert len(xx) == 2
+    assert len(set([xx, xx, xx])) == 1
 
     for k in "a AA A b B".split(" "):
         assert k in xx
+        assert [k] not in xx
+        assert f"___{k}___" not in xx
         assert isinstance(xx[k], RasterSource)
         assert xx[k] is xx.resolve_bands(k)[k]
+
+    assert xx["b"].strip().geobox is None
+    assert xx["b"].strip().meta is None
+    assert xx["b"].strip().uri == xx["b"].uri
+    assert xx["b"].strip().band == xx["b"].band
+    assert xx["b"].strip().subdataset == xx["b"].subdataset
+
+    assert xx.strip()["b"].geobox is None
+    assert xx.strip()["b"].meta is None
+    assert xx.strip()["b"].uri == xx["b"].uri
+    assert xx.strip()["b"].band == xx["b"].band
+    assert xx.strip()["b"].subdataset == xx["b"].subdataset
+
+
+def test_tokenize(parsed_item_ab: ParsedItem):
+    assert tokenize(parsed_item_ab.collection) == tokenize(parsed_item_ab.collection)
+    assert tokenize(parsed_item_ab) == tokenize(parsed_item_ab)
+    assert tokenize(parsed_item_ab["a"]) == tokenize(parsed_item_ab["a"])
+    assert tokenize(parsed_item_ab["a"].meta) == tokenize(parsed_item_ab["a"].meta)
+
+    assert tokenize(RasterLoadParams()) == tokenize(RasterLoadParams())
+    assert tokenize(RasterLoadParams("uint8")) == tokenize(RasterLoadParams("uint8"))
+    assert tokenize(RasterLoadParams("uint8")) != tokenize(RasterLoadParams("uint32"))

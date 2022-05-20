@@ -1,7 +1,7 @@
 """Metadata and data loading model classes."""
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import astuple, dataclass, replace
 from typing import (
     Dict,
     Iterator,
@@ -42,6 +42,9 @@ class RasterBandMetadata:
 
     unit: str = "1"
     """Units of the pixel data."""
+
+    def __dask_tokenize__(self):
+        return astuple(self)
 
 
 @dataclass(eq=True, frozen=True)
@@ -137,6 +140,9 @@ class RasterCollectionMetadata(Mapping[str, RasterBandMetadata]):
     def __contains__(self, __o: object) -> bool:
         return __o in self.bands or __o in self.aliases
 
+    def __dask_tokenize__(self):
+        return astuple(self)
+
 
 @dataclass(eq=True, frozen=True)
 class RasterSource:
@@ -158,6 +164,17 @@ class RasterSource:
 
     meta: Optional[RasterBandMetadata] = None
     """Expected raster dtype/nodata."""
+
+    def strip(self) -> "RasterSource":
+        """
+        Copy with minimal data only.
+
+        Removes geobox and meta info as they are not needed for data loading.
+        """
+        return RasterSource(self.uri, self.band, self.subdataset)
+
+    def __dask_tokenize__(self):
+        return (self.uri, self.band, self.subdataset)
 
 
 @dataclass(eq=True, frozen=True)
@@ -291,8 +308,24 @@ class ParsedItem(Mapping[str, RasterSource]):
         """
         return _convert_to_solar_time(self.nominal_datetime, lon)
 
+    def strip(self) -> "ParsedItem":
+        """
+        Copy of self but with stripped bands.
+        """
+        return replace(self, bands={k: band.strip() for k, band in self.bands.items()})
+
     def __hash__(self) -> int:
         return hash((self.id, self.collection.name))
+
+    def __dask_tokenize__(self):
+        return (
+            self.id,
+            self.collection,
+            self.bands,
+            self.href,
+            self.datetime,
+            self.datetime_range,
+        )
 
 
 @dataclass
@@ -352,6 +385,9 @@ class RasterLoadParams:
     def nearest(self) -> bool:
         """Report True if nearest resampling is used."""
         return self.resampling == "nearest"
+
+    def __dask_tokenize__(self):
+        return astuple(self)
 
 
 def _resolve_aliases(
