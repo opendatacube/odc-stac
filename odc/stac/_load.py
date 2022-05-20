@@ -23,6 +23,7 @@ import pystac
 import pystac.item
 import xarray as xr
 from dask import array as da
+from dask.utils import ndeepmap
 from odc.geo import XY, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxTiles
 from odc.geo.xr import xr_coords
@@ -53,7 +54,7 @@ class MkArray(Protocol):
 @dataclasses.dataclass(frozen=True)
 class _LoadChunkTask:
     band: str
-    srcs: List[RasterSource]
+    srcs: List[Tuple[int, str]]
     cfg: RasterLoadParams
     gbt: GeoboxTiles
     idx_tyx: Tuple[int, int, int]
@@ -385,14 +386,16 @@ def load(
 
     # Time dimension
     ((mid_lon, _),) = gbox.extent.centroid.to_crs("epsg:4326").points
-    _grouped = _group_items(_parsed, groupby, mid_lon)
-    tss = _extract_timestamps(_grouped)
+    _grouped_idx = _group_items(_parsed, groupby, mid_lon)
+
+    tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
 
     # Spatio-temporal binning
     gbt = GeoboxTiles(gbox, chunk_shape)
-    tyx_bins = dict(_tyx_bins(_grouped, gbt, include_empties=True))
+    tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt, include_empties=True))
+    _parsed = [item.strip() for item in _parsed]
 
-    def _with_debug_info(ds: xr.Dataset) -> xr.Dataset:
+    def _with_debug_info(ds: xr.Dataset, **kw) -> xr.Dataset:
         # expose data for debugging
         if not debug:
             return ds
@@ -403,10 +406,12 @@ def load(
             debug=SimpleNamespace(
                 gbt=gbt,
                 mid_lon=mid_lon,
-                grouped=_grouped,
+                parsed=_parsed,
+                grouped_idx=_grouped_idx,
                 tyx_bins=tyx_bins,
                 bands_to_load=bands_to_load,
                 load_cfg=load_cfg,
+                **kw,
             )
         )
         return ds
@@ -414,8 +419,8 @@ def load(
     def _task_stream(bands: List[str]) -> Iterator[_LoadChunkTask]:
         for band_name in bands:
             cfg = load_cfg[band_name]
-            for tyx_idx, _items in tyx_bins.items():
-                srcs = [item[band_name] for item in _items]
+            for tyx_idx, _ii in tyx_bins.items():
+                srcs = [(idx, band_name) for idx in _ii]
                 yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
 
     if chunks is not None:
@@ -427,14 +432,18 @@ def load(
         return _with_debug_info(_mk_empty_dataset(gbox, tss, load_cfg, _dummy_da))
 
     ds = _mk_empty_dataset(gbox, tss, load_cfg)
+    _tasks = []
 
     for task in _task_stream(bands):
         if debug:
             print(f"{task.band}[{task.idx_tyx}]")
-        dst_slice = ds[task.band].data[task.dst_roi]
-        _ = _fill_2d_slice(task.srcs, task.dst_gbox, task.cfg, dst_slice)
+            _tasks.append(task)
 
-    return _with_debug_info(ds)
+        dst_slice = ds[task.band].data[task.dst_roi]
+        srcs = [_parsed[idx][band] for idx, band in task.srcs]
+        _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, dst_slice)
+
+    return _with_debug_info(ds, tasks=_tasks)
 
 
 def _resolve_load_cfg(
@@ -561,24 +570,23 @@ def _group_items(
     items: List[ParsedItem],
     groupby: str,
     lon: Optional[float] = None,
-) -> List[List[ParsedItem]]:
-    def _time(xx: ParsedItem):
+) -> List[List[int]]:
+    def _time(idx: int):
         # group by timestamp, sort by (timestamp, id)
+        xx = items[idx]
         return (xx.nominal_datetime, xx.id)
 
-    def _solar_day(xx: ParsedItem):
+    def _solar_day(idx: int):
         # group by solar day date component, but sort by (solar day timestamp, id)
+        xx = items[idx]
         if lon is None:
             ts = xx.solar_date
         else:
             ts = xx.solar_date_at(lon)
         return (ts.date(), ts, xx.id)
 
-    if groupby == "id":
-        items = sorted(items, key=_time)
-        return [[item] for item in items]
-
     key = {
+        "id": _time,
         "time": _time,
         "solar_day": _solar_day,
     }.get(groupby, None)
@@ -587,10 +595,14 @@ def _group_items(
         raise ValueError(f"Groupby '{groupby}' is not a valid option.")
 
     assert key is not None
+    ii = sorted(range(len(items)), key=key)
+
+    if groupby == "id":
+        return [[idx] for idx in ii]
+
     grouper = lambda xx: key(xx)[0]
 
-    items = sorted(items, key=key)
-    return [list(group) for _, group in itertools.groupby(items, grouper)]
+    return [list(group) for _, group in itertools.groupby(ii, grouper)]
 
 
 def _tiles(item: ParsedItem, gbt: GeoboxTiles) -> Iterator[Tuple[int, int]]:
@@ -602,20 +614,21 @@ def _tiles(item: ParsedItem, gbt: GeoboxTiles) -> Iterator[Tuple[int, int]]:
 
 
 def _tyx_bins(
-    grouped: List[List[ParsedItem]],
+    grouped: List[List[int]],
+    items: List[ParsedItem],
     gbt: GeoboxTiles,
     include_empties: bool = False,
-) -> Iterator[Tuple[Tuple[int, int, int], List[ParsedItem]]]:
+) -> Iterator[Tuple[Tuple[int, int, int], List[int]]]:
     for t_idx, group in enumerate(grouped):
-        _yx: Dict[Tuple[int, int], List[ParsedItem]] = {}
+        _yx: Dict[Tuple[int, int], List[int]] = {}
         if include_empties:
             _yx = {(iy, ix): [] for iy, ix in np.ndindex(gbt.shape.yx)}
 
-        for item in group:
-            for idx in _tiles(item, gbt):
-                _yx.setdefault(idx, []).append(item)
+        for item_idx in group:
+            for idx in _tiles(items[item_idx], gbt):
+                _yx.setdefault(idx, []).append(item_idx)
 
-        yield from (((t_idx, *idx), items) for idx, items in _yx.items())
+        yield from (((t_idx, *idx), ii_item) for idx, ii_item in _yx.items())
 
 
 def _resolve_chunk_shape(gbox: GeoBox, chunks: Dict[str, int]) -> Tuple[int, int]:

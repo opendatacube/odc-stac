@@ -4,6 +4,7 @@ import pystac
 import pystac.item
 import pytest
 import shapely.geometry
+from dask.utils import ndeepmap
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtension
 
@@ -22,6 +23,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
 
     assert isinstance(xx.B02.odc, ODCExtension)
     assert xx.B02.shape[0] == 1
+    assert xx.B02.odc.geobox is not None
     assert xx.B02.odc.geobox.crs == "EPSG:3857"
     assert xx.time.dtype == "datetime64[ns]"
 
@@ -143,7 +145,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
 
 def test_group_items():
     def _mk(id: str, lon: float, datetime: str):
-        gbox = GeoBox.from_bbox([lon - 0.1, 0, lon + 0.1, 1], shape=(100, 100))
+        gbox = GeoBox.from_bbox((lon - 0.1, 0, lon + 0.1, 1), shape=(100, 100))
         return mk_parsed_item([b_("b1", gbox)], datetime=datetime, id=id)
 
     # check no-op case first
@@ -156,22 +158,25 @@ def test_group_items():
     b2 = _mk("b2", 15 * 10 + 2, "2020-01-03T00:01Z")
     cc = _mk("c", 0, "2020-01-02T23:59Z")
 
-    assert _group_items([aa, b1, b2], "id") == [[aa], [b1], [b2]]
-    assert _group_items([aa, b2, b1], "id") == [[aa], [b1], [b2]]
-    assert _group_items([b1, aa, b2], "id") == [[aa], [b1], [b2]]
-    assert _group_items([cc, aa, b1, b2], "id") == [[aa], [cc], [b1], [b2]]
+    def _t(items, groupby, lon=None):
+        return ndeepmap(2, lambda idx: items[idx], _group_items(items, groupby, lon))
 
-    assert _group_items([aa, b1, b2], "time") == [[aa], [b1, b2]]
-    assert _group_items([b1, aa, b2], "time") == [[aa], [b1, b2]]
-    assert _group_items([b2, aa, b1], "time") == [[aa], [b1, b2]]
-    assert _group_items([aa, cc, b1, b2], "time") == [[aa, cc], [b1, b2]]
+    assert _t([aa, b1, b2], "id") == [[aa], [b1], [b2]]
+    assert _t([aa, b2, b1], "id") == [[aa], [b1], [b2]]
+    assert _t([b1, aa, b2], "id") == [[aa], [b1], [b2]]
+    assert _t([cc, aa, b1, b2], "id") == [[aa], [cc], [b1], [b2]]
 
-    assert _group_items([aa, b1, b2], "solar_day") == [[aa, b1, b2]]
-    assert _group_items([b1, aa, b2], "solar_day") == [[aa, b1, b2]]
-    assert _group_items([b2, aa, b1], "solar_day") == [[aa, b1, b2]]
-    assert _group_items([aa, b1, b2, cc], "solar_day") == [[cc], [aa, b1, b2]]
+    assert _t([aa, b1, b2], "time") == [[aa], [b1, b2]]
+    assert _t([b1, aa, b2], "time") == [[aa], [b1, b2]]
+    assert _t([b2, aa, b1], "time") == [[aa], [b1, b2]]
+    assert _t([aa, cc, b1, b2], "time") == [[aa, cc], [b1, b2]]
 
-    assert _group_items([aa, b1, b2, cc], "solar_day", 150 + 1) == [[aa, cc, b1, b2]]
+    assert _t([aa, b1, b2], "solar_day") == [[aa, b1, b2]]
+    assert _t([b1, aa, b2], "solar_day") == [[aa, b1, b2]]
+    assert _t([b2, aa, b1], "solar_day") == [[aa, b1, b2]]
+    assert _t([aa, b1, b2, cc], "solar_day") == [[cc], [aa, b1, b2]]
+
+    assert _t([aa, b1, b2, cc], "solar_day", 150 + 1) == [[aa, cc, b1, b2]]
 
     with pytest.raises(ValueError):
         _ = _group_items([aa], groupby="no-such-mode")
