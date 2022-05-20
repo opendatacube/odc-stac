@@ -47,7 +47,13 @@ class MkArray(Protocol):
     """Internal interface."""
 
     # pylint: disable=too-few-public-methods
-    def __call__(self, shape: Tuple[int, ...], dtype: Any, /, name: Hashable) -> Any:
+    def __call__(
+        self,
+        shape: Tuple[int, ...],
+        dtype: DTypeLike,
+        /,
+        name: Hashable,
+    ) -> Any:
         ...  # pragma: no cover
 
 
@@ -392,7 +398,7 @@ def load(
 
     # Spatio-temporal binning
     gbt = GeoboxTiles(gbox, chunk_shape)
-    tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt, include_empties=True))
+    tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
     _parsed = [item.strip() for item in _parsed]
 
     def _with_debug_info(ds: xr.Dataset, **kw) -> xr.Dataset:
@@ -417,21 +423,28 @@ def load(
         return ds
 
     def _task_stream(bands: List[str]) -> Iterator[_LoadChunkTask]:
+        _shape = (len(_grouped_idx), *gbt.shape)
         for band_name in bands:
             cfg = load_cfg[band_name]
-            for tyx_idx, _ii in tyx_bins.items():
-                srcs = [(idx, band_name) for idx in _ii]
+            for ti, yi, xi in np.ndindex(_shape):
+                tyx_idx = (ti, yi, xi)
+                srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
                 yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
 
     if chunks is not None:
         # Dask case: dummy for now
-        def _dummy_da(shape: Tuple[int, ...], dtype: Any, /, name: Hashable) -> Any:
+        def _dummy_da(
+            shape: Tuple[int, ...],
+            dtype: DTypeLike,
+            /,
+            name: Hashable,
+        ) -> Any:
             chunks = (1,) * (len(shape) - 2) + chunk_shape
             return da.zeros(shape, dtype=dtype, chunks=chunks)
 
-        return _with_debug_info(_mk_empty_dataset(gbox, tss, load_cfg, _dummy_da))
+        return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _dummy_da))
 
-    ds = _mk_empty_dataset(gbox, tss, load_cfg)
+    ds = _mk_dataset(gbox, tss, load_cfg)
     _tasks = []
 
     for task in _task_stream(bands):
@@ -527,7 +540,7 @@ def _fill_2d_slice(
     return dst
 
 
-def _mk_empty_dataset(
+def _mk_dataset(
     gbox: GeoBox,
     time: List[datetime],
     bands: Dict[str, RasterLoadParams],
@@ -617,12 +630,9 @@ def _tyx_bins(
     grouped: List[List[int]],
     items: List[ParsedItem],
     gbt: GeoboxTiles,
-    include_empties: bool = False,
 ) -> Iterator[Tuple[Tuple[int, int, int], List[int]]]:
     for t_idx, group in enumerate(grouped):
         _yx: Dict[Tuple[int, int], List[int]] = {}
-        if include_empties:
-            _yx = {(iy, ix): [] for iy, ix in np.ndindex(gbt.shape.yx)}
 
         for item_idx in group:
             for idx in _tiles(items[item_idx], gbt):
