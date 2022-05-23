@@ -16,8 +16,10 @@ from odc.geo.geobox import GeoBox
 from odc.geo.overlap import ReprojectInfo, compute_reproject_roi
 from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
 from odc.geo.warp import resampling_s2rio
+from rasterio.session import DummySession
 
 from ._model import RasterLoadParams, RasterSource
+from ._rio import rio_env
 
 
 def _resolve_src_nodata(
@@ -208,7 +210,7 @@ def rio_read(
             ovr_idx = _pick_overview(rr.read_shrink, rdr.overviews(src.band))
 
         if ovr_idx is None:
-            with rasterio.Env(VSI_CACHE=False):
+            with rio_env(VSI_CACHE=False):
                 return _do_read(
                     rasterio.band(rdr, src.band), cfg, dst_geobox, rr, dst=dst
                 )
@@ -218,7 +220,7 @@ def rio_read(
             src.uri, "r", sharing=False, overview_level=ovr_idx
         ) as rdr_ovr:
             rr = compute_reproject_roi(_rio_geobox(rdr_ovr), dst_geobox, ttol=ttol)
-            with rasterio.Env(VSI_CACHE=False):
+            with rio_env(VSI_CACHE=False):
                 return _do_read(
                     rasterio.band(rdr_ovr, src.band), cfg, dst_geobox, rr, dst=dst
                 )
