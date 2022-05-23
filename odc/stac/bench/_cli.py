@@ -8,7 +8,6 @@ import click
 import distributed
 import rasterio.enums
 
-from odc.stac import configure_rio
 from odc.stac.bench import (
     SAMPLE_SITES,
     BenchLoadParams,
@@ -83,7 +82,6 @@ def _dask(n_workers, threads_per_worker, memory_limit):
         threads_per_worker=threads_per_worker,
         memory_limit=memory_limit,
     )
-    configure_rio(cloud_defaults=True, verbose=True, client=client)
     info = client.scheduler_info()
     print(f"Launched Dask Cluster: {info['address']}")
     print(f"   --scheduler='{info['address']}'")

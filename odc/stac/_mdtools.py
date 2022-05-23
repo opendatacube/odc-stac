@@ -243,7 +243,7 @@ def geobox_gsd(geobox: GeoBox) -> float:
     """
     Compute ground sampling distance of a given GeoBox.
 
-    :param geobox: input :class:`~datacube.utils.geometry.GeoBox`
+    :param geobox: input :class:`~odc.geo.geobox.GeoBox`
     :returns: Minimum ground sampling distance along X/Y
     """
     return min(map(abs, [geobox.transform.a, geobox.transform.e]))  # type: ignore

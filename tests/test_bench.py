@@ -1,6 +1,7 @@
 import pytest
 import xarray
 from distributed import Client
+from odc.geo.xr import ODCExtension
 
 from odc.stac.bench import (
     BenchLoadParams,
@@ -55,7 +56,9 @@ def test_load_from_json_stackstac(fake_dask_client, bench_site1, bench_site2):
     assert xx.dtype == "uint16"
     assert xx.spec.epsg == 32735
 
-    yy = load_from_json(bench_site1, params.with_method("odc-stac"))
+    yy = load_from_json(
+        bench_site1, params.with_method("odc-stac"), geobox=xx.odc.geobox
+    )
 
     rrx = collect_context_info(dask_client, xx)
     rry = collect_context_info(dask_client, yy)
@@ -93,22 +96,23 @@ def test_bench_context(fake_dask_client, bench_site1, bench_site2):
     rr = collect_context_info(
         fake_dask_client, xx, method=params.method, scenario="site1"
     )
+    assert isinstance(xx.odc, ODCExtension)
     assert rr.shape == (nt, nb, ny, nx)
     assert rr.chunks == (1, 1, 2048, 2048)
-    assert rr.crs == f"epsg:{xx.geobox.crs.epsg}"
-    assert rr.crs == xx.geobox.crs
+    assert rr.crs == f"epsg:{xx.odc.geobox.crs.epsg}"
+    assert rr.crs == xx.odc.geobox.crs
     assert rr.nthreads == 2
     assert rr.total_ram == 500 * (1 << 20)
 
     header_txt = rr.render_txt()
     assert "T.slice   : 2020-06-06" in header_txt
-    assert "Data      : 1.3.90978.10980.uint16,  5.58 GiB" in header_txt
+    assert f"Data      : 1.3.{ny}.{nx}.uint16,  5.58 GiB" in header_txt
 
     run_txt = rr.render_timing_info((0, 0.1, 30))
 
     pd_dict = rr.to_pandas_dict()
     assert pd_dict["resolution"] == rr.resolution
-    assert pd_dict["data"] == "1.3.90978.10980.uint16"
+    assert pd_dict["data"] == f"1.3.{ny}.{nx}.uint16"
     assert pd_dict["chunks_x"] == 2048
     assert pd_dict["chunks_y"] == 2048
 
@@ -117,7 +121,7 @@ def test_bench_context(fake_dask_client, bench_site1, bench_site2):
         fake_dask_client, xx.red, method="odc-stac", scenario="site1"
     )
     assert rr.shape == (nt, 1, ny, nx)
-    assert rr.crs == xx.geobox.crs
+    assert rr.crs == xx.odc.geobox.crs
 
     # Check Dataset with 0 dimension time axis and extras field
     rr = collect_context_info(
@@ -167,7 +171,7 @@ def test_bench_context(fake_dask_client, bench_site1, bench_site2):
 
     # Check missing GEO info
     no_geo = _strip_geo(xx.red)
-    assert no_geo.geobox is None
+    assert no_geo.odc.geobox is None or no_geo.odc.geobox.crs is None
     with pytest.raises(ValueError):
         # no geobox
         collect_context_info(fake_dask_client, no_geo)
@@ -177,9 +181,17 @@ def _strip_geo(xx: xarray.DataArray) -> xarray.DataArray:
     no_geo = xx.drop_vars("spatial_ref")
     no_geo.attrs.pop("crs", None)
     no_geo.attrs.pop("grid_mapping", None)
+    no_geo.encoding.pop("grid_mapping", None)
     no_geo.x.attrs.pop("crs", None)
     no_geo.y.attrs.pop("crs", None)
-    assert no_geo.geobox is None
+    # get rid of cached geobox
+    no_geo = xarray.DataArray(
+        no_geo.data,
+        coords=no_geo.coords,
+        dims=no_geo.dims,
+        attrs=no_geo.attrs,
+    )
+    assert no_geo.odc.geobox is None or no_geo.odc.geobox.crs is None
     return no_geo
 
 

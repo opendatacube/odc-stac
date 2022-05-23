@@ -11,7 +11,8 @@ from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
 from toolz import dicttoolz
 
-from odc.stac._eo3converter import _compute_uuid, _item_to_ds, infer_dc_product, stac2ds
+from odc.stac.eo3 import infer_dc_product, stac2ds
+from odc.stac.eo3._eo3converter import _compute_uuid, _item_to_ds
 from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext
 
 
