@@ -13,7 +13,7 @@ import pystac.item
 import pytest
 from datacube.utils import documents
 
-from odc.stac import stac2ds
+from odc.stac.eo3 import stac2ds
 
 TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
 PARTIAL_PROJ_STAC: str = "only_crs_proj.json"

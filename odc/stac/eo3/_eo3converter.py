@@ -25,7 +25,7 @@ from odc.geo import CRS
 from odc.geo.geobox import GeoBox
 from toolz import dicttoolz
 
-from ._mdtools import (
+from .._mdtools import (
     EPSG4326,
     ConversionConfig,
     _collection_id,
@@ -34,7 +34,7 @@ from ._mdtools import (
     mk_sample_item,
     parse_item,
 )
-from ._model import ParsedItem, RasterBandMetadata, RasterCollectionMetadata
+from .._model import ParsedItem, RasterBandMetadata, RasterCollectionMetadata
 
 # uuid.uuid5(uuid.NAMESPACE_URL, "https://stacspec.org")
 UUID_NAMESPACE_STAC = uuid.UUID("55d26088-a6d0-5c77-bf9a-3a7f3c6a6dab")

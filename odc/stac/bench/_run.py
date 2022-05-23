@@ -15,6 +15,7 @@ import pystac.item
 import xarray as xr
 from dask.utils import format_bytes
 from odc.geo import CRS
+from odc.geo.xr import ODCExtension
 
 import odc.stac
 
@@ -208,7 +209,10 @@ def collect_context_info(
     else:
         raise ValueError("Expect one of `xarray.{DataArray,Dataset}` on input")
 
-    yx_dims = tuple(xx.dims)[-2:]
+    assert isinstance(xx.odc, ODCExtension)
+    geobox = xx.odc.geobox
+    assert geobox is not None
+    yx_dims = geobox.dimensions
     ny, nx = (xx[dim].shape[0] for dim in yx_dims)
 
     time = getattr(xx, "time", None)
@@ -229,12 +233,11 @@ def collect_context_info(
 
     ct, cb, cy, cx = (_chunks.get(k, 1) for k in ["time", "band", *yx_dims])
     chunks = (ct, cb, cy, cx)
-    geobox = getattr(xx, "geobox", None)
-    if geobox is None:
+    geobox = xx.odc.geobox
+    if geobox is None or geobox.crs is None:
         raise ValueError("Can't find GEO info")
-    crs = f"epsg:{xx.geobox.crs.epsg}"
-
-    transform = xx.geobox.transform
+    crs = f"epsg:{geobox.crs.epsg}"
+    transform = geobox.transform
 
     return BenchmarkContext(
         client.scheduler_info().copy(),
@@ -405,7 +408,7 @@ def load_from_json(geojson, params: BenchLoadParams, **kw):
             nodata = opts.get("fill_value", _default_nodata(xx.dtype))
             xx = xx.groupby("time").map(stackstac.mosaic, nodata=nodata)
 
-        if xx.geobox.transform != xx.spec.transform:
+        if xx.odc.geobox.transform != xx.spec.transform:
             # work around issue 93 in stackstac
             xx.y.data[:] = xx.y.data - xx.spec.resolutions_xy[1]
     else:

@@ -25,7 +25,7 @@ import xarray as xr
 from dask import array as da
 from dask.base import quote, tokenize
 from dask.utils import ndeepmap
-from odc.geo import XY, MaybeCRS, SomeResolution
+from odc.geo import CRS, XY, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxTiles
 from odc.geo.xr import xr_coords
 from xarray.core.npcompat import DTypeLike
@@ -474,6 +474,7 @@ def load(
     tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
 
     # Spatio-temporal binning
+    assert isinstance(gbox.crs, CRS)
     gbt = GeoboxTiles(gbox, chunk_shape)
     tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
     _parsed = [item.strip() for item in _parsed]
