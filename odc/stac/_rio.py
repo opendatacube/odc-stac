@@ -3,7 +3,7 @@
 # Copyright (c) 2015-2020 ODC Contributors
 # SPDX-License-Identifier: Apache-2.0
 """
-rasterio helpers 
+rasterio helpers
 """
 import threading
 from typing import Any, Dict, Optional
@@ -46,7 +46,10 @@ class ThreadSession(threading.local):
     Caches Session between rio_env calls.
     """
 
+    # pylint: disable=too-few-public-methods
+
     def __init__(self) -> None:
+        super().__init__()
         self._session: Optional[Session] = None
 
     def session(self, session: Optional[Session] = None) -> Session:
@@ -96,10 +99,10 @@ def get_rio_env(sanitize: bool = True, no_session_keys: bool = False) -> Dict[st
     return opts
 
 
-def rio_env(session=None, *args, **kw):
+def rio_env(session=None, **kw):
     """
     Wraps rasterio.env.Env.
 
     re-uses GDAL environment and session between calls.
     """
-    return rasterio.env.Env(_local.session(session), *args, **kw)
+    return rasterio.env.Env(_local.session(session), **kw)
