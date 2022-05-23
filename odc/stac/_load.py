@@ -40,6 +40,7 @@ from ._model import (
     RasterSource,
 )
 from ._reader import _nodata_mask, _resolve_src_nodata, rio_read
+from ._rio import get_rio_env, rio_env
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
 """Used to partition load when not using Dask."""
@@ -87,12 +88,14 @@ class _DaskGraphBuilder:
         items: List[ParsedItem],
         tyx_bins: Dict[Tuple[int, int, int], List[int]],
         gbt: GeoboxTiles,
+        env: Dict[str, Any],
     ) -> None:
         self.cfg = cfg
         self.items = items
         self.tyx_bins = tyx_bins
         self.gbt = gbt
-        self._tk = tokenize(items, cfg, gbt, tyx_bins)
+        self.env = env
+        self._tk = tokenize(items, cfg, gbt, tyx_bins, env)
 
     def __call__(
         self,
@@ -130,6 +133,7 @@ class _DaskGraphBuilder:
                 gbt_key,
                 quote((yi, xi)),
                 cfg_key,
+                self.env,
             )
 
         chunk_shape = (1, *self.gbt.chunk_shape((0, 0)).yx)
@@ -170,6 +174,17 @@ def patch_urls(
         }
 
     return dataclasses.replace(item, bands=_bands)
+
+
+def _capture_rio_env() -> Dict[str, Any]:
+    env = get_rio_env(sanitize=False, no_session_keys=True)
+    if len(env) == 0:
+        # not customized, supply defaults
+        return {"GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR"}
+
+    # don't want that copied across to workers who might be on different machine
+    env.pop("GDAL_DATA", None)
+    return env
 
 
 # pylint: disable=too-many-arguments,too-many-locals,too-many-statements
@@ -495,7 +510,13 @@ def load(
 
     if chunks is not None:
         # Dask case: dummy for now
-        _loader = _DaskGraphBuilder(load_cfg, _parsed, tyx_bins, gbt)
+        _loader = _DaskGraphBuilder(
+            load_cfg,
+            _parsed,
+            tyx_bins,
+            gbt,
+            _capture_rio_env(),
+        )
         return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
 
     ds = _mk_dataset(gbox, tss, load_cfg)
@@ -560,11 +581,13 @@ def _dask_loader_tyx(
     gbt: GeoboxTiles,
     iyx: Tuple[int, int],
     cfg: RasterLoadParams,
+    env: Dict[str, Any],
 ):
     assert cfg.dtype is not None
     gbox = gbt[iyx]
     chunk = np.empty(gbox.shape.yx, dtype=cfg.dtype)
-    return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
+    with rio_env(**env):
+        return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
 
 
 def _fill_2d_slice(

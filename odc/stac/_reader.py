@@ -16,7 +16,6 @@ from odc.geo.geobox import GeoBox
 from odc.geo.overlap import ReprojectInfo, compute_reproject_roi
 from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
 from odc.geo.warp import resampling_s2rio
-from rasterio.session import DummySession
 
 from ._model import RasterLoadParams, RasterSource
 from ._rio import rio_env
