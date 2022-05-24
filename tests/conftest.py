@@ -108,9 +108,8 @@ def bench_site2():
 
 
 @pytest.fixture
-def sentinel_stac_ms(sentinel_stac_ms_json):
-    metadata = dict(sentinel_stac_ms_json)
-    return pystac.item.Item.from_dict(metadata)
+def sentinel_stac_ms():
+    return pystac.item.Item.from_file(str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS)))
 
 
 @pytest.fixture
