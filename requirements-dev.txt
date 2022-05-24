@@ -10,7 +10,7 @@ nbsphinx
 sphinx
 sphinx_rtd_theme
 sphinx-autodoc-typehints
-stackstac
+stackstac >= 0.3.1
 odc-algo
 odc-ui
 planetary-computer
