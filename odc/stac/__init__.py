@@ -1,21 +1,27 @@
 """STAC Item -> ODC Dataset[eo3]."""
 from ._version import __version__  # isort:skip  this has to be 1st import
-from ._dcload import configure_rio, dc_load
-from ._eo3 import BandMetadata, ConversionConfig, infer_dc_product, stac2ds
-from ._load import eo3_geoboxes, load
+from ._load import load
+from ._mdtools import ConversionConfig
+from ._model import (
+    RasterBandMetadata,
+    RasterCollectionMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
+from ._rio import configure_rio, configure_s3_access
 
 stac_load = load
 
 
 __all__ = (
-    "BandMetadata",
+    "RasterBandMetadata",
+    "RasterCollectionMetadata",
+    "RasterLoadParams",
+    "RasterSource",
     "ConversionConfig",
-    "stac2ds",
-    "infer_dc_product",
-    "configure_rio",
-    "dc_load",
-    "eo3_geoboxes",
     "load",
     "stac_load",
+    "configure_rio",
+    "configure_s3_access",
     "__version__",
 )

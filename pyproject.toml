@@ -18,10 +18,12 @@ profile = "black"
 [tool.pylint.messages_control]
 
 max-line-length = 120
+max-args = 10
 
 disable = [
   "missing-function-docstring",
   "invalid-name",
   "fixme",
   "wrong-import-order",
+  "duplicate-code",
 ]

@@ -1,31 +1,27 @@
 name: odc-stac
 channels:
   - conda-forge
-  - kirill-odc
 
 dependencies:
   - python =3.9
-  - pip =20
+  - pip =22
   - mamba
 
-  # Datacube
-  - datacube >=1.8.6
-  - odc-stac
+  # odc-stac dependencies
+  - affine
+  - odc-geo >=0.1.3
+  - rasterio
+  - dask-core
+  - numpy
+  - pandas
+  - pystac >=1.0.0,<2
+  - toolz
+  - xarray
+  # for reading with rasterio from s3
+  - boto3
 
   # planetary-computer lib for URL signing
   - planetary-computer
-  
-  # other odc tools
-  - odc-algo >=0.2.2
-  - odc-geo >=0.1.2
-
-  # from kirill-odc
-  - odc-ui >=0.2.0a3
-  - odc-cloud
-  - odc-dscache >=0.2.2
-
-  #  pin aiobotocore for easier resolution of dependencies
-  - aiobotocore ==1.4.1
 
   # JupyterLab
   - jupytext
@@ -35,9 +31,7 @@ dependencies:
   - jupyterlab-git
   - matplotlib
   - ipympl
-  - ipyfilechooser
-  - ipycanvas
-  - sidecar
+  - dask
   - dask-labextension
   - python-graphviz
   - bokeh
@@ -55,29 +49,15 @@ dependencies:
   - zarr
   - stackstac
 
-  # tests and dev
+  # conveniences
   - autopep8
-  - awscli
   - black
-  - deepdiff
-  - docker-py   # moto fails without it
-  - hypothesis
   - isort
-  - mock
-  - moto
-  - pycodestyle
-  - pylint
-  - pytest
-  - pytest-cov
-  - pytest-httpserver
-  - pytest-timeout
-  - python-dotenv  # for notebooks
-
+  - python-dotenv # for notebooks
 
   - pip:
-      # JupyterLab dev convinience
-      - jupyterlab-code-formatter
-      - jupyterlab-code-snippets
+      # odc-stac local checkout
+      - -e ../
 
-      # non-condified odc-tools
-      - odc-apps-cloud
+      # JupyterLab dev conveniences
+      - jupyterlab-code-formatter

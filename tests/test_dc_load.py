@@ -9,11 +9,12 @@ import pytest
 import shapely.geometry
 from datacube.model import Dataset
 from pyproj.crs.crs import CRS
-from shapely.geometry import geo
 
-from odc.stac import configure_rio, dc_load, eo3_geoboxes, stac2ds, stac_load
-from odc.stac._dcload import _geojson_to_shapely, _normalize_geometry
-from odc.stac._load import most_common_crs
+from odc.stac.eo3 import configure_rio, dc_load, eo3_geoboxes
+from odc.stac.eo3 import load as stac_load
+from odc.stac.eo3 import stac2ds
+from odc.stac.eo3._dcload import _geojson_to_shapely, _normalize_geometry
+from odc.stac.eo3._load_via_dc import most_common_crs
 
 
 def test_dc_load_smoketest(sentinel_stac_ms: pystac.item.Item):
