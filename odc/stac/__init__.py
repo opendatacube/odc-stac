@@ -8,6 +8,7 @@ from ._model import (
     RasterLoadParams,
     RasterSource,
 )
+from ._rio import configure_rio, configure_s3_access
 
 stac_load = load
 
@@ -20,5 +21,7 @@ __all__ = (
     "ConversionConfig",
     "load",
     "stac_load",
+    "configure_rio",
+    "configure_s3_access",
     "__version__",
 )

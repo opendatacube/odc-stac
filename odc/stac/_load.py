@@ -40,7 +40,7 @@ from ._model import (
     RasterSource,
 )
 from ._reader import _nodata_mask, _resolve_src_nodata, rio_read
-from ._rio import get_rio_env, rio_env
+from ._rio import _CFG, GDAL_CLOUD_DEFAULTS, get_rio_env, rio_env
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
 """Used to partition load when not using Dask."""
@@ -177,10 +177,15 @@ def patch_urls(
 
 
 def _capture_rio_env() -> Dict[str, Any]:
-    env = get_rio_env(sanitize=False, no_session_keys=True)
+    # pylint: disable=protected-access
+    if _CFG._configured:
+        env = {**_CFG._gdal_opts, "_aws": _CFG._aws}
+    else:
+        env = get_rio_env(sanitize=False, no_session_keys=True)
+
     if len(env) == 0:
         # not customized, supply defaults
-        return {"GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR"}
+        return {**GDAL_CLOUD_DEFAULTS}
 
     # don't want that copied across to workers who might be on different machine
     env.pop("GDAL_DATA", None)
@@ -585,9 +590,11 @@ def _dask_loader_tyx(
     env: Dict[str, Any],
 ):
     assert cfg.dtype is not None
+    env = {**env}
+    session = env.pop("_aws", None)
     gbox = gbt[iyx]
     chunk = np.empty(gbox.shape.yx, dtype=cfg.dtype)
-    with rio_env(**env):
+    with rio_env(session, **env):
         return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
 
 
