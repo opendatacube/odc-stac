@@ -200,24 +200,9 @@ jobs:
         run: |
           pip install -e . --no-deps
 
-      - name: Start Test DB
-        shell: bash
-        run: |
-          echo "Launching test db"
-          pgdata=$(pwd)/.dbdata
-          initdb -D ${pgdata} --auth-host=md5 --encoding=UTF8
-          pg_ctl -D ${pgdata} -l "${pgdata}/pg.log" start
-          createdb datacube
-          datacube system init
-
-        env:
-          DATACUBE_DB_URL: postgresql:///datacube
-
       - name: Run Tests
         shell: bash
         run: |
-          datacube system check
-
           echo "Running Tests"
           pytest --cov=. \
           --cov-report=html \
@@ -228,7 +213,6 @@ jobs:
         env:
           AWS_DEFAULT_REGION: us-west-2
           DASK_TEMPORARY_DIRECTORY: /tmp/dask
-          DATACUBE_DB_URL: postgresql:///datacube
 
       - name: Upload Coverage
         if: |
@@ -273,38 +257,20 @@ jobs:
         shell: bash
         run: |
           which python
-          which createdb
-          which datacube
 
           ls -lh wheels/clean
           python -m pip install --no-deps wheels/clean/*whl
           python -m pip check || true
 
-      - name: Start Test DB
-        shell: bash
-        run: |
-          echo "Launching test db"
-          pgdata=$(pwd)/.dbdata
-          initdb -D ${pgdata} --auth-host=md5 --encoding=UTF8
-          pg_ctl -D ${pgdata} -l "${pgdata}/pg.log" start
-          createdb datacube
-          datacube system init
-
-        env:
-          DATACUBE_DB_URL: postgresql:///datacube
-
       - name: Run Tests
         shell: bash
         run: |
-          datacube system check
-
           echo "Running Tests"
           pytest --timeout=30 tests
 
         env:
           AWS_DEFAULT_REGION: us-west-2
           DASK_TEMPORARY_DIRECTORY: /tmp/dask
-          DATACUBE_DB_URL: postgresql:///datacube
 
   build-notebooks:
     runs-on: ubuntu-latest
