@@ -1,1 +1,3 @@
 *.ipynb
+dbg/*
+bk/*
