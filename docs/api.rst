@@ -17,6 +17,8 @@ odc.stac
    :toctree: _api/
 
    load
+   configure_rio
+   configure_s3_access
 
 odc.stac.bench
 **************
