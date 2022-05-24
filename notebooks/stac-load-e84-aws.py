@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.13.0
+#       jupytext_version: 1.13.8
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -25,18 +25,13 @@ import dask.distributed
 import folium
 import folium.plugins
 import geopandas as gpd
-import odc.ui
 import shapely.geometry
-import yaml
-from branca.element import Figure
 from IPython.display import HTML, display
-from odc.algo import to_rgba
 from pystac_client import Client
 
 from odc.stac import configure_rio, stac_load
 
 
-# %%
 def convert_bounds(bbox, invert_y=False):
     """
     Helper method for changing bounding box representation to leaflet notation
@@ -50,29 +45,18 @@ def convert_bounds(bbox, invert_y=False):
 
 
 # %%
-cfg = """---
-sentinel-s2-l2a-cogs:
-  assets:
-    '*':
-      data_type: uint16
-      nodata: 0
-      unit: '1'
-    SCL:
-      data_type: uint8
-      nodata: 0
-      unit: '1'
-    visual:
-      data_type: uint8
-      nodata: 0
-      unit: '1'
-  aliases:  # Alias -> Canonical Name
-    red: B04
-    green: B03
-    blue: B02
-"*":
-  warnings: ignore # Disable warnings about duplicate common names
-"""
-cfg = yaml.load(cfg, Loader=yaml.SafeLoader)
+cfg = {
+    "sentinel-s2-l2a-cogs": {
+        "assets": {
+            "*": {"data_type": "uint16", "nodata": 0},
+            "SCL": {"data_type": "uint8", "nodata": 0},
+            "visual": {"data_type": "uint8", "nodata": 0},
+        },
+        "aliases": {"red": "B04", "green": "B03", "blue": "B02"},
+    },
+    "*": {"warnings": "ignore"},
+}
+
 # %% [markdown]
 # ## Start Dask Client
 #
@@ -138,6 +122,8 @@ _ = fig.set_title("STAC Query Results")
 
 # %%
 # https://github.com/python-visualization/folium/issues/1501
+from branca.element import Figure
+
 fig = Figure(width="400px", height="500px")
 map1 = folium.Map()
 fig.add_child(map1)
@@ -191,52 +177,29 @@ xx = stac_load(
 display(xx)
 
 # %% [markdown]
-# ## Load data and convert to RGBA
+# Note that data is not loaded yet. But we can review memory requirement. We can also check data footprint.
+
+# %%
+xx.odc.geobox
+
+# %% [markdown]
+# ## Load data into local memory
 
 # %%
 # %%time
-rgba = to_rgba(xx, clamp=(1, 3000))
-_rgba = rgba.compute()
-
-# %% [markdown]
-# ## Display Image on a map
+xx = xx.compute()
 
 # %%
-map2 = folium.Map()
-
-folium.GeoJson(
-    shapely.geometry.box(*bbox),
-    style_function=lambda x: dict(fill=False, weight=1, opacity=0.7, color="olive"),
-    name="Query",
-).add_to(map2)
-
-gdf.explore(
-    "granule",
-    categorical=True,
-    tooltip=[
-        "granule",
-        "datetime",
-        "sentinel:data_coverage",
-        "eo:cloud_cover",
-    ],
-    popup=True,
-    style_kwds=dict(fillOpacity=0.1, width=2),
-    name="STAC",
-    m=map2,
+_ = (
+    xx.isel(time=0)
+    .to_array("band")
+    .plot.imshow(
+        col="band",
+        size=4,
+        vmin=0,
+        vmax=4000,
+    )
 )
-
-
-# Image bounds are specified in Lat/Lon order with Lat axis inversed
-image_bounds = convert_bounds(_rgba.geobox.geographic_extent.boundingbox, invert_y=True)
-img_ovr = folium.raster_layers.ImageOverlay(
-    _rgba.isel(time=0).data, bounds=image_bounds, name="Image"
-)
-img_ovr.add_to(map2)
-map2.fit_bounds(bounds=image_bounds)
-
-folium.LayerControl().add_to(map2)
-folium.plugins.Fullscreen().add_to(map2)
-map2
 
 # %% [markdown]
 # ## Load with bounding box
@@ -263,24 +226,21 @@ yy = stac_load(
     stac_cfg=cfg,
     bbox=small_bbox,
 )
-im_small = to_rgba(yy, clamp=(1, 3000)).compute()
+display(yy.odc.geobox)
 
 # %%
-img_zoomed_in = odc.ui.mk_data_uri(
-    odc.ui.to_jpeg_data(im_small.isel(time=0).data, quality=80), "image/jpeg"
-)
-print(f"Image url: {img_zoomed_in[:64]}...")
+yy = yy.compute()
 
 # %%
-HTML(
-    data=f"""
-<style> .img-two-column{{
-  width: 50%;
-  float: left;
-}}</style>
-<img src="{img_zoomed_in}" alt="Sentinel-2 Zoom in" class="img-two-column">
-<img src="{img_ovr.url}" alt="Sentinel-2 Mosaic" class="img-two-column">
-"""
+_ = (
+    yy.isel(time=0)
+    .to_array("band")
+    .plot.imshow(
+        col="band",
+        size=4,
+        vmin=0,
+        vmax=4000,
+    )
 )
 
 # %% [markdown]
