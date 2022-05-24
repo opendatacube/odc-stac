@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.13.0
+#       jupytext_version: 1.13.8
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
@@ -22,23 +22,13 @@
 # ## Setup Instructions
 #
 # This notebook is meant to run on Planetary Computer lab hub.
-#
-# We need to install extra libraries for some visualizations:
-#
-# ```bash
-# pip install "odc-ui>=0.2.0a3"
-# ```
-#
-
-# %%
-# #!pip install "odc-ui>=0.2.0a3"
 
 # %%
 import dask.distributed
 import dask.utils
 import numpy as np
 import planetary_computer as pc
-import yaml
+import xarray as xr
 from IPython.display import display
 from pystac_client import Client
 
@@ -51,30 +41,16 @@ from odc.stac import configure_rio, stac_load
 # each band in the collection. Use band named `*` as a wildcard.
 
 # %%
-cfg = """---
-"*":
-  warnings: ignore # Disable warnings about duplicate common names
-
-sentinel-2-l2a:
-  assets:
-    '*':
-      data_type: uint16
-      nodata: 0
-      unit: '1'
-    SCL:
-      data_type: uint8
-      nodata: 0
-      unit: '1'
-    visual:
-      data_type: uint8
-      nodata: 0
-      unit: '1'
-  aliases:  # Alias -> Canonical Name
-    rededge1: B05   # Work around non-unique `rededge` common name in S2
-    rededge2: B06   # ..
-    rededge3: B07   # ..
-"""
-cfg = yaml.load(cfg, Loader=yaml.CSafeLoader)
+cfg = {
+    "sentinel-2-l2a": {
+        "assets": {
+            "*": {"data_type": "uint16", "nodata": 0},
+            "SCL": {"data_type": "uint8", "nodata": 0},
+            "visual": {"data_type": "uint8", "nodata": 0},
+        },
+    },
+    "*": {"warnings": "ignore"},
+}
 
 # %% [markdown]
 # ## Start Dask Client
@@ -159,18 +135,22 @@ xx = stac_load(
 print(f"Bands: {','.join(list(xx.data_vars))}")
 display(xx)
 
-# %% [markdown]
-# ### Import some tools from odc.{algo,ui}
-
-# %%
-import ipywidgets
-from datacube.utils.geometry import gbox
-from odc.algo import colorize, to_float, to_rgba, xr_reproject
-from odc.ui import to_jpeg_data
-from odc.ui.plt_tools import scl_colormap
 
 # %% [markdown]
 # ## Do some math with bands
+
+# %%
+def to_float(xx):
+    _xx = xx.astype("float32")
+    nodata = _xx.attrs.pop("nodata", None)
+    if nodata is None:
+        return _xx
+    return _xx.where(xx != nodata)
+
+
+def colorize(xx, colormap):
+    return xr.DataArray(colormap[xx.data], coords=xx.coords, dims=(*xx.dims, "band"))
+
 
 # %%
 # like .astype(float32) but taking care of nodata->NaN mapping
@@ -189,108 +169,58 @@ _ = ndvi.isel(time=4).compute().plot.imshow(size=7, aspect=1.2, interpolation="b
 # %%
 xx = xx.isel(time=np.s_[:6])
 
-# %% [markdown]
-# ## Generate some RGB images
-#
-# In this case we take `SCL` band and "colorize" it, simply replace every known
-# category with an RGB pixel. Also we take RGB bands clamp pixel values into
-# `[0,255]` range and form an RGBA image. Alpha band is set to transparent for
-# those pixels that were `nodata` in the original `uint16` data for any of the
-# channels.
-#
-# - Compute Alpha band using `.nodata` property
-# - Clamp band `.red,.green,.blue` to `[1, 3000]`
-# - Scale to `[0,255]`
-# - Arrange it in a 4 channel image RGBA
-#
-# In our case bands were named "red,green,blue" and so `to_rgba(..)` know what
-# band to use for what color, if you have native band names you can use
-# `bands=` parameter to define which band is *red*, *green* and *blue*:
-#
-# ```
-# to_rgba(..., bands=("B04","B03","B02"))
-# ```
-#
-#
+# %%
+# fmt: off
+scl_colormap = np.array(
+    [
+        [255,   0, 255, 255],  # 0  - NODATA
+        [255,   0,   4, 255],  # 1  - Saturated or Defective
+        [0  ,   0,   0, 255],  # 2  - Dark Areas
+        [97 ,  97,  97, 255],  # 3  - Cloud Shadow
+        [3  , 139,  80, 255],  # 4  - Vegetation
+        [192, 132,  12, 255],  # 5  - Bare Ground
+        [21 , 103, 141, 255],  # 6  - Water
+        [117,   0,  27, 255],  # 7  - Unclassified
+        [208, 208, 208, 255],  # 8  - Cloud
+        [244, 244, 244, 255],  # 9  - Definitely Cloud
+        [195, 231, 240, 255],  # 10 - Thin Cloud
+        [222, 157, 204, 255],  # 11 - Snow or Ice
+    ],
+    dtype="uint8",
+)
+# fmt: on
+
+# Load SCL band, then convert to RGB using color scheme above
+scl_rgba = colorize(xx.SCL.compute(), scl_colormap)
+
+# Check we still have geo-registration
+scl_rgba.odc.geobox
 
 # %%
-scl_rgb = colorize(xx.SCL, scl_colormap)
-im_rgba = to_rgba(xx, clamp=(1, 3_000))
-
-# %% [markdown]
-# ## Load all the data into Dask Cluster
-#
-# So far we have only constructed Dask graphs of computations we might want to
-# perform. Now we use `client.persist(..)` to tell Dask to actually start data
-# loading and processing and to keep results in the memory of the Dask cluster.
-# We will then pull results into local process for display as we need it.
-
-# %%
-scl_rgb, im_rgba = client.persist([scl_rgb, im_rgba])
-dask.distributed.progress([scl_rgb, im_rgba], multi=False)
-
-# %%
-# Can't merge with cell above as progress won't display then due to blocking
-_ = dask.distributed.wait([scl_rgb, im_rgba])
+_ = scl_rgba.plot.imshow(col="time", col_wrap=3, size=3, interpolation="antialiased")
 
 # %% [markdown]
-# ## Plot Imagery
-#
-# If all went well Dask have loaded all the data and transformed raw pixels
-# into RGBA images. We can now visualise results using the same `xarray` plot
-# tools we could use with local data. Behind the scenes Dask will transfer
-# imagery from the cluster to the notebook as needed, since we used
-# `.persist(..)` this operation should be quick. Preparing plots does take some
-# time, but it's mostly the cost of interpolation for display as we need to
-# resize ~10 megapixel images down to small size.
+# Let's save image dated 2019-06-04 to a cloud optimized geotiff file.
 
 # %%
-scl_rgb.plot.imshow(
-    col="time", col_wrap=3, size=3, aspect=1, interpolation="antialiased"
-)
+to_save = scl_rgba.isel(time=3)
+fname = f"SCL-{to_save.time.dt.strftime('%Y%m%d').item()}.tif"
+print(f"Saving to: '{fname}'")
 
-fig = im_rgba.plot.imshow(
-    col="time", col_wrap=3, size=3, aspect=1, interpolation="bicubic"
+# %%
+scl_rgba.isel(time=3).odc.write_cog(
+    fname,
+    overwrite=True,
+    compress="webp",
+    webp_quality=90,
 )
-for ax in fig.axes.ravel():
-    ax.set_facecolor("magenta")
 
 # %% [markdown]
-# ## Make and display some thumbnails
+# Check the file with `rio info`.
 
 # %%
-# Covers same area as original but only 320x320 pixels in size
-thumb_geobox = gbox.zoom_to(xx.geobox, (320, 320))
-
-# Reproject original Data then convert to RGB
-rgba_small = to_rgba(
-    xr_reproject(xx[["red", "green", "blue"]], thumb_geobox, resampling="cubic"),
-    clamp=(1, 3000),
-)
-
-# Same for SCL, but we can only use nearest|mode resampling
-scl_small = colorize(
-    xr_reproject(xx.SCL, thumb_geobox, resampling="mode"), scl_colormap
-)
-
-# Compress image 5 (index 4) to JPEG and display
-idx = 4
-ims = [
-    ipywidgets.Image(value=to_jpeg_data(rgba_small.isel(time=idx).data.compute(), 80)),
-    ipywidgets.Image(value=to_jpeg_data(scl_small.isel(time=idx).data.compute(), 80)),
-]
-
-display(ipywidgets.HBox(ims))
-
-# %%
-# Change to True to display higher resolution
-if False:
-    display(
-        ipywidgets.Image(value=to_jpeg_data(im_rgba.isel(time=idx).data.compute(), 90))
-    )
-    display(
-        ipywidgets.Image(value=to_jpeg_data(scl_rgb.isel(time=idx).data.compute(), 90))
-    )
+# !ls -lh {fname}
+# !rio info {fname} | jq .
 
 # %% [markdown]
 # --------------------------------
