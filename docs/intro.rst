@@ -51,14 +51,15 @@ dependencies using conda then install ``odc-stac`` with pip. Sample
    channels:
      - conda-forge
    dependencies:
-     - datacube >=1.8.6
+     - odc-geo >=0.1.3
      - xarray >=0.20.1
      - numpy
+     - dask
      - pandas
      - affine
      - rasterio
+     - boto3
      - toolz
-     - jinja2
      - pystac
      - pystac-client
      - pip =20
