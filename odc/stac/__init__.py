@@ -25,3 +25,18 @@ __all__ = (
     "configure_s3_access",
     "__version__",
 )
+
+_eo3_methods = ["stac2ds", "infer_dc_product"]
+
+
+def __dir__():
+    return [*__all__, *_eo3_methods]
+
+
+def __getattr__(name):
+    # pylint: disable=import-outside-toplevel
+    if name in _eo3_methods:
+        from . import eo3
+
+        return getattr(eo3, name)
+    raise AttributeError(f"module {__name__} has no attribute {name}")
