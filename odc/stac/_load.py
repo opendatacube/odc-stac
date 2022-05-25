@@ -41,6 +41,7 @@ from ._model import (
 )
 from ._reader import _nodata_mask, _resolve_src_nodata, rio_read
 from ._rio import _CFG, GDAL_CLOUD_DEFAULTS, get_rio_env, rio_env
+from ._utils import SizedIterable
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
 """Used to partition load when not using Dask."""
@@ -213,6 +214,8 @@ def load(
     y: Optional[Tuple[float, float]] = None,
     like: Optional[Any] = None,
     geopolygon: Optional[Any] = None,
+    # UI
+    progress: Optional[Any] = None,
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
@@ -261,6 +264,9 @@ def load(
     :param chunks:
        Rather than loading pixel data directly, construct
        Dask backed arrays. ``chunks={'x': 2048, 'y': 2048}``
+
+    :param progress:
+       Pass in ``tqdm`` progress bar or similar, only used in non-Dask load.
 
     .. rubric:: Control Pixel Grid of Output
 
@@ -401,14 +407,12 @@ def load(
            rededge2: B06
            rededge3: B07
 
-         warnings: ignore  # ignore|all  (default all)
-
        some-other-collection:
          assets:
          #...
 
        "*": # Applies to all collections if not defined on a collection
-         warnings: ignore
+         warnings: ignore  # ignore|all (default all)
 
     """
     # pylint: disable=unused-argument,too-many-branches
@@ -526,16 +530,27 @@ def load(
         return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
 
     ds = _mk_dataset(gbox, tss, load_cfg)
+    ny, nx = gbt.shape.yx
+    total_tasks = len(bands) * len(tss) * ny * nx
     _tasks = []
 
-    for task in _task_stream(bands):
+    def _do_one(task: _LoadChunkTask) -> Tuple[str, int, int, int]:
         if debug:
-            print(f"{task.band}[{task.idx_tyx}]")
+            # print(f"{task.band}[{task.idx_tyx}]")
             _tasks.append(task)
 
         dst_slice = ds[task.band].data[task.dst_roi]
         srcs = [_parsed[idx][band] for idx, band in task.srcs]
         _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, dst_slice)
+        t, y, x = task.idx_tyx
+        return (task.band, t, y, x)
+
+    _work = map(_do_one, _task_stream(bands))
+    if progress is not None:
+        _work = progress(SizedIterable(_work, total_tasks))
+
+    for _ in _work:
+        pass
 
     return _with_debug_info(ds, tasks=_tasks)
 
