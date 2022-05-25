@@ -11,9 +11,9 @@ from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
 from toolz import dicttoolz
 
+from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext
 from odc.stac.eo3 import infer_dc_product, stac2ds
 from odc.stac.eo3._eo3converter import _compute_uuid, _item_to_ds
-from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext
 
 
 def test_infer_product_collection(
@@ -223,3 +223,16 @@ def test_partial_proj(partial_proj_stac):
 def test_noassets_case(no_bands_stac):
     with pytest.raises(ValueError):
         list(stac2ds([no_bands_stac]))
+
+
+def test_old_imports():
+    import odc.stac
+
+    assert "stac2ds" in dir(odc.stac)
+    assert "infer_dc_product" in dir(odc.stac)
+
+    assert odc.stac.stac2ds is stac2ds
+    assert odc.stac.infer_dc_product is infer_dc_product
+
+    with pytest.raises(AttributeError):
+        _ = odc.stac.no_such_thing
