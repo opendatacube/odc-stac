@@ -1,6 +1,7 @@
 """stac.load - dc.load from STAC Items."""
 import dataclasses
 import itertools
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import (
     Any,
@@ -41,7 +42,7 @@ from ._model import (
 )
 from ._reader import _nodata_mask, _resolve_src_nodata, rio_read
 from ._rio import _CFG, GDAL_CLOUD_DEFAULTS, get_rio_env, rio_env
-from ._utils import SizedIterable
+from ._utils import SizedIterable, pmap
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
 """Used to partition load when not using Dask."""
@@ -202,6 +203,7 @@ def load(
     resampling: Optional[Union[str, Dict[str, str]]] = None,
     dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
     chunks: Optional[Dict[str, int]] = None,
+    pool: Union[ThreadPoolExecutor, int, None] = None,
     # Geo selection
     crs: MaybeCRS = None,
     resolution: Optional[SomeResolution] = None,
@@ -267,6 +269,9 @@ def load(
 
     :param progress:
        Pass in ``tqdm`` progress bar or similar, only used in non-Dask load.
+
+    :param pool:
+       Use thread pool to perform load locally, only used in non-Dask load.
 
     .. rubric:: Control Pixel Grid of Output
 
@@ -545,7 +550,8 @@ def load(
         t, y, x = task.idx_tyx
         return (task.band, t, y, x)
 
-    _work = map(_do_one, _task_stream(bands))
+    _work = pmap(_do_one, _task_stream(bands), pool)
+
     if progress is not None:
         _work = progress(SizedIterable(_work, total_tasks))
 

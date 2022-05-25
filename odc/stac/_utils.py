@@ -1,9 +1,11 @@
 """
 Generic tools with only standard lib dependencies.
 """
-from typing import Iterable, Iterator, Sized, TypeVar
+from concurrent.futures import ThreadPoolExecutor
+from typing import Callable, Iterable, Iterator, Sized, TypeVar, Union
 
 T = TypeVar("T")
+S = TypeVar("S")
 
 
 class SizedIterable(Sized, Iterable[T]):
@@ -22,3 +24,23 @@ class SizedIterable(Sized, Iterable[T]):
 
     def __iter__(self) -> Iterator[T]:
         yield from self._xx
+
+
+def pmap(
+    func: Callable[[T], S],
+    inputs: Iterable[T],
+    pool: Union[ThreadPoolExecutor, int, None],
+) -> Iterator[S]:
+    """
+    Wrapper for ThreadPoolExecutor.map
+    """
+    if pool is None:
+        yield from map(func, inputs)
+        return
+
+    if isinstance(pool, int):
+        pool = ThreadPoolExecutor(pool)
+
+    with pool as _runner:
+        for x in _runner.map(func, inputs):
+            yield x
