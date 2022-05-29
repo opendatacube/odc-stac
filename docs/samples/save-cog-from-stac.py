@@ -3,7 +3,7 @@ Save Landsat 8 pass to GeoTIFF (COG).
 
 This program captures one pass of Band 4 (NIR) of Lansat 8 to a single
 cloud optimized GeoTIFF image. Produced image is rotated to maximize
-proportion of valid pixels in the result. Data is saved in ESPG:3857 at
+proportion of valid pixels in the result. Data is saved in EPSG:3857 at
 native resolution (30m). Produced TIFF is about 4.7GiB.
 
 Data is sourced from Microsoft Planetary Computer:
