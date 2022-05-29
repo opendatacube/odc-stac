@@ -296,14 +296,11 @@ def _group_geoboxes(
     for grid, bands in grids.items():
         if crs is None:
             crs = grid.crs
-        elif grid.crs != crs:
-            raise ValueError("Expect all assets to share common CRS")
 
         grid_name = "default" if grid is g_default else gbox_name(grid)
         if grid_name in named_grids:
-            raise NotImplementedError(
-                "TODO: deal with multiple grids with same sampling distance"
-            )
+            band, *_ = bands
+            grid_name = f"{grid_name}-{band}"
 
         named_grids[grid_name] = grid
         for band in bands:

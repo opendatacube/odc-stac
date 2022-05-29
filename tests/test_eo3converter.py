@@ -5,7 +5,7 @@ import pystac.asset
 import pystac.collection
 import pystac.item
 import pytest
-from common import STAC_CFG, mk_stac_item
+from common import NO_WARN_CFG, STAC_CFG, mk_stac_item
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
@@ -143,13 +143,11 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
     with pytest.raises(ValueError):
         product.canonical_measurement("green")
 
-    # Test multiple CRS unhappy path
+    # Test multiple CRS path
     item = item0.clone()
     ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
     assert ProjectionExtension.ext(item.assets["B01"]).crs_string == "EPSG:3857"
-    with pytest.raises(ValueError):
-        with pytest.warns(UserWarning, match="`rededge`"):
-            infer_dc_product(item, STAC_CFG)
+    infer_dc_product(item, NO_WARN_CFG)
 
 
 def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
