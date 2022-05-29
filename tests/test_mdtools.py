@@ -62,15 +62,17 @@ def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
     assert set(b2g) == set(data_bands)
 
     # test the case where there are different shapes for the same gsd
+    # clashing grid names should be resolved
     ProjectionExtension.ext(item.assets["B01"]).shape = (100, 200)
-    with pytest.raises(NotImplementedError):
-        compute_eo3_grids(data_bands)
+    grids, b2g = compute_eo3_grids(data_bands)
+    assert b2g["B01"] != b2g["B02"]
 
-    # More than 1 CRS is not supported
+    # More than 1 CRS should work
     item = item0.clone()
     ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
-    with pytest.raises(ValueError):
-        compute_eo3_grids(data_bands)
+    grids, b2g = compute_eo3_grids(data_bands)
+    assert b2g["B01"] != b2g["B02"]
+    assert grids[b2g["B01"]].crs.epsg == 3857
 
 
 def test_asset_geobox(sentinel_stac: pystac.item.Item):
@@ -186,13 +188,12 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
         assert band.nodata is None
         assert band.unit == "1"
 
-    # Test multiple CRS unhappy path
+    # Test that multiple CRSs per item work
     item = pystac.Item.from_dict(item0.to_dict())
     ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
     assert ProjectionExtension.ext(item.assets["B01"]).crs_string == "EPSG:3857"
-    with pytest.raises(ValueError):
-        with pytest.warns(UserWarning, match="`rededge`"):
-            md = extract_collection_metadata(item, STAC_CFG)
+    md = extract_collection_metadata(item, NO_WARN_CFG)
+    assert md.band2grid["B01"] != md.band2grid["B02"]
 
     # Test no-collection name item
     item = pystac.Item.from_dict(item0.to_dict())
