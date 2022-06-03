@@ -23,7 +23,7 @@ def with_temp_tiff(data: xr.DataArray, **cog_opts) -> Generator[str, None, None]
     assert isinstance(data.odc, ODCExtensionDa)
 
     with rasterio.MemoryFile() as mem:
-        data.odc.write_cog(mem.name, **cog_opts)
+        data.odc.write_cog(mem.name, **cog_opts)  # type: ignore
         yield mem.name
 
 
