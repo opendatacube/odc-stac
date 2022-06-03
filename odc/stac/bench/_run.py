@@ -400,7 +400,7 @@ def load_from_json(geojson, params: BenchLoadParams, **kw):
 
         patch_url = params.patch_url
         if patch_url is None:
-            patch_url = lambda x: x
+            patch_url = lambda x: x  # pylint: disable=unnecessary-lambda-assignment
 
         _items = [patch_url(item).to_dict() for item in all_items]
         xx = stackstac.stack(_items, **opts)
