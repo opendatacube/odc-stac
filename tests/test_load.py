@@ -11,7 +11,7 @@ from odc.geo.xr import ODCExtension
 from odc.stac._load import _group_items, _resolve_load_cfg
 from odc.stac._load import load as stac_load
 from odc.stac._model import RasterLoadParams
-from odc.stac.testing.stac import b_, mk_parsed_item
+from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 
 
 def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
@@ -149,37 +149,65 @@ def test_group_items():
         return mk_parsed_item([b_("b1", gbox)], datetime=datetime, id=id)
 
     # check no-op case first
-    assert _group_items([], "time") == []
-    assert _group_items([], "id") == []
-    assert _group_items([], "solar_day") == []
+    assert _group_items([], [], "time") == []
+    assert _group_items([], [], "id") == []
+    assert _group_items([], [], "solar_day") == []
 
     aa = _mk("a", 15 * 10, "2020-01-02T23:59Z")
     b1 = _mk("b1", 15 * 10 + 1, "2020-01-03T00:01Z")
     b2 = _mk("b2", 15 * 10 + 2, "2020-01-03T00:01Z")
     cc = _mk("c", 0, "2020-01-02T23:59Z")
 
-    def _t(items, groupby, lon=None):
-        return ndeepmap(2, lambda idx: items[idx], _group_items(items, groupby, lon))
+    def _t(items, groupby, expect, lon=None, preserve_original_order=False):
+        stac_items = [to_stac_item(item) for item in items]
+        rr = ndeepmap(
+            2,
+            lambda idx: items[idx],
+            _group_items(
+                stac_items,
+                items,
+                groupby,
+                lon=lon,
+                preserve_original_order=preserve_original_order,
+            ),
+        )
+        _expect = ndeepmap(2, lambda item: item.id, expect)
+        _got = ndeepmap(2, lambda item: item.id, rr)
 
-    assert _t([aa, b1, b2], "id") == [[aa], [b1], [b2]]
-    assert _t([aa, b2, b1], "id") == [[aa], [b1], [b2]]
-    assert _t([b1, aa, b2], "id") == [[aa], [b1], [b2]]
-    assert _t([cc, aa, b1, b2], "id") == [[aa], [cc], [b1], [b2]]
+        assert _expect == _got
 
-    assert _t([aa, b1, b2], "time") == [[aa], [b1, b2]]
-    assert _t([b1, aa, b2], "time") == [[aa], [b1, b2]]
-    assert _t([b2, aa, b1], "time") == [[aa], [b1, b2]]
-    assert _t([aa, cc, b1, b2], "time") == [[aa, cc], [b1, b2]]
+    # same order as input
+    _t([aa, b1, b2], "id", [[aa], [b1], [b2]])
+    _t([aa, b2, b1], "id", [[aa], [b2], [b1]])
+    _t([b1, aa, b2], "id", [[b1], [aa], [b2]])
+    _t([cc, aa, b1, b2], "id", [[cc], [aa], [b1], [b2]])
 
-    assert _t([aa, b1, b2], "solar_day") == [[aa, b1, b2]]
-    assert _t([b1, aa, b2], "solar_day") == [[aa, b1, b2]]
-    assert _t([b2, aa, b1], "solar_day") == [[aa, b1, b2]]
-    assert _t([aa, b1, b2, cc], "solar_day") == [[cc], [aa, b1, b2]]
+    _t([aa, b1, b2], "time", [[aa], [b1, b2]])
+    _t([b1, aa, b2], "time", [[aa], [b1, b2]])
 
-    assert _t([aa, b1, b2, cc], "solar_day", 150 + 1) == [[aa, cc, b1, b2]]
+    # order within group is preserved
+    _t([b2, aa, b1], "time", [[aa], [b2, b1]], preserve_original_order=True)
+    _t([aa, cc, b1, b2], "time", [[aa, cc], [b1, b2]], preserve_original_order=True)
 
-    with pytest.raises(ValueError):
-        _ = _group_items([aa], groupby="no-such-mode")
+    _t([aa, b1, b2], "solar_day", [[aa, b1, b2]])
+    _t([b1, aa, b2], "solar_day", [[aa, b1, b2]])
+    _t([b2, aa, b1], "solar_day", [[aa, b1, b2]])
+    _t([aa, b1, b2, cc], "solar_day", [[cc], [aa, b1, b2]])
+
+    _t([aa, b1, b2, cc], "solar_day", [[aa, cc, b1, b2]], lon=150 + 1)
+
+    # property based
+    _t([aa, b1], "proj:epsg", [[aa, b1]])
+    _t([b1, aa], "proj:epsg", [[aa, b1]])
+    _t([aa, b1], "proj:transform", [[aa], [b1]])
+
+    # custom callback
+    _t(
+        [aa, b1, b2, cc],
+        lambda item, parsed, idx: idx % 2,
+        [[aa, b2], [b1, cc]],
+        preserve_original_order=True,
+    )
 
 
 def test_resolve_load_cfg():
