@@ -1,5 +1,6 @@
 """stac.load - dc.load from STAC Items."""
 import dataclasses
+import functools
 import itertools
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -46,6 +47,10 @@ from ._utils import SizedIterable, pmap
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
 """Used to partition load when not using Dask."""
+
+GroupbyCallback = Callable[[pystac.item.Item, ParsedItem, int], Any]
+
+Groupby = Union[str, GroupbyCallback]
 
 
 class MkArray(Protocol):
@@ -199,7 +204,7 @@ def load(
     items: Iterable[pystac.item.Item],
     bands: Optional[Union[str, Sequence[str]]] = None,
     *,
-    groupby: Optional[str] = "time",
+    groupby: Optional[Groupby] = "time",
     resampling: Optional[Union[str, Dict[str, str]]] = None,
     dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
     chunks: Optional[Dict[str, int]] = None,
@@ -221,6 +226,7 @@ def load(
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
+    preserve_original_order: bool = False,
     **kw,
 ) -> xr.Dataset:
     """
@@ -253,9 +259,24 @@ def load(
     .. rubric:: Common Options
 
     :param groupby:
-       Controls what items get placed in to the same pixel plane,
-       supported values are "time", "solar_day" and "id",
-       default is "time"
+       Controls what items get placed in to the same pixel plane.
+
+       Following have special meaning:
+
+       * "time" items with exactly the same timestamp are grouped together
+       * "solar_day" items captured on the same day adjusted for solar time
+       * "id" every item is loaded separately
+
+       Any other string is assumed to be a key in Item's properties dictionary.
+
+       You can also supply custom key function, it should take 3 arguments
+       ``(pystac.Item, ParsedItem, index:int) -> Any``
+
+    :param preserve_original_order:
+       By default items are sorted by `time, id` within each group to make pixel
+       fusing order deterministic. Setting this flag to ``True`` will instead keep
+       items within each group in the same order as supplied, so that one can implement
+       arbitrary priority for pixel overlap cases.
 
     :param resampling:
        Controls resampling strategy, can be specified per band
@@ -433,6 +454,7 @@ def load(
     if groupby is None:
         groupby = "id"
 
+    items = list(items)
     _parsed = list(parse_items(items, cfg=stac_cfg))
 
     gbox = output_geobox(
@@ -483,7 +505,13 @@ def load(
 
     # Time dimension
     ((mid_lon, _),) = gbox.extent.centroid.to_crs("epsg:4326").points
-    _grouped_idx = _group_items(_parsed, groupby, mid_lon)
+    _grouped_idx = _group_items(
+        items,
+        _parsed,
+        groupby,
+        mid_lon,
+        preserve_original_order=preserve_original_order,
+    )
 
     tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
 
@@ -697,43 +725,85 @@ def _extract_timestamps(grouped: List[List[ParsedItem]]) -> List[datetime]:
     return list(map(_ts, grouped))
 
 
-def _group_items(
-    items: List[ParsedItem],
-    groupby: str,
+# pylint: disable=unused-argument
+def _groupby_solar_day(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
     lon: Optional[float] = None,
-) -> List[List[int]]:
-    def _time(idx: int):
-        # group by timestamp, sort by (timestamp, id)
-        xx = items[idx]
-        return (xx.nominal_datetime, xx.id)
+):
+    if lon is None:
+        return parsed.solar_date.date()
+    return parsed.solar_date_at(lon).date()
 
-    def _solar_day(idx: int):
-        # group by solar day date component, but sort by (solar day timestamp, id)
-        xx = items[idx]
-        if lon is None:
-            ts = xx.solar_date
-        else:
-            ts = xx.solar_date_at(lon)
-        return (ts.date(), ts, xx.id)
 
-    key = {
-        "id": _time,
-        "time": _time,
-        "solar_day": _solar_day,
-    }.get(groupby, None)
+def _groupby_time(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
+):
+    return parsed.nominal_datetime
 
-    if key is None:
-        raise ValueError(f"Groupby '{groupby}' is not a valid option.")
 
-    assert key is not None
-    ii = sorted(range(len(items)), key=key)
+def _groupby_id(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
+):
+    return idx
 
+
+def _groupby_property(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
+    key: str = "",
+):
+    return item.properties.get(key, None)
+
+
+def _resolve_groupby(groupby: Groupby, lon: Optional[float] = None) -> GroupbyCallback:
+    if not isinstance(groupby, str):
+        return groupby
+    if groupby == "time":
+        return _groupby_time
+    if groupby == "solar_day":
+        return functools.partial(_groupby_solar_day, lon=lon)
     if groupby == "id":
-        return [[idx] for idx in ii]
+        return _groupby_id
 
-    grouper = lambda xx: key(xx)[0]
+    return functools.partial(_groupby_property, key=groupby)
 
-    return [list(group) for _, group in itertools.groupby(ii, grouper)]
+
+def _group_items(
+    items: List[pystac.item.Item],
+    parsed: List[ParsedItem],
+    groupby: Groupby,
+    lon: Optional[float] = None,
+    preserve_original_order=False,
+) -> List[List[int]]:
+    assert len(items) == len(parsed)
+
+    group_key = _resolve_groupby(groupby, lon=lon)
+
+    def _sorter(idx: int):
+        _group = group_key(items[idx], parsed[idx], idx)
+
+        if preserve_original_order:
+            # Sort by group_key but keeping original item order within each group
+            return (_group, idx)
+
+        # Sort by group_key, but then time,id within each group
+        return (_group, parsed[idx].nominal_datetime, parsed[idx].id)
+
+    ii = sorted(range(len(parsed)), key=_sorter)
+
+    return [
+        list(group)
+        for _, group in itertools.groupby(
+            ii, lambda idx: group_key(items[idx], parsed[idx], idx)
+        )
+    ]
 
 
 def _tiles(item: ParsedItem, gbt: GeoboxTiles) -> Iterator[Tuple[int, int]]:
