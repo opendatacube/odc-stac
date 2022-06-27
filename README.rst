@@ -60,17 +60,17 @@ Sample ``environment.yml`` is provided below.
    channels:
      - conda-forge
    dependencies:
-     - datacube >=1.8.6
-     - xarray >= 0.20.1
+     - odc-geo >=0.1.3
+     - xarray >=0.20.1
      - numpy
+     - dask
      - pandas
      - affine
      - rasterio
      - toolz
-     - jinja2
      - pystac
      - pystac-client
-     - pip =20
+     - pip =22
      - pip:
        - "git+https://github.com/opendatacube/odc-stac/"
 

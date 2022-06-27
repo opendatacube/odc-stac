@@ -126,8 +126,8 @@ pygments_style = "friendly"
 autosummary_generate = True
 
 extlinks = {
-    "issue": ("https://github.com/opendatacube/odc-stac/issues/%s", "issue "),
-    "pull": ("https://github.com/opendatacube/odc-stac/pulls/%s", "PR "),
+    "issue": ("https://github.com/opendatacube/odc-stac/issues/%s", "issue %s"),
+    "pull": ("https://github.com/opendatacube/odc-stac/pulls/%s", "PR %s"),
 }
 
 intersphinx_mapping = {

@@ -6,6 +6,7 @@ API Reference
 .. highlight:: python
 .. py:module:: odc.stac
 .. py:module:: odc.stac.bench
+.. py:module:: odc.stac.eo3
 
 
 odc.stac
@@ -16,8 +17,8 @@ odc.stac
    :toctree: _api/
 
    load
-   stac2ds
    configure_rio
+   configure_s3_access
 
 odc.stac.bench
 **************
@@ -33,3 +34,12 @@ odc.stac.bench
    load_from_json
    run_bench
    load_results
+
+odc.stac.eo3
+************
+
+.. currentmodule:: odc.stac.eo3
+.. autosummary::
+   :toctree: _api/
+
+   stac2ds

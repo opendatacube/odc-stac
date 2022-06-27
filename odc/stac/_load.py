@@ -1,128 +1,163 @@
 """stac.load - dc.load from STAC Items."""
-from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Set, Tuple, Union
+import dataclasses
+import functools
+import itertools
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Hashable,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Union,
+    cast,
+)
 
-import datacube.model
-import datacube.utils.geometry
 import numpy as np
-import pyproj
 import pystac
 import pystac.item
-import xarray
-from affine import Affine
-from datacube.model import Dataset
-from datacube.storage import measurement_paths
-from pyproj.crs.crs import CRS
-from toolz import dicttoolz
+import xarray as xr
+from dask import array as da
+from dask.base import quote, tokenize
+from dask.utils import ndeepmap
+from odc.geo import CRS, XY, MaybeCRS, SomeResolution
+from odc.geo.geobox import GeoBox, GeoboxTiles
+from odc.geo.xr import xr_coords
+from xarray.core.npcompat import DTypeLike
 
-from ._dcload import dc_load
-from ._eo3 import ConversionConfig, stac2ds
+from ._dask import unpack_chunks
+from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
+from ._model import (
+    ParsedItem,
+    RasterBandMetadata,
+    RasterCollectionMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
+from ._reader import _nodata_mask, _resolve_src_nodata, rio_read
+from ._rio import _CFG, GDAL_CLOUD_DEFAULTS, get_rio_env, rio_env
+from ._utils import SizedIterable, pmap
 
-SomeCRS = Union[str, datacube.utils.geometry.CRS, pyproj.CRS, Dict[str, Any]]
-MaybeCRS = Optional[SomeCRS]
+DEFAULT_CHUNK_FOR_LOAD = 2048
+"""Used to partition load when not using Dask."""
+
+GroupbyCallback = Callable[[pystac.item.Item, ParsedItem, int], Any]
+
+Groupby = Union[str, GroupbyCallback]
 
 
-def eo3_geoboxes(
-    ds: Dataset,
-    bands: Optional[Sequence[str]] = None,
-    grids: Optional[Sequence[str]] = None,
-) -> Dict[str, datacube.utils.geometry.GeoBox]:
-    """
-    Extract EO3 grids in GeoBox format.
+class MkArray(Protocol):
+    """Internal interface."""
 
-    :param dataset: EO3 Dataset
-    :param bands: Optional list of bands of interest
-    :param grids: Optional list of grids of interest
+    # pylint: disable=too-few-public-methods
+    def __call__(
+        self,
+        shape: Tuple[int, ...],
+        dtype: DTypeLike,
+        /,
+        name: Hashable,
+    ) -> Any:
+        ...  # pragma: no cover
 
-    :returns: a dictionary mapping grid names to a corresponding
-              :class:`~datacube.utils.geometry.GeoBox`
-    """
-    crs = ds.crs
-    _grids = ds.metadata_doc.get("grids", None)
 
-    if _grids is None:
-        raise ValueError("Missing grids, is this EO3 style Dataset?")
-    if bands is not None:
-        relevant_grids: Set[str] = set()
-        for band in bands:
-            band = ds.type.canonical_measurement(band)
-            relevant_grids.add(ds.measurements[band].get("grid", "default"))
-        grids = list(relevant_grids)
+@dataclasses.dataclass(frozen=True)
+class _LoadChunkTask:
+    band: str
+    srcs: List[Tuple[int, str]]
+    cfg: RasterLoadParams
+    gbt: GeoboxTiles
+    idx_tyx: Tuple[int, int, int]
 
-    if grids is not None:
-        _grids = dicttoolz.keyfilter(lambda k: k in grids, _grids)
+    @property
+    def dst_roi(self):
+        t, y, x = self.idx_tyx
+        return (t, *self.gbt.roi[y, x])
 
-    def to_geobox(grid: Dict[str, Any]) -> datacube.utils.geometry.GeoBox:
-        shape = grid.get("shape")
-        transform = grid.get("transform")
-        if shape is None or transform is None:
-            raise ValueError("Each grid must have .shape and .transform")
-        if len(shape) != 2:
-            raise ValueError("Shape must contain `(height, width)`")
-        if len(transform) not in (6, 9):
-            raise ValueError(
-                "Invalid `transform` specified, expect 6 or 9 element array"
+    @property
+    def dst_gbox(self) -> GeoBox:
+        _, y, x = self.idx_tyx
+        return self.gbt[y, x]
+
+
+class _DaskGraphBuilder:
+    # pylint: disable=too-few-public-methods
+
+    def __init__(
+        self,
+        cfg: Dict[str, RasterLoadParams],
+        items: List[ParsedItem],
+        tyx_bins: Dict[Tuple[int, int, int], List[int]],
+        gbt: GeoboxTiles,
+        env: Dict[str, Any],
+    ) -> None:
+        self.cfg = cfg
+        self.items = items
+        self.tyx_bins = tyx_bins
+        self.gbt = gbt
+        self.env = env
+        self._tk = tokenize(items, cfg, gbt, tyx_bins, env)
+
+    def __call__(
+        self,
+        shape: Tuple[int, ...],
+        dtype: DTypeLike,
+        /,
+        name: Hashable,
+    ) -> Any:
+        # pylint: disable=too-many-locals
+        assert len(shape) == 3
+        assert isinstance(name, str)
+        cfg = self.cfg[name]
+        assert dtype == cfg.dtype
+
+        cfg_key = f"cfg-{tokenize(cfg)}"
+        gbt_key = f"grid-{tokenize(self.gbt)}"
+
+        dsk: Dict[Hashable, Any] = {
+            cfg_key: cfg,
+            gbt_key: self.gbt,
+        }
+        tk = self._tk
+        band_key = f"{name}-{tk}"
+        md_key = f"md-{name}-{tk}"
+        shape_in_blocks = (shape[0], *self.gbt.shape.yx)
+        for idx, item in enumerate(self.items):
+            dsk[md_key, idx] = item[name]
+
+        for ti, yi, xi in np.ndindex(shape_in_blocks):
+            tyx_idx = (ti, yi, xi)
+            srcs = [(md_key, idx) for idx in self.tyx_bins.get(tyx_idx, [])]
+            dsk[band_key, ti, yi, xi] = (
+                _dask_loader_tyx,
+                srcs,
+                gbt_key,
+                quote((yi, xi)),
+                cfg_key,
+                self.env,
             )
-        h, w = shape
-        return datacube.utils.geometry.GeoBox(w, h, Affine(*transform[:6]), crs)
 
-    return dicttoolz.valmap(to_geobox, _grids)
+        chunk_shape = (1, *self.gbt.chunk_shape((0, 0)).yx)
+        chunks = unpack_chunks(chunk_shape, shape)
 
-
-def most_common_crs(crss: Iterable[CRS]) -> CRS:
-    """
-    Find most frequently occuring CRS.
-
-    :param crss: Iterable of :class:`~datacube.utils.geometry.CRS` objects
-    """
-    _cc: Dict[CRS, int] = {}
-    for crs in crss:
-        _cc.setdefault(crs, 0)
-        _cc[crs] += 1
-
-    assert len(_cc) > 0
-
-    # get CRS with highest count
-    crs, _ = sorted(_cc.items(), reverse=True, key=(lambda kv: kv[1]))[0]
-    return crs
+        return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
 
 
-def pick_best_resolution(
-    dss: Sequence[Dataset], bands: Optional[Sequence[str]] = None
-) -> Optional[Tuple[float, float]]:
-    """
-    Pick "best" resolution to use for data load.
-
-    Given a non-empty sequence of :class:`~datacube.model.Dataset` objects and a
-    set of bands to be loaded figure out what resolution is most appropriate.
-
-    :param dss: Sequence of Dataset objects
-    :param bands: Set of bands of interest, default: consider all bands.
-    :return: ``(Y, X)`` resolution tuple
-    """
-
-    def best(
-        a: Tuple[float, float], b: Optional[Tuple[float, float]]
-    ) -> Tuple[float, float]:
-        if b is None:
-            return a
-        a_min: float = min(map(abs, a))  # type: ignore
-        b_min: float = min(map(abs, b))  # type: ignore
-
-        return a if a_min <= b_min else b
-
-    res_best = None
-
-    for ds in dss:
-        for geobox in eo3_geoboxes(ds, bands=bands).values():
-            if geobox.shape != (1, 1):
-                res_best = best(geobox.resolution, res_best)
-
-    return res_best
+def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
+    for item in items:
+        return item.collection
+    raise ValueError("Can't load empty sequence")
 
 
 def patch_urls(
-    ds: Dataset, edit: Callable[[str], str], bands: Optional[Iterable[str]] = None
-) -> Dataset:
+    item: ParsedItem, edit: Callable[[str], str], bands: Optional[Iterable[str]] = None
+) -> ParsedItem:
     """
     Map function over dataset measurement urls.
 
@@ -131,49 +166,69 @@ def patch_urls(
     :param bands: Only edit specified bands, default is to edit all
     :return: Input dataset
     """
-    resolved_paths = measurement_paths(ds)
+
     if bands is None:
-        bands = list(resolved_paths)
+        _bands = {
+            k: dataclasses.replace(src, uri=edit(src.uri))
+            for k, src in item.bands.items()
+        }
     else:
-        # remap aliases if present to their canonical name
-        bands = list(map(ds.type.canonical_measurement, bands))
+        aliases = item.collection.aliases
+        bands = set(aliases.get(b, b) for b in bands)
+        _bands = {
+            k: dataclasses.replace(src, uri=edit(src.uri) if k in bands else src.uri)
+            for k, src in item.bands.items()
+        }
 
-    mm = ds.metadata_doc["measurements"]
-    for band in bands:
-        mm[band]["path"] = edit(resolved_paths[band])
-    return ds
+    return dataclasses.replace(item, bands=_bands)
 
 
-# pylint: disable=too-many-arguments,too-many-locals
+def _capture_rio_env() -> Dict[str, Any]:
+    # pylint: disable=protected-access
+    if _CFG._configured:
+        env = {**_CFG._gdal_opts, "_aws": _CFG._aws}
+    else:
+        env = get_rio_env(sanitize=False, no_session_keys=True)
+
+    if len(env) == 0:
+        # not customized, supply defaults
+        return {**GDAL_CLOUD_DEFAULTS}
+
+    # don't want that copied across to workers who might be on different machine
+    env.pop("GDAL_DATA", None)
+    return env
+
+
+# pylint: disable=too-many-arguments,too-many-locals,too-many-statements
 def load(
     items: Iterable[pystac.item.Item],
     bands: Optional[Union[str, Sequence[str]]] = None,
     *,
-    groupby: Optional[str] = None,
+    groupby: Optional[Groupby] = "time",
     resampling: Optional[Union[str, Dict[str, str]]] = None,
+    dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
     chunks: Optional[Dict[str, int]] = None,
+    pool: Union[ThreadPoolExecutor, int, None] = None,
     # Geo selection
     crs: MaybeCRS = None,
-    resolution: Optional[Union[float, int, Tuple[float, float]]] = None,
-    geobox: Optional[datacube.utils.geometry.GeoBox] = None,
+    resolution: Optional[SomeResolution] = None,
+    align: Optional[Union[float, int, XY[float]]] = None,
+    geobox: Optional[GeoBox] = None,
     bbox: Optional[Tuple[float, float, float, float]] = None,
     lon: Optional[Tuple[float, float]] = None,
     lat: Optional[Tuple[float, float]] = None,
     x: Optional[Tuple[float, float]] = None,
     y: Optional[Tuple[float, float]] = None,
-    align: Optional[Union[float, int, Tuple[float, float]]] = None,
     like: Optional[Any] = None,
     geopolygon: Optional[Any] = None,
+    # UI
+    progress: Optional[Any] = None,
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
-    product_cache: Optional[Dict[str, datacube.model.DatasetType]] = None,
-    # dc.load pass-through args
-    skip_broken_datasets: bool = False,
-    progress_cbk: Optional[Callable[[int, int], Any]] = None,
-    fuse_func: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
+    preserve_original_order: bool = False,
     **kw,
-) -> xarray.Dataset:
+) -> xr.Dataset:
     """
     STAC :class:`~pystac.item.Item` to :class:`xarray.Dataset`.
 
@@ -195,7 +250,7 @@ def load(
 
 
     :param items:
-       Iterable of STAC :class:`~pystac.Item` to load
+       Iterable of STAC :class:`~pystac.item.Item` to load
 
     :param bands:
        List of band names to load, defaults to All. Also accepts
@@ -204,20 +259,45 @@ def load(
     .. rubric:: Common Options
 
     :param groupby:
-       Controls what items get placed in to the same pixel plane,
-       supported values are "time" or "solar_day", default is "time"
+       Controls what items get placed in to the same pixel plane.
+
+       Following have special meaning:
+
+       * "time" items with exactly the same timestamp are grouped together
+       * "solar_day" items captured on the same day adjusted for solar time
+       * "id" every item is loaded separately
+
+       Any other string is assumed to be a key in Item's properties dictionary.
+
+       You can also supply custom key function, it should take 3 arguments
+       ``(pystac.Item, ParsedItem, index:int) -> Any``
+
+    :param preserve_original_order:
+       By default items are sorted by `time, id` within each group to make pixel
+       fusing order deterministic. Setting this flag to ``True`` will instead keep
+       items within each group in the same order as supplied, so that one can implement
+       arbitrary priority for pixel overlap cases.
 
     :param resampling:
        Controls resampling strategy, can be specified per band
+
+    :param dtype:
+       Force output dtype, can be specified per band
 
     :param chunks:
        Rather than loading pixel data directly, construct
        Dask backed arrays. ``chunks={'x': 2048, 'y': 2048}``
 
+    :param progress:
+       Pass in ``tqdm`` progress bar or similar, only used in non-Dask load.
+
+    :param pool:
+       Use thread pool to perform load locally, only used in non-Dask load.
+
     .. rubric:: Control Pixel Grid of Output
 
     There are many ways to control footprint and resolution of returned data. The most
-    precise way is to use :py:class:`~datacube.utils.geometry.GeoBox`, ``geobox=GeoBox(..)``.
+    precise way is to use :py:class:`~odc.geo.geobox.GeoBox`, ``geobox=GeoBox(..)``.
     Similarly one can use ``like=xx`` to match pixel grid to previously loaded data
     (``xx = odc.stac.load(...)``).
 
@@ -276,14 +356,14 @@ def load(
 
     :param geobox:
        Allows to specify exact region/resolution/projection using
-       :class:`~datacube.utils.geometry.GeoBox` object
+       :class:`~odc.geo.geobox.GeoBox` object
 
     :param like:
        Match output grid to the data loaded previously.
 
     :param geopolygon:
        Limit returned result to a bounding box of a given geometry. This could be an
-       instance of :class:`~datacube.utils.geometry.Geometry`, GeoJSON dictionary,
+       instance of :class:`~odc.geo.geom.Geometry`, GeoJSON dictionary,
        GeoPandas DataFrame, or any object implementing ``__geo_interface__``. We assume
        ``EPSG:4326`` projection for dictionary and Shapely inputs. CRS information available
        on GeoPandas inputs should be understood correctly.
@@ -291,37 +371,11 @@ def load(
     .. rubric:: STAC Related Options
 
     :param stac_cfg:
-       Controls :class:`pystac.Item` ``->`` :class:`datacube.model.Dataset`
-       conversion, mostly used to specify "missing" metadata like pixel
-       data types.
-
-       See :func:`~odc.stac.stac2ds` and section below for more details.
+       Controls interpretation of :py:class:`pystac.Item`. Mostly used to specify "missing"
+       metadata like pixel data types.
 
     :param patch_url:
        Optionally transform url of every band before loading
-
-    :param product_cache:
-       Passed on to :func:`~odc.stac.stac2ds`
-
-    .. rubric:: Pass-through to :py:meth:`datacube.Datacube.load`
-
-    :param progress_cbk:
-       Get data loading progress via callback, ignored when
-       constructing Dask arrays
-
-    :param skip_broken_datasets:
-       Continue processing when IO errors are encountered
-
-    :param fuse_func:
-       Provide custom function for fusing pixels from different
-       sources into one pixel plane.
-
-       The default behaviour is to use first observed valid pixel.
-       Item timestamp is used to determine order, ``nodata`` is
-       used to determine "valid".
-
-    :param kw:
-       Any other named parameter is passed on to :py:meth:`datacube.Datacube.load`
 
     :return:
        :py:class:`xarray.Dataset` with requested bands populated
@@ -379,95 +433,410 @@ def load(
            rededge2: B06
            rededge3: B07
 
-         warnings: ignore  # ignore|all  (default all)
-
        some-other-collection:
          assets:
          #...
 
        "*": # Applies to all collections if not defined on a collection
-         warnings: ignore
+         warnings: ignore  # ignore|all (default all)
 
-
-    .. seealso::
-
-       | STAC item interpretation :func:`~odc.stac.stac2ds`
-       | Data loading: :py:meth:`datacube.Datacube.load`
     """
+    # pylint: disable=unused-argument,too-many-branches
     if bands is None:
         # dc.load name for bands is measurements
         bands = kw.pop("measurements", None)
 
-    if isinstance(resolution, (float, int)):
-        resolution = (-float(resolution), float(resolution))
-
-    if isinstance(align, (float, int)):
-        align = (align, align)
-
-    # STAC compatibility
-    if bbox is not None:
-        if any(v is not None for v in [x, y, lon, lat]):
-            raise ValueError(
-                "When supplying `bbox` you should not supply `x,y` or `lon,lat`"
-            )
-        x1, y1, x2, y2 = bbox
-        lon = (x1, x2)
-        lat = (y1, y2)
-
     # normalize args
-    # dc.load has distinction between query crs and output_crs
-    # but output_crs name can be confusing, especially that resolution is not output_resolution,
-    # so we treat crs same as output_crs
-    output_crs: MaybeCRS = kw.pop("output_crs", None)
-    if output_crs is None and crs is not None:
-        output_crs, crs = crs, None
+    # dc.load compatible name for crs is `output_crs`
+    if crs is None:
+        crs = cast(MaybeCRS, kw.pop("output_crs", None))
 
-    geo = dicttoolz.valfilter(
-        lambda x: x is not None,
-        dict(
-            x=x,
-            y=y,
-            lon=lon,
-            lat=lat,
-            crs=crs,
-            output_crs=output_crs,
-            resolution=resolution,
-            align=align,
-            like=like,
-            geopolygon=geopolygon,
-            geobox=geobox,
-        ),
+    if groupby is None:
+        groupby = "id"
+
+    items = list(items)
+    _parsed = list(parse_items(items, cfg=stac_cfg))
+
+    gbox = output_geobox(
+        _parsed,
+        bands=bands,
+        crs=crs,
+        resolution=resolution,
+        align=align,
+        geobox=geobox,
+        like=like,
+        geopolygon=geopolygon,
+        bbox=bbox,
+        lon=lon,
+        lat=lat,
+        x=x,
+        y=y,
     )
 
-    def auto_fill_geo(geo, dss, bands):
-        if "geobox" in geo:
-            return
-        if "like" in geo:
-            return
+    if gbox is None:
+        raise ValueError("Failed to auto-guess CRS/resolution.")
 
-        if "output_crs" not in geo:
-            # Need to pick CRS
-            geo["output_crs"] = most_common_crs(ds.crs for ds in dss)
+    if chunks is not None:
+        chunk_shape = _resolve_chunk_shape(gbox, chunks)
+    else:
+        chunk_shape = _resolve_chunk_shape(
+            gbox,
+            {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
+        )
 
-        if "resolution" not in geo:
-            # Need to pick resolution
-            geo["resolution"] = pick_best_resolution(dss, bands)
+    debug = kw.get("debug", False)
 
-    dss = list(stac2ds(items, stac_cfg, product_cache=product_cache))
-    auto_fill_geo(geo, dss, bands)
+    # Check we have all the bands of interest
+    # will raise ValueError if no such band/alias
+    collection = _collection(_parsed)
+    bands_to_load = collection.resolve_bands(bands)
+    bands = list(bands_to_load)
+
+    load_cfg = _resolve_load_cfg(
+        bands_to_load,
+        resampling,
+        dtype=dtype,
+        use_overviews=kw.get("use_overviews", True),
+        nodata=kw.get("nodata", None),
+    )
 
     if patch_url is not None:
-        dss = [patch_urls(ds, edit=patch_url, bands=bands) for ds in dss]
+        _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
-    return dc_load(
-        dss,
-        measurements=bands,
-        groupby=groupby,
-        resampling=resampling,
-        chunks=chunks,
-        progress_cbk=progress_cbk,
-        skip_broken_datasets=skip_broken_datasets,
-        fuse_func=fuse_func,
-        **geo,
-        **kw,
+    # Time dimension
+    ((mid_lon, _),) = gbox.extent.centroid.to_crs("epsg:4326").points
+    _grouped_idx = _group_items(
+        items,
+        _parsed,
+        groupby,
+        mid_lon,
+        preserve_original_order=preserve_original_order,
     )
+
+    tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
+
+    # Spatio-temporal binning
+    assert isinstance(gbox.crs, CRS)
+    gbt = GeoboxTiles(gbox, chunk_shape)
+    tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
+    _parsed = [item.strip() for item in _parsed]
+
+    def _with_debug_info(ds: xr.Dataset, **kw) -> xr.Dataset:
+        # expose data for debugging
+        if not debug:
+            return ds
+
+        from types import SimpleNamespace  # pylint: disable=import-outside-toplevel
+
+        ds.encoding.update(
+            debug=SimpleNamespace(
+                gbt=gbt,
+                mid_lon=mid_lon,
+                parsed=_parsed,
+                grouped_idx=_grouped_idx,
+                tyx_bins=tyx_bins,
+                bands_to_load=bands_to_load,
+                load_cfg=load_cfg,
+                **kw,
+            )
+        )
+        return ds
+
+    def _task_stream(bands: List[str]) -> Iterator[_LoadChunkTask]:
+        _shape = (len(_grouped_idx), *gbt.shape)
+        for band_name in bands:
+            cfg = load_cfg[band_name]
+            for ti, yi, xi in np.ndindex(_shape):
+                tyx_idx = (ti, yi, xi)
+                srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
+                yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
+
+    if chunks is not None:
+        # Dask case: dummy for now
+        _loader = _DaskGraphBuilder(
+            load_cfg,
+            _parsed,
+            tyx_bins,
+            gbt,
+            _capture_rio_env(),
+        )
+        return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
+
+    ds = _mk_dataset(gbox, tss, load_cfg)
+    ny, nx = gbt.shape.yx
+    total_tasks = len(bands) * len(tss) * ny * nx
+    _tasks = []
+
+    def _do_one(task: _LoadChunkTask) -> Tuple[str, int, int, int]:
+        if debug:
+            # print(f"{task.band}[{task.idx_tyx}]")
+            _tasks.append(task)
+
+        dst_slice = ds[task.band].data[task.dst_roi]
+        srcs = [_parsed[idx][band] for idx, band in task.srcs]
+        _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, dst_slice)
+        t, y, x = task.idx_tyx
+        return (task.band, t, y, x)
+
+    _work = pmap(_do_one, _task_stream(bands), pool)
+
+    if progress is not None:
+        _work = progress(SizedIterable(_work, total_tasks))
+
+    for _ in _work:
+        pass
+
+    return _with_debug_info(ds, tasks=_tasks)
+
+
+def _resolve_load_cfg(
+    bands: Dict[str, RasterBandMetadata],
+    resampling: Optional[Union[str, Dict[str, str]]] = None,
+    dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
+    use_overviews: bool = True,
+    nodata: Optional[float] = None,
+) -> Dict[str, RasterLoadParams]:
+    def _dtype(name: str, band_dtype: Optional[str], fallback: str) -> str:
+        if dtype is None:
+            return with_default(band_dtype, fallback)
+        if isinstance(dtype, dict):
+            return str(
+                with_default(
+                    dtype.get(name, dtype.get("*", band_dtype)),
+                    fallback,
+                )
+            )
+        return str(dtype)
+
+    def _resampling(name: str, fallback: str) -> str:
+        if resampling is None:
+            return fallback
+        if isinstance(resampling, dict):
+            return resampling.get(name, resampling.get("*", fallback))
+        return resampling
+
+    def _fill_value(band: RasterBandMetadata) -> Optional[float]:
+        if nodata is not None:
+            return nodata
+        return band.nodata
+
+    def _resolve(name: str, band: RasterBandMetadata) -> RasterLoadParams:
+        return RasterLoadParams(
+            _dtype(name, band.data_type, "float32"),
+            fill_value=_fill_value(band),
+            use_overviews=use_overviews,
+            resampling=_resampling(name, "nearest"),
+        )
+
+    return {name: _resolve(name, band) for name, band in bands.items()}
+
+
+def _dask_loader_tyx(
+    srcs: List[RasterSource],
+    gbt: GeoboxTiles,
+    iyx: Tuple[int, int],
+    cfg: RasterLoadParams,
+    env: Dict[str, Any],
+):
+    assert cfg.dtype is not None
+    env = {**env}
+    session = env.pop("_aws", None)
+    gbox = gbt[iyx]
+    chunk = np.empty(gbox.shape.yx, dtype=cfg.dtype)
+    with rio_env(session, **env):
+        return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
+
+
+def _fill_2d_slice(
+    srcs: List[RasterSource],
+    dst_gbox: GeoBox,
+    cfg: RasterLoadParams,
+    dst: Any,
+) -> Any:
+    # TODO: support masks not just nodata based fusing
+    #
+    # ``nodata``     marks missing pixels, but it might be None (everything is valid)
+    # ``fill_value`` is the initial value to use, it's equal to ``nodata`` when set,
+    #                otherwise defaults to .nan for floats and 0 for integers
+    assert dst.shape == dst_gbox.shape.yx
+    nodata = _resolve_src_nodata(cfg.fill_value, cfg)
+
+    if nodata is None:
+        fill_value = float("nan") if dst.dtype.kind == "f" else 0
+    else:
+        fill_value = nodata
+
+    np.copyto(dst, fill_value)
+    if len(srcs) == 0:
+        return dst
+
+    src, *rest = srcs
+    _roi, pix = rio_read(src, cfg, dst_gbox, dst=dst)
+
+    for src in rest:
+        # first valid pixel takes precedence over others
+        _roi, pix = rio_read(src, cfg, dst_gbox)
+
+        # nodata mask takes care of nan when working with floats
+        # so you can still get proper mask even when nodata is None
+        # when working with float32 data.
+        missing = _nodata_mask(dst[_roi], nodata)
+        np.copyto(dst[_roi], pix, where=missing)
+
+    return dst
+
+
+def _mk_dataset(
+    gbox: GeoBox,
+    time: List[datetime],
+    bands: Dict[str, RasterLoadParams],
+    alloc: Optional[MkArray] = None,
+) -> xr.Dataset:
+    _shape = (len(time), *gbox.shape.yx)
+    coords = xr_coords(gbox)
+    crs_coord_name: Hashable = list(coords)[-1]
+    coords["time"] = xr.DataArray(time, dims=("time",))
+    dims = ("time", *gbox.dimensions)
+
+    def _alloc(shape: Tuple[int, ...], dtype: str, name: Hashable) -> Any:
+        if alloc is not None:
+            return alloc(shape, dtype, name=name)
+        return np.empty(shape, dtype=dtype)
+
+    def _maker(name: Hashable, band: RasterLoadParams) -> xr.DataArray:
+        assert band.dtype is not None
+        data = _alloc(_shape, band.dtype, name=name)
+        attrs = {}
+        if band.fill_value is not None:
+            attrs["nodata"] = band.fill_value
+
+        xx = xr.DataArray(data=data, coords=coords, dims=dims, attrs=attrs)
+        xx.encoding.update(grid_mapping=crs_coord_name)
+        return xx
+
+    return xr.Dataset({name: _maker(name, band) for name, band in bands.items()})
+
+
+def _extract_timestamps(grouped: List[List[ParsedItem]]) -> List[datetime]:
+    def _ts(group: List[ParsedItem]) -> datetime:
+        assert len(group) > 0
+        return group[0].nominal_datetime.replace(tzinfo=None)
+
+    return list(map(_ts, grouped))
+
+
+# pylint: disable=unused-argument
+def _groupby_solar_day(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
+    lon: Optional[float] = None,
+):
+    if lon is None:
+        return parsed.solar_date.date()
+    return parsed.solar_date_at(lon).date()
+
+
+def _groupby_time(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
+):
+    return parsed.nominal_datetime
+
+
+def _groupby_id(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
+):
+    return idx
+
+
+def _groupby_property(
+    item: pystac.item.Item,
+    parsed: ParsedItem,
+    idx: int,
+    key: str = "",
+):
+    return item.properties.get(key, None)
+
+
+def _resolve_groupby(groupby: Groupby, lon: Optional[float] = None) -> GroupbyCallback:
+    if not isinstance(groupby, str):
+        return groupby
+    if groupby == "time":
+        return _groupby_time
+    if groupby == "solar_day":
+        return functools.partial(_groupby_solar_day, lon=lon)
+    if groupby == "id":
+        return _groupby_id
+
+    return functools.partial(_groupby_property, key=groupby)
+
+
+def _group_items(
+    items: List[pystac.item.Item],
+    parsed: List[ParsedItem],
+    groupby: Groupby,
+    lon: Optional[float] = None,
+    preserve_original_order=False,
+) -> List[List[int]]:
+    assert len(items) == len(parsed)
+
+    group_key = _resolve_groupby(groupby, lon=lon)
+
+    def _sorter(idx: int):
+        _group = group_key(items[idx], parsed[idx], idx)
+
+        if preserve_original_order:
+            # Sort by group_key but keeping original item order within each group
+            return (_group, idx)
+
+        # Sort by group_key, but then time,id within each group
+        return (_group, parsed[idx].nominal_datetime, parsed[idx].id)
+
+    ii = sorted(range(len(parsed)), key=_sorter)
+
+    return [
+        list(group)
+        for _, group in itertools.groupby(
+            ii, lambda idx: group_key(items[idx], parsed[idx], idx)
+        )
+    ]
+
+
+def _tiles(item: ParsedItem, gbt: GeoboxTiles) -> Iterator[Tuple[int, int]]:
+    # TODO: should probably prefer native geometry if set in proj
+    # TODO: extract geometry from geobox if proj data is available
+    if item.geometry is None:
+        raise ValueError("Can not process items without defined footprint")
+    yield from gbt.tiles(item.geometry)
+
+
+def _tyx_bins(
+    grouped: List[List[int]],
+    items: List[ParsedItem],
+    gbt: GeoboxTiles,
+) -> Iterator[Tuple[Tuple[int, int, int], List[int]]]:
+    for t_idx, group in enumerate(grouped):
+        _yx: Dict[Tuple[int, int], List[int]] = {}
+
+        for item_idx in group:
+            for idx in _tiles(items[item_idx], gbt):
+                _yx.setdefault(idx, []).append(item_idx)
+
+        yield from (((t_idx, *idx), ii_item) for idx, ii_item in _yx.items())
+
+
+def _resolve_chunk_shape(gbox: GeoBox, chunks: Dict[str, int]) -> Tuple[int, int]:
+    def _norm_dim(chunk: int, sz: int) -> int:
+        if chunk < 0 or chunk > sz:
+            return sz
+        return chunk
+
+    ny, nx = [
+        _norm_dim(chunks.get(dim, chunks.get(fallback_dim, -1)), n)
+        for dim, fallback_dim, n in zip(gbox.dimensions, ["y", "x"], gbox.shape.yx)
+    ]
+    return ny, nx

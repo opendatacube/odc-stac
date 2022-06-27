@@ -82,3 +82,6 @@ docs/notebooks/
 
 # emacs virtual env link
 .venv
+
+/notebooks/*html
+/notebooks/*ipynb

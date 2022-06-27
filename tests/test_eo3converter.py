@@ -5,120 +5,15 @@ import pystac.asset
 import pystac.collection
 import pystac.item
 import pytest
-from common import mk_stac_item
+from common import NO_WARN_CFG, STAC_CFG, mk_stac_item
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
 from toolz import dicttoolz
 
-from odc.stac._eo3 import (
-    BandMetadata,
-    _compute_uuid,
-    asset_geobox,
-    band_metadata,
-    compute_eo3_grids,
-    has_proj_ext,
-    infer_dc_product,
-    is_raster_data,
-    item_to_ds,
-    mk_product,
-    stac2ds,
-)
-
-STAC_CFG = {
-    "sentinel-2-l2a": {
-        "assets": {
-            "*": BandMetadata("uint16", 0, "1"),
-            "SCL": BandMetadata("uint8", 0, "1"),
-            "visual": dict(data_type="uint8", nodata=0, unit="1"),
-        },
-        "aliases": {  # Work around duplicate rededge common_name
-            "rededge": "B05",
-            "rededge1": "B05",
-            "rededge2": "B06",
-            "rededge3": "B07",
-        },
-    }
-}
-
-
-def test_mk_product():
-    p = mk_product(
-        "some-product",
-        ["a", "b"],
-        {"*": BandMetadata("uint8", 0, "1"), "b": BandMetadata("int16", -999, "BB")},
-        {"A": "a", "B": "b", "bb": "b"},
-    )
-
-    assert p.name == "some_product"
-    assert p.metadata_type.name == "eo3"
-    assert set(p.measurements) == {"a", "b"}
-    assert p.measurements["a"].dtype == "uint8"
-    assert p.measurements["a"].nodata == 0
-    assert p.measurements["a"].units == "1"
-    assert p.measurements["a"].aliases == ["A"]
-
-    assert p.measurements["b"].dtype == "int16"
-    assert p.measurements["b"].nodata == -999
-    assert p.measurements["b"].units == "BB"
-    assert p.canonical_measurement("B") == "b"
-    assert p.canonical_measurement("bb") == "b"
-
-    p = mk_product(
-        "Some Product",
-        ["a", "b", "c"],
-        {},
-    )
-
-    assert p.name == "Some_Product"
-    assert set(p.measurements) == {"a", "b", "c"}
-    assert p.metadata_type.name == "eo3"
-
-    for m in p.measurements.values():
-        assert m.dtype == "uint16"
-        assert m.nodata == 0
-        assert m.units == "1"
-
-
-def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):
-    item = sentinel_stac_ms
-    assert "B01" in item.assets
-    assert "B02" in item.assets
-
-    assert is_raster_data(item.assets["B01"])
-
-    # check case when roles are missing
-    item.assets["B02"].roles = None
-    assert is_raster_data(item.assets["B02"])
-
-
-def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
-    item0 = sentinel_stac_ms
-
-    item = item0.clone()
-    assert item.collection_id == "sentinel-2-l2a"
-
-    data_bands = {
-        name: asset
-        for name, asset in item.assets.items()
-        if is_raster_data(asset, check_proj=True)
-    }
-
-    grids, b2g = compute_eo3_grids(data_bands)
-    assert set(grids) == set("default g20 g60".split(" "))
-    assert set(grids) == set(b2g.values())
-    assert set(b2g) == set(data_bands)
-
-    # test the case where there are different shapes for the same gsd
-    ProjectionExtension.ext(item.assets["B01"]).shape = (100, 200)
-    with pytest.raises(NotImplementedError):
-        compute_eo3_grids(data_bands)
-
-    # More than 1 CRS is not supported
-    item = item0.clone()
-    ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
-    with pytest.raises(ValueError):
-        compute_eo3_grids(data_bands)
+from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext
+from odc.stac.eo3 import infer_dc_product, stac2ds
+from odc.stac.eo3._eo3converter import _compute_uuid, _item_to_ds
 
 
 def test_infer_product_collection(
@@ -135,7 +30,8 @@ def test_infer_product_collection(
     assert product.canonical_measurement("blue") == "B02"
 
     # check band2grid
-    b2g = product._stac_cfg["band2grid"]
+    md: RasterCollectionMetadata = product._md
+    b2g = md.band2grid
     assert b2g["B02"] == "default"
     assert b2g["B01"] == "g60"
     assert set(b2g.values()) == set("default g20 g60".split(" "))
@@ -143,7 +39,7 @@ def test_infer_product_collection(
 
     # Check that we can use product derived this way on an Item
     item = sentinel_stac_ms_with_raster_ext.clone()
-    ds = item_to_ds(item, product)
+    ds = _item_to_ds(item, product)
     geobox = native_geobox(ds, basis="B02")
     assert geobox.shape == (10980, 10980)
     assert geobox.crs == "EPSG:32606"
@@ -182,7 +78,7 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
     assert product.canonical_measurement("rededge2") == "B06"
     assert product.canonical_measurement("rededge3") == "B07"
 
-    assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
+    assert set(product._md.band2grid) == set(product.measurements)
 
     _stac = dicttoolz.dissoc(sentinel_stac_ms.to_dict(), "collection")
     item_no_collection = pystac.item.Item.from_dict(_stac)
@@ -204,7 +100,7 @@ def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.
     assert product.canonical_measurement("red") == "B04"
     assert product.canonical_measurement("green") == "B03"
     assert product.canonical_measurement("blue") == "B02"
-    assert set(product._stac_cfg["band2grid"]) == set(product.measurements)
+    assert set(product._md.band2grid) == set(product.measurements)
 
 
 def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
@@ -215,7 +111,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
 
     with pytest.warns(UserWarning, match="`rededge`"):
         product = infer_dc_product(item, STAC_CFG)
-    ds = item_to_ds(item, product)
+    ds = _item_to_ds(item, product)
 
     assert set(ds.measurements) == set(product.measurements)
     assert ds.crs is not None
@@ -236,7 +132,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
     item = item0.clone()
     item.assets.pop("B01")
     with pytest.warns(UserWarning, match="Missing asset"):
-        ds = item_to_ds(item, product)
+        ds = _item_to_ds(item, product, STAC_CFG)
 
     # Test no eo extension case
     item = item0.clone()
@@ -247,13 +143,11 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
     with pytest.raises(ValueError):
         product.canonical_measurement("green")
 
-    # Test multiple CRS unhappy path
+    # Test multiple CRS path
     item = item0.clone()
     ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
     assert ProjectionExtension.ext(item.assets["B01"]).crs_string == "EPSG:3857"
-    with pytest.raises(ValueError):
-        with pytest.warns(UserWarning, match="`rededge`"):
-            infer_dc_product(item, STAC_CFG)
+    infer_dc_product(item, NO_WARN_CFG)
 
 
 def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
@@ -268,64 +162,11 @@ def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
         product = infer_dc_product(item, STAC_CFG)
 
     geom = Geometry(item.geometry, "EPSG:4326")
-    ds = item_to_ds(item, product)
+    ds = _item_to_ds(item, product, STAC_CFG)
     assert ds.crs == "EPSG:4326"
     assert ds.extent is not None
     assert ds.extent.contains(geom)
     assert native_geobox(ds).shape == (1, 1)
-
-
-def test_asset_geobox(sentinel_stac: pystac.item.Item):
-    item0 = sentinel_stac
-    item = item0.clone()
-    asset = item.assets["B01"]
-    geobox = asset_geobox(asset)
-    assert geobox.shape == (1830, 1830)
-
-    # Tests non-affine transofrm ValueError
-    item = item0.clone()
-    asset = item.assets["B01"]
-    ProjectionExtension.ext(asset).transform[-1] = 2
-    with pytest.raises(ValueError):
-        asset_geobox(asset)
-
-    # Tests wrong-sized transform transofrm ValueError
-    item = item0.clone()
-    asset = item.assets["B01"]
-    ProjectionExtension.ext(asset).transform = [1, 1, 2]
-    with pytest.raises(ValueError):
-        asset_geobox(asset)
-
-    # Test missing transform transofrm ValueError
-    item = item0.clone()
-    asset = item.assets["B01"]
-    ProjectionExtension.ext(asset).transform = None
-    with pytest.raises(ValueError):
-        asset_geobox(asset)
-
-    # Test no proj extension case
-    item = item0.clone()
-    item.stac_extensions = []
-    asset = item.assets["B01"]
-    with pytest.raises(ValueError):
-        asset_geobox(asset)
-
-
-def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item):
-    assert has_proj_ext(sentinel_stac_ms_no_ext) is False
-
-
-def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
-    item = sentinel_stac_ms_with_raster_ext.clone()
-    asset = item.assets["SCL"]
-    bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
-    assert bm == BandMetadata("uint8", 0, "1")
-
-    # Test multiple bands per asset cause a warning
-    asset.extra_fields["raster:bands"].append({"nodata": -10})
-    with pytest.warns(UserWarning, match="Defaulting to first band of 2"):
-        bm = band_metadata(asset, BandMetadata("uint16", 0, "1"))
-    assert bm == BandMetadata("uint8", 0, "1")
 
 
 def test_item_uuid():
@@ -355,29 +196,6 @@ def test_item_uuid():
     assert id1 != id2
 
 
-def test_is_raster_data_more():
-    def _a(href="http://example.com/", **kw):
-        return pystac.asset.Asset(href, **kw)
-
-    assert is_raster_data(_a(media_type="image/jpeg")) is True
-    assert is_raster_data(_a(media_type="image/jpeg", roles=["data"])) is True
-    assert is_raster_data(_a(media_type="image/jpeg", roles=["overview"])) is False
-    assert is_raster_data(_a(media_type="image/jpeg", roles=["thumbnail"])) is False
-
-    # no media type defined
-    assert is_raster_data(_a(roles=["data"])) is True
-    assert is_raster_data(_a(roles=["metadata"])) is False
-    assert is_raster_data(_a(roles=["custom-22"])) is False
-
-    # based on extension
-    assert is_raster_data(_a(href="/foo.tif")) is True
-    assert is_raster_data(_a(href="/foo.tiff")) is True
-    assert is_raster_data(_a(href="/foo.TIF")) is True
-    assert is_raster_data(_a(href="/foo.TIFF")) is True
-    assert is_raster_data(_a(href="/foo.jpeg")) is True
-    assert is_raster_data(_a(href="/foo.jpg")) is True
-
-
 def test_issue_n6(usgs_landsat_stac_v1):
     expected_bands = {
         "blue",
@@ -403,3 +221,16 @@ def test_partial_proj(partial_proj_stac):
 def test_noassets_case(no_bands_stac):
     with pytest.raises(ValueError):
         list(stac2ds([no_bands_stac]))
+
+
+def test_old_imports():
+    import odc.stac
+
+    assert "stac2ds" in dir(odc.stac)
+    assert "infer_dc_product" in dir(odc.stac)
+
+    assert odc.stac.stac2ds is stac2ds
+    assert odc.stac.infer_dc_product is infer_dc_product
+
+    with pytest.raises(AttributeError):
+        _ = odc.stac.no_such_thing

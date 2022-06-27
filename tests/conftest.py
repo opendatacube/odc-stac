@@ -2,17 +2,19 @@
 Test for SQS to DC tool
 """
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import distributed
+import geopandas as gpd
 import pystac
 import pystac.collection
 import pystac.item
 import pytest
 from datacube.utils import documents
 
-from odc.stac import stac2ds
+from odc.stac.eo3 import stac2ds
 
 TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
 PARTIAL_PROJ_STAC: str = "only_crs_proj.json"
@@ -106,9 +108,8 @@ def bench_site2():
 
 
 @pytest.fixture
-def sentinel_stac_ms(sentinel_stac_ms_json):
-    metadata = dict(sentinel_stac_ms_json)
-    return pystac.item.Item.from_dict(metadata)
+def sentinel_stac_ms():
+    return pystac.item.Item.from_file(str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS)))
 
 
 @pytest.fixture
@@ -135,6 +136,14 @@ def sentinel_stac_collection():
 @pytest.fixture
 def sentinel_odc():
     return pystac.item.Item.from_file(str(TEST_DATA_FOLDER.joinpath(SENTINEL_ODC)))
+
+
+@pytest.fixture
+def relative_href_only(ga_landsat_stac: pystac.item.Item):
+    item = pystac.Item.from_dict(ga_landsat_stac.to_dict())
+    item = item.make_asset_hrefs_relative()
+    item.remove_links("self")
+    return item
 
 
 @pytest.fixture
@@ -227,3 +236,27 @@ def _strip_links(gjson):
     for item in gjson["features"]:
         item["links"] = []
     return gjson
+
+
+@pytest.fixture()
+def gpd_natural_earth():
+    yield gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+
+
+@pytest.fixture()
+def gpd_iso3(gpd_natural_earth):
+    def _get(iso3, crs=None):
+        gg = gpd_natural_earth[gpd_natural_earth.iso_a3 == iso3]
+        if crs is not None:
+            gg = gg.to_crs(crs)
+        return gg
+
+    yield _get
+
+
+@pytest.fixture()
+def without_aws_env(monkeypatch):
+    for e in os.environ:
+        if e.startswith("AWS_"):
+            monkeypatch.delenv(e, raising=False)
+    yield

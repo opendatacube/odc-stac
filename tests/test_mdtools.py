@@ -1,0 +1,543 @@
+import math
+
+import pystac
+import pystac.asset
+import pystac.collection
+import pystac.item
+import pystac.utils
+import pytest
+from common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
+from odc.geo import geom
+from odc.geo.geobox import GeoBox, geobox_union_conservative
+from odc.geo.xr import xr_zeros
+from pystac.extensions.projection import ProjectionExtension
+
+from odc.stac._mdtools import (
+    RasterBandMetadata,
+    _auto_load_params,
+    _normalize_geometry,
+    asset_geobox,
+    band_metadata,
+    compute_eo3_grids,
+    extract_collection_metadata,
+    has_proj_ext,
+    is_raster_data,
+    output_geobox,
+    parse_item,
+    parse_items,
+)
+from odc.stac._model import ParsedItem
+from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
+
+GBOX = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
+
+
+def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):
+    item = sentinel_stac_ms
+    assert "B01" in item.assets
+    assert "B02" in item.assets
+
+    assert is_raster_data(item.assets["B01"])
+
+    # check case when roles are missing
+    item.assets["B02"].roles = None
+    assert is_raster_data(item.assets["B02"])
+
+
+def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
+    item0 = sentinel_stac_ms
+
+    item = item0.clone()
+    assert item.collection_id == "sentinel-2-l2a"
+
+    data_bands = {
+        name: asset
+        for name, asset in item.assets.items()
+        if is_raster_data(asset, check_proj=True)
+    }
+
+    grids, b2g = compute_eo3_grids(data_bands)
+    assert set(grids) == set("default g20 g60".split(" "))
+    assert set(grids) == set(b2g.values())
+    assert set(b2g) == set(data_bands)
+
+    # test the case where there are different shapes for the same gsd
+    # clashing grid names should be resolved
+    ProjectionExtension.ext(item.assets["B01"]).shape = (100, 200)
+    grids, b2g = compute_eo3_grids(data_bands)
+    assert b2g["B01"] != b2g["B02"]
+
+    # More than 1 CRS should work
+    item = item0.clone()
+    ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
+    grids, b2g = compute_eo3_grids(data_bands)
+    assert b2g["B01"] != b2g["B02"]
+    assert grids[b2g["B01"]].crs.epsg == 3857
+
+
+def test_asset_geobox(sentinel_stac: pystac.item.Item):
+    item0 = sentinel_stac
+    item = item0.clone()
+    asset = item.assets["B01"]
+    geobox = asset_geobox(asset)
+    assert geobox.shape == (1830, 1830)
+
+    # Tests non-affine transofrm ValueError
+    item = item0.clone()
+    asset = item.assets["B01"]
+    ProjectionExtension.ext(asset).transform[-1] = 2
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
+
+    # Tests wrong-sized transform transofrm ValueError
+    item = item0.clone()
+    asset = item.assets["B01"]
+    ProjectionExtension.ext(asset).transform = [1, 1, 2]
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
+
+    # Test missing transform transofrm ValueError
+    item = item0.clone()
+    asset = item.assets["B01"]
+    ProjectionExtension.ext(asset).transform = None
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
+
+    # Test no proj extension case
+    item = item0.clone()
+    item.stac_extensions = []
+    asset = item.assets["B01"]
+    with pytest.raises(ValueError):
+        asset_geobox(asset)
+
+
+def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item):
+    assert has_proj_ext(sentinel_stac_ms_no_ext) is False
+
+
+def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+    item = sentinel_stac_ms_with_raster_ext.clone()
+    asset = item.assets["SCL"]
+    bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
+    assert bm == RasterBandMetadata("uint8", 0, "1")
+
+    # Test multiple bands per asset cause a warning
+    asset.extra_fields["raster:bands"].append({"nodata": -10})
+    with pytest.warns(UserWarning, match="Defaulting to first band of 2"):
+        bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
+    assert bm == RasterBandMetadata("uint8", 0, "1")
+
+
+def test_is_raster_data_more():
+    def _a(href="http://example.com/", **kw):
+        return pystac.asset.Asset(href, **kw)
+
+    assert is_raster_data(_a(media_type="image/jpeg")) is True
+    assert is_raster_data(_a(media_type="image/jpeg", roles=["data"])) is True
+    assert is_raster_data(_a(media_type="image/jpeg", roles=["overview"])) is False
+    assert is_raster_data(_a(media_type="image/jpeg", roles=["thumbnail"])) is False
+
+    # no media type defined
+    assert is_raster_data(_a(roles=["data"])) is True
+    assert is_raster_data(_a(roles=["metadata"])) is False
+    assert is_raster_data(_a(roles=["custom-22"])) is False
+
+    # based on extension
+    assert is_raster_data(_a(href="/foo.tif")) is True
+    assert is_raster_data(_a(href="/foo.tiff")) is True
+    assert is_raster_data(_a(href="/foo.TIF")) is True
+    assert is_raster_data(_a(href="/foo.TIFF")) is True
+    assert is_raster_data(_a(href="/foo.jpeg")) is True
+    assert is_raster_data(_a(href="/foo.jpg")) is True
+
+
+def test_extract_md(sentinel_stac_ms: pystac.item.Item):
+    item0 = sentinel_stac_ms
+    item = pystac.Item.from_dict(item0.to_dict())
+
+    assert item.collection_id in STAC_CFG
+
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        md = extract_collection_metadata(item, STAC_CFG)
+
+    assert md.name == "sentinel-2-l2a"
+
+    assert set(md.bands) == S2_ALL_BANDS
+
+    # check defaults were set
+    for b in ["B01", "B02", "B03"]:
+        assert md.bands[b].data_type == "uint16"
+        assert md.bands[b].nodata == 0
+        assert md.bands[b].unit == "1"
+
+    assert md.bands["SCL"].data_type == "uint8"
+    assert md.bands["visual"].data_type == "uint8"
+
+    # check aliases configuration
+    assert md.aliases["rededge"] == "B05"
+    assert md.aliases["rededge1"] == "B05"
+    assert md.aliases["rededge2"] == "B06"
+    assert md.aliases["rededge3"] == "B07"
+
+    # check without config
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        md = extract_collection_metadata(item)
+
+    for band in md.bands.values():
+        assert band.data_type == "float32"
+        assert band.nodata is None
+        assert band.unit == "1"
+
+    # Test that multiple CRSs per item work
+    item = pystac.Item.from_dict(item0.to_dict())
+    ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
+    assert ProjectionExtension.ext(item.assets["B01"]).crs_string == "EPSG:3857"
+    md = extract_collection_metadata(item, NO_WARN_CFG)
+    assert md.band2grid["B01"] != md.band2grid["B02"]
+
+    # Test no-collection name item
+    item = pystac.Item.from_dict(item0.to_dict())
+    item.collection_id = None
+    md = extract_collection_metadata(item, NO_WARN_CFG)
+    assert md.name == "_"
+
+
+def test_noassets_case(no_bands_stac):
+    with pytest.raises(ValueError):
+        _ = extract_collection_metadata(no_bands_stac)
+
+
+def test_extract_md_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+    item = sentinel_stac_ms_with_raster_ext
+
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        md = extract_collection_metadata(item, STAC_CFG)
+
+    assert md.aliases["red"] == "B04"
+    assert md.aliases["green"] == "B03"
+    assert md.aliases["blue"] == "B02"
+
+
+def test_parse_item(sentinel_stac_ms: pystac.item.Item):
+    item0 = sentinel_stac_ms
+    item = pystac.Item.from_dict(item0.to_dict())
+
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        md = extract_collection_metadata(item, STAC_CFG)
+
+    xx = parse_item(item, md)
+    assert xx.datetime_range == (None, None)
+    assert xx.datetime == item.datetime
+    assert xx.nominal_datetime == item.datetime
+
+    assert set(xx.bands) == S2_ALL_BANDS
+    assert xx.bands["B02"].geobox is not None
+
+    assert xx.geoboxes() == xx.geoboxes(S2_ALL_BANDS)
+    assert xx.geoboxes(["B02", "B03"]) == (xx.bands["B02"].geobox,)
+    assert xx.geoboxes(["B01", "B02", "B03"]) == (
+        xx.bands["B02"].geobox,
+        xx.bands["B01"].geobox,
+    )
+    assert xx.geoboxes() == (
+        xx.bands["B02"].geobox,  # 10m
+        xx.bands["B05"].geobox,  # 20m
+        xx.bands["B01"].geobox,  # 60m
+    )
+
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        (yy,) = list(parse_items(iter([item]), STAC_CFG))
+        assert xx == yy
+
+    # Test missing band case
+    item = pystac.Item.from_dict(item0.to_dict())
+    item.assets.pop("B01")
+    with pytest.warns(UserWarning, match="Missing asset"):
+        xx = parse_item(item, md)
+
+
+@pytest.mark.xfail
+def test_parse_no_absolute_href(relative_href_only: pystac.item.Item):
+    # Currently pystac never returns `None` from attached asset
+    # see: https://github.com/stac-utils/pystac/issues/754
+    item = relative_href_only
+    assert item.get_self_href() is None
+    for asset in item.assets.values():
+        assert pystac.utils.is_absolute_href(asset.href) is False
+        assert asset.get_absolute_href() is None  # <<< asserts here, but shouldn't
+
+    with pytest.raises(ValueError):
+        _ = parse_item(item, extract_collection_metadata(item))
+
+
+def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
+    item0 = sentinel_stac_ms
+    item = pystac.Item.from_dict(item0.to_dict())
+    item.stac_extensions.remove(
+        "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
+    )
+    assert has_proj_ext(item) is False
+
+    with pytest.warns(UserWarning, match="`rededge`"):
+        md = extract_collection_metadata(item, STAC_CFG)
+
+    xx = parse_item(item, md)
+    for band in xx.bands.values():
+        assert band.geobox is None
+
+    assert xx.geoboxes() == ()
+
+    assert _auto_load_params([xx] * 3) is None
+
+
+@pytest.fixture
+def parsed_item_s2(sentinel_stac_ms: pystac.item.Item):
+    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+        (item,) = parse_items([sentinel_stac_ms], STAC_CFG)
+    yield item
+
+
+def test_auto_load_params(parsed_item_s2: ParsedItem):
+    xx = parsed_item_s2
+    assert len(xx.geoboxes()) == 3
+    crs = xx.geoboxes()[0].crs
+
+    _10m = xx.bands["B02"].geobox.resolution
+    _20m = xx.bands["B05"].geobox.resolution
+    _60m = xx.bands["B01"].geobox.resolution
+
+    assert _10m.xy == (10, -10)
+    assert _20m.xy == (20, -20)
+    assert _60m.xy == (60, -60)
+
+    assert _auto_load_params([]) is None
+    assert _auto_load_params([xx]) == (crs, _10m)
+    assert _auto_load_params([xx] * 3) == (crs, _10m)
+
+    assert _auto_load_params([xx], ["B01"]) == (crs, _60m)
+    assert _auto_load_params([xx] * 3, ["B01", "B05", "B06"]) == (crs, _20m)
+    assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m)
+
+
+def test_norm_geom(gpd_iso3):
+    g = geom.box(0, -1, 10, 1, "epsg:4326")
+
+    assert _normalize_geometry(g) is g
+    assert _normalize_geometry(g.geom) == g
+    assert _normalize_geometry(g.json) == g
+
+    assert _normalize_geometry(g.geojson()) == g
+    assert (
+        _normalize_geometry(dict(type="FeatureCollection", features=[g.geojson()])) == g
+    )
+
+    g = gpd_iso3("AUS")
+    assert g.crs == "epsg:4326"
+    assert _normalize_geometry(g).crs == "epsg:4326"
+
+    g = gpd_iso3("AUS", "epsg:3577")
+    assert g.crs == "epsg:3577"
+    assert _normalize_geometry(g).crs == "epsg:3577"
+
+    with pytest.raises(ValueError):
+        _ = _normalize_geometry({})  # not a valid geojson
+
+    with pytest.raises(ValueError):
+        _ = _normalize_geometry(object())  # Can't interpret value as geometry
+
+
+def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
+    au = gpd_iso3("AUS", "epsg:3577")
+
+    gbox = output_geobox([], geopolygon=au, resolution=100, crs="epsg:3857")
+    assert gbox is not None
+    assert gbox.crs == "epsg:3857"
+    assert gbox.resolution.xy == (100, -100)
+
+    # default CRS to that of the polygon
+    gbox = output_geobox([], geopolygon=au, resolution=100)
+    assert gbox is not None
+    assert gbox.crs == "epsg:3577"
+    assert gbox.resolution.xy == (100, -100)
+
+    gbox = output_geobox([parsed_item_s2], geopolygon=au, resolution=100)
+    assert gbox is not None
+    assert gbox.crs == parsed_item_s2.crs()
+    assert gbox.resolution.xy == (100, -100)
+
+    gbox = output_geobox([parsed_item_s2])
+    assert gbox is not None
+    assert gbox.crs == parsed_item_s2.crs()
+    assert gbox.resolution.xy == (10, -10)
+
+    # like/gbox
+    assert output_geobox([], geobox=gbox) == gbox
+    assert output_geobox([], like=gbox) == gbox
+    assert output_geobox([], like=xr_zeros(gbox[:10, :20])) == gbox[:10, :20]
+
+    # no resolution/crs
+    assert output_geobox([], bbox=[0, 1, 2, 3]) is None
+    assert output_geobox([], bbox=[0, 1, 2, 3], resolution=10) is None
+    assert output_geobox([], bbox=[0, 1, 2, 3], crs="epsg:4326") is None
+
+    # lon-lat/x-y/bbox
+    gbox = GeoBox.from_bbox((0, -10, 100, 25), resolution=1)
+    assert gbox.boundingbox == (0, -10, 100, 25)
+    bbox = gbox.boundingbox
+
+    assert gbox == output_geobox(
+        [],
+        x=bbox.range_x,
+        y=bbox.range_y,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+    )
+
+    assert gbox == output_geobox(
+        [],
+        lon=bbox.range_x,
+        lat=bbox.range_y,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+    )
+
+    assert gbox == output_geobox(
+        [],
+        bbox=bbox.bbox,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+    )
+
+    assert gbox == output_geobox(
+        [],
+        bbox=bbox.bbox,
+        resolution=gbox.resolution,
+        crs=gbox.crs,
+        align=0,
+    )
+
+
+def test_output_geobox_from_items():
+    cc = 0
+
+    def mk_item(gbox: GeoBox, time="2020-01-10"):
+        nonlocal cc
+        cc = cc + 1
+        return mk_parsed_item(
+            [b_("b1", geobox=gbox), b_("b2", geobox=gbox)], time, id=f"item-{cc}"
+        )
+
+    gboxes = [GBOX, GBOX.left, GBOX.right.pad(3)]
+
+    gbox = output_geobox([mk_item(gbox) for gbox in gboxes])
+    assert gbox.crs == GBOX.crs
+    assert geobox_union_conservative(gboxes) == gbox
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        # not enough args
+        {"x": (0, 10)},
+        {"y": (0, 10)},
+        {"lon": (0, 1)},
+        {"lat": (0, 1)},
+        {"x": (0, 1), "y": (1, 2)},
+        # too many args
+        {"lat": (0, 1), "lon": (1, 2), "x": (3, 4), "y": (5, 6)},
+        {"lat": (0, 1), "lon": (1, 2), "bbox": (0, 1, 2, 3)},
+        {"lat": (0, 1), "lon": (1, 2), "geopolygon": geom.box(0, 0, 1, 1, "epsg:4326")},
+        {"bbox": (0, 0, 1, 1), "geopolygon": geom.box(0, 0, 1, 1, "epsg:4326")},
+        # bad args
+        {"like": object()},
+    ],
+)
+def test_output_gbox_bads(kw):
+    with pytest.raises(ValueError):
+        _ = output_geobox([], **kw)
+
+
+def test_mk_parsed_item():
+    fmt = "%Y-%m-%d"
+    item = mk_parsed_item(
+        [b_("b1"), b_("b2")],
+        "2020-01-10",
+        start_datetime="2020-01-01",
+        end_datetime="2020-01-31",
+    )
+
+    assert item.datetime.strftime(fmt) == "2020-01-10"
+    assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1].strftime(fmt) == "2020-01-31"
+    assert item.geometry is None
+    assert item.crs() is None
+    assert item.collection.has_proj is False
+
+    assert set(item.bands) == set(["b1", "b2"])
+    assert item.bands["b1"].uri.endswith("b1.tif")
+
+    item = mk_parsed_item(
+        [b_("b1"), b_("b2")],
+        datetime=None,
+        start_datetime="2020-01-01",
+        end_datetime="2020-01-31",
+    )
+
+    assert item.datetime is None
+    assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1].strftime(fmt) == "2020-01-31"
+
+    item = mk_parsed_item(
+        [b_("b1"), b_("b2")],
+        "2020-01-10",
+        start_datetime="2020-01-01",
+        end_datetime=None,
+    )
+    assert item.datetime.strftime(fmt) == "2020-01-10"
+    assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1] is None
+
+    gbox = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
+    item = mk_parsed_item(
+        [b_("b1", geobox=gbox), b_("b2", geobox=gbox)],
+        "2020-01-10",
+    )
+    assert item.geometry is not None
+    assert item.geometry.crs == "epsg:4326"
+    assert item.crs() == "epsg:3857"
+    assert item.geoboxes() == (gbox,)
+    assert item.collection.has_proj is True
+
+
+@pytest.mark.parametrize(
+    "parsed_item",
+    [
+        mk_parsed_item(
+            [b_("band")], None, "2020-01-01", "2021-12-31T23:59:59.9999999Z"
+        ),
+        mk_parsed_item([b_("b1"), b_("b2", nodata=10)], "2020-01-01"),
+        mk_parsed_item(
+            [
+                b_("b1", dtype="float32", geobox=GBOX),
+                b_("b2", nodata=10, geobox=GBOX),
+            ],
+            "2020-01-01",
+        ),
+        mk_parsed_item(
+            [
+                b_("b1", dtype="float32", geobox=GBOX),
+                b_("b2", dtype="int32", nodata=-99, geobox=GBOX.zoom_out(2)),
+            ],
+            "2020-01-01",
+            "2020-01-01",
+            "2021-12-31T23:59:59.9999999Z",
+            href="file:///date/item/1.json",
+        ),
+    ],
+)
+def test_round_trip(parsed_item: ParsedItem):
+    item = to_stac_item(parsed_item)
+    md = extract_collection_metadata(item)
+
+    assert parsed_item.collection == md
+    assert parsed_item == parse_item(item, md)
