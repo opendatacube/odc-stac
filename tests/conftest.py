@@ -29,6 +29,7 @@ SENTINEL_STAC_MS_RASTER_EXT: str = (
 SENTINEL_ODC: str = "S2A_28QCH_20200714_0_L2A.odc-metadata.json"
 USGS_LANDSAT_STAC_v1b: str = "LC08_L2SR_081119_20200101_20200823_02_T2.json"
 USGS_LANDSAT_STAC_v1: str = "LC08_L2SP_028030_20200114_20200824_02_T1_SR.json"
+USGS_LANDSAT_STAC_v1_1_1: str = "LE07_L2SP_044033_20210329_20210424_02_T1_SR.json"
 LIDAR_STAC: str = "lidar_dem.json"
 BENCH_SITE1: str = "site1-20200606-tall-strip-africa.geojson"
 BENCH_SITE2: str = "site2-2020_jun_jul-35MNM.geojson"
@@ -63,6 +64,13 @@ def usgs_landsat_stac_v1():
 def usgs_landsat_stac_v1b():
     return pystac.item.Item.from_file(
         str(TEST_DATA_FOLDER.joinpath(USGS_LANDSAT_STAC_v1b))
+    )
+
+
+@pytest.fixture
+def usgs_landsat_stac_v1_1_1():
+    return pystac.item.Item.from_file(
+        str(TEST_DATA_FOLDER.joinpath(USGS_LANDSAT_STAC_v1_1_1))
     )
 
 
