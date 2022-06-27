@@ -7,6 +7,7 @@ from unittest import mock
 
 import pytest
 
+_ = pytest.importorskip("botocore")
 from odc.stac._aws import (
     _fetch_text,
     auto_find_region,

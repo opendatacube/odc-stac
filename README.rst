@@ -36,6 +36,12 @@ Using pip
 
    pip install odc-stac
 
+To install with ``botocore`` support (for working with AWS):
+
+.. code-block:: bash
+
+   pip install 'odc-stac[botocore]'
+
 
 Using Conda
 ~~~~~~~~~~~
