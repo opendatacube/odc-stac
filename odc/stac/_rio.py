@@ -246,7 +246,13 @@ def configure_s3_access(
     :returns: credentials object or ``None`` if ``aws_unsigned=True``
     """
     # pylint: disable=import-outside-toplevel
-    from ._aws import get_aws_settings
+    try:
+        from ._aws import get_aws_settings
+    except ImportError as e:
+        raise ImportError(
+            "botocore is required to configure s3 access. "
+            "Install botocore directly or via `pip install 'odc-stac[botocore]'"
+        ) from e
 
     aws, creds = get_aws_settings(
         profile=profile,
