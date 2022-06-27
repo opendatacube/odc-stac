@@ -63,7 +63,10 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
 
     assert item.collection_id in STAC_CFG
 
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         product = infer_dc_product(item, STAC_CFG)
 
     assert product.measurements["SCL"].dtype == "uint8"
@@ -84,13 +87,19 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
     item_no_collection = pystac.item.Item.from_dict(_stac)
     assert item_no_collection.collection_id is None
 
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         product = infer_dc_product(item_no_collection)
 
 
 def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         product = infer_dc_product(item)
 
     assert product.measurements["SCL"].dtype == "uint8"

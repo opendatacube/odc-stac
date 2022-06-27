@@ -157,7 +157,10 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
 
     assert item.collection_id in STAC_CFG
 
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         md = extract_collection_metadata(item, STAC_CFG)
 
     assert md.name == "sentinel-2-l2a"
@@ -180,7 +183,10 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
     assert md.aliases["rededge3"] == "B07"
 
     # check without config
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         md = extract_collection_metadata(item)
 
     for band in md.bands.values():
@@ -210,7 +216,10 @@ def test_noassets_case(no_bands_stac):
 def test_extract_md_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext
 
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         md = extract_collection_metadata(item, STAC_CFG)
 
     assert md.aliases["red"] == "B04"
@@ -222,7 +231,10 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item):
     item0 = sentinel_stac_ms
     item = pystac.Item.from_dict(item0.to_dict())
 
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         md = extract_collection_metadata(item, STAC_CFG)
 
     xx = parse_item(item, md)
@@ -245,7 +257,10 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item):
         xx.bands["B01"].geobox,  # 60m
     )
 
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         (yy,) = list(parse_items(iter([item]), STAC_CFG))
         assert xx == yy
 
@@ -292,7 +307,10 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
 
 @pytest.fixture
 def parsed_item_s2(sentinel_stac_ms: pystac.item.Item):
-    with pytest.warns(UserWarning, match="Common name `rededge` is repeated, skipping"):
+    with pytest.warns(
+        UserWarning,
+        match="Aliases are not supported for multi-band assets, skipping `visual`",
+    ):
         (item,) = parse_items([sentinel_stac_ms], STAC_CFG)
     yield item
 
@@ -541,3 +559,16 @@ def test_round_trip(parsed_item: ParsedItem):
 
     assert parsed_item.collection == md
     assert parsed_item == parse_item(item, md)
+
+
+def test_usgs_v1_1_1_aliases(usgs_landsat_stac_v1_1_1: pystac.Item) -> None:
+    parsed_item = next(parse_items([usgs_landsat_stac_v1_1_1]))
+    collection = parsed_item.collection
+    assert collection.aliases == {
+        "B1": "blue",
+        "B2": "green",
+        "B3": "red",
+        "B4": "nir08",
+        "B5": "swir16",
+        "B7": "swir22",
+    }

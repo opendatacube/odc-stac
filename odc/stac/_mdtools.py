@@ -333,36 +333,44 @@ def alias_map_from_eo(item: pystac.item.Item, quiet: bool = False) -> Dict[str, 
     """
     Generate mapping ``common name -> canonical name``.
 
-    For all unique common names defined on the Item eo extension record mapping to the canonical
-    name. Non-unique common names are ignored with a warning unless ``quiet`` flag is set.
+    For all unique common names defined on the Item's assets via the eo
+    extension, record a mapping to the asset key ("canonical name"). Non-unique
+    common names are ignored with a warning unless ``quiet`` flag is set.
 
     :param item: STAC :class:`~pystac.item.Item` to process
     :param quiet: Do not print warning if duplicate common names are found, defaults to False
     :return: common name to canonical name mapping
     """
-    try:
-        bands = EOExtension.ext(item, add_if_missing=False).bands
-    except pystac.errors.ExtensionNotImplemented:
-        return {}
+    aliases: Dict[str, Set[str]] = {}
+    for key, asset in item.assets.items():
+        try:
+            eo = EOExtension.ext(asset)
+        except pystac.errors.ExtensionNotImplemented:
+            return {}
+        if eo.bands is None:
+            continue
+        if len(eo.bands) != 1:
+            if not quiet:
+                warn(
+                    f"Aliases are not supported for multi-band assets, skipping `{key}`"
+                )
+            continue
+        name = eo.bands[0].name
+        if name is not None and name != key:
+            aliases.setdefault(name, set()).add(key)
+        common_name = eo.bands[0].common_name
+        if common_name is not None and common_name != key:
+            aliases.setdefault(common_name, set()).add(key)
 
-    if bands is None:
-        return {}  # pragma: no cover
-
-    common_names: Dict[str, Set[str]] = {}
-    for band in bands:
-        common_name = band.common_name
-        if common_name is not None:
-            common_names.setdefault(common_name, set()).add(band.name)
-
-    def _aliases(common_names):
-        for alias, bands in common_names.items():
+    def _aliases(aliases):
+        for alias, bands in aliases.items():
             if len(bands) == 1:
                 (band,) = bands
                 yield (alias, band)
             elif not quiet:
-                warn(f"Common name `{alias}` is repeated, skipping")
+                warn(f"Alias `{alias}` is repeated, skipping")
 
-    return dict(_aliases(common_names))
+    return dict(_aliases(aliases))
 
 
 def normalise_product_name(name: str) -> str:
