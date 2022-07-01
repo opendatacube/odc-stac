@@ -94,6 +94,33 @@ def _nodata_mask(pix: np.ndarray, nodata: Optional[float]) -> np.ndarray:
     return pix == nodata
 
 
+def _reproject_info_from_rio(
+    rdr: rasterio.DatasetReader, dst_geobox: GeoBox, ttol: float
+) -> ReprojectInfo:
+    if rdr.crs is None:
+        # Assume GCP
+        # For now just use worst-case reproject structure
+        # - Assume that need to read all of the input image
+        # - Assume that need to update all of the output image
+        # - Read from native resolution of the source (read_shrink=1,scale=1)
+        #
+        # TODO: estimate src resolution from GCPs and use that to set scale/read_shrink
+        #
+        s1, s2 = rdr.shape
+        d1, d2 = dst_geobox.shape
+
+        return ReprojectInfo(
+            np.s_[0:s1, 0:s2],
+            np.s_[0:d1, 0:d2],
+            paste_ok=False,
+            read_shrink=1,
+            scale=1.0,
+            transform=None,  # type: ignore
+        )
+
+    return compute_reproject_roi(_rio_geobox(rdr), dst_geobox, ttol=ttol)
+
+
 def _do_read(
     src: rasterio.Band,
     cfg: RasterLoadParams,
@@ -203,7 +230,7 @@ def rio_read(
         if src.band > rdr.count:
             raise ValueError(f"No band {src.band} in '{src.uri}'")
 
-        rr = compute_reproject_roi(_rio_geobox(rdr), dst_geobox, ttol=ttol)
+        rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
 
         if cfg.use_overviews and rr.read_shrink > 1:
             ovr_idx = _pick_overview(rr.read_shrink, rdr.overviews(src.band))
@@ -218,7 +245,7 @@ def rio_read(
         with rasterio.open(
             src.uri, "r", sharing=False, overview_level=ovr_idx
         ) as rdr_ovr:
-            rr = compute_reproject_roi(_rio_geobox(rdr_ovr), dst_geobox, ttol=ttol)
+            rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
             with rio_env(VSI_CACHE=False):
                 return _do_read(
                     rasterio.band(rdr_ovr, src.band), cfg, dst_geobox, rr, dst=dst
