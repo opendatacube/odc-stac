@@ -186,31 +186,6 @@ jobs:
             setup.cfg
             requirements-dev.txt
 
-      - name: Get Conda Environment from Cache
-        uses: actions/cache@v2
-        id: conda_cache
-        with:
-          path: /tmp/test_env
-          key: ${{ runner.os }}-test-env-py38-without-botocore
-
-      - uses: conda-incubator/setup-miniconda@v2
-        if: steps.conda_cache.outputs.cache-hit != 'true'
-        with:
-          channels: conda-forge,defaults
-          channel-priority: true
-          activate-environment: ""
-          mamba-version: "*"
-          use-mamba: true
-
-      - name: Update PATH
-        shell: bash -l {0}
-        run: |
-          echo "/tmp/test_env/bin" >> $GITHUB_PATH
-
-      - name: Install GDAL
-        shell: bash -l {0}
-        run: mamba install -y gdal
-
       - name: Install odc-stac
         shell: bash -l {0}
         run: pip install -e .
