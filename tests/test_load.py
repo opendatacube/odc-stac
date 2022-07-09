@@ -18,8 +18,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
     item = sentinel_stac_ms_with_raster_ext.clone()
 
     params = dict(crs="EPSG:3857", resolution=100, align=0, chunks={})
-    with pytest.warns(UserWarning, match="`rededge`"):
-        xx = stac_load([item], "B02", **params)
+    xx = stac_load([item], "B02", **params)
 
     assert isinstance(xx.B02.odc, ODCExtension)
     assert xx.B02.shape[0] == 1
@@ -28,8 +27,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
     assert xx.time.dtype == "datetime64[ns]"
 
     # Test dc.load name for bands, and alias support
-    with pytest.warns(UserWarning, match="`rededge`"):
-        xx = stac_load([item], measurements=["red", "green"], **params)
+    xx = stac_load([item], measurements=["red", "green"], **params)
 
     assert "red" in xx.data_vars
     assert "green" in xx.data_vars
@@ -41,7 +39,6 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
         [item],
         measurements=["red", "green"],
         patch_url=patch_url,
-        stac_cfg={"*": {"warnings": "ignore"}},
         **params,
     )
     assert isinstance(xx.odc, ODCExtension)
@@ -221,16 +218,18 @@ def test_resolve_load_cfg():
         ]
     )
 
-    assert set(item.collection) == set(["a", "b"])
+    assert set(item.collection) == set([("a", 1), ("b", 1)])
     assert item.collection["a"].data_type == "int8"
     assert item.collection["b"].data_type == "float64"
 
-    cfg = _resolve_load_cfg(item.collection.bands, resampling="average")
+    _bands = {n: b for (n, _), b in item.collection.bands.items()}
+
+    cfg = _resolve_load_cfg(_bands, resampling="average")
     assert cfg["a"] == rlp("int8", -1, resampling="average")
     assert cfg["b"] == rlp("float64", None, resampling="average")
 
     cfg = _resolve_load_cfg(
-        item.collection.bands,
+        _bands,
         resampling={"*": "mode", "b": "sum"},
         nodata=-999,
         dtype="int64",
@@ -239,7 +238,7 @@ def test_resolve_load_cfg():
     assert cfg["b"] == rlp("int64", -999, resampling="sum")
 
     cfg = _resolve_load_cfg(
-        item.collection.bands,
+        _bands,
         dtype={"a": "float32"},
     )
     assert cfg["a"] == rlp("float32", -1)

@@ -17,6 +17,7 @@ from .._model import (
     RasterBandMetadata,
     RasterCollectionMetadata,
     RasterSource,
+    norm_key,
 )
 
 # pylint: disable=redefined-builtin,too-many-arguments
@@ -48,10 +49,12 @@ def b_(
     bidx=1,
     prefix="http://example.com/items/",
 ):
+    band_key = norm_key(name)
+    name, _ = band_key
     if uri is None:
         uri = f"{prefix}{name}.tif"
     meta = RasterBandMetadata(dtype, nodata, unit)
-    return (name, RasterSource(uri, bidx, geobox=geobox, meta=meta))
+    return (band_key, RasterSource(uri, bidx, geobox=geobox, meta=meta))
 
 
 def mk_parsed_item(
@@ -68,13 +71,14 @@ def mk_parsed_item(
     """
     # pylint: disable=redefined-outer-name
     if isinstance(bands, (list, tuple)):
-        bands = dict(bands)
+        bands = {norm_key(k): v for k, v in bands}
 
     gboxes = dicttoolz.valmap(lambda b: b.geobox, bands)
     gboxes = dicttoolz.valfilter(lambda x: x is not None, gboxes)
+    gboxes = dicttoolz.keymap(lambda bk: bk[0], gboxes)
 
     if len(gboxes) == 0:
-        band2grid = {b: "default" for b in bands}
+        band2grid = {b: "default" for b, _ in bands}
         geobox = None
     else:
         grids, band2grid = _group_geoboxes(gboxes)
@@ -145,27 +149,25 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
         ProjectionExtension.add_to(xx)
         _add_proj(gbox, xx)
 
-    for asset_name, b in item.bands.items():
+    def _to_raster_band(src: RasterSource) -> RasterBand:
+        meta = src.meta
+        assert meta is not None
+        return RasterBand.create(
+            data_type=meta.data_type,  # type: ignore
+            nodata=meta.nodata,
+            unit=meta.unit,
+        )
+
+    for (asset_name, bands) in item.assets().items():
+        b = bands[0]  # all bands shoudl share same uri
         xx.add_asset(
             asset_name,
             pystac.asset.Asset(b.uri, media_type="image/tiff", roles=["data"]),
         )
+        RasterExtension(xx.assets[asset_name]).apply(list(map(_to_raster_band, bands)))
 
     for asset_name, asset in xx.assets.items():
-        bb = item.bands[asset_name]
-        meta = bb.meta
-        assert meta is not None
-
-        RasterExtension(asset).apply(
-            [
-                RasterBand.create(
-                    data_type=meta.data_type,  # type: ignore
-                    nodata=meta.nodata,
-                    unit=meta.unit,
-                )
-            ]
-        )
-
+        bb = item.bands[(asset_name, 1)]
         if bb.geobox is not None:
             _add_proj(bb.geobox, asset)
 

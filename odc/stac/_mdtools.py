@@ -21,7 +21,6 @@ from typing import (
     TypeVar,
     Union,
 )
-from warnings import warn
 
 import pystac.asset
 import pystac.collection
@@ -50,6 +49,7 @@ from pystac.extensions.raster import RasterExtension
 from toolz import dicttoolz
 
 from ._model import (
+    BandKey,
     ParsedItem,
     RasterBandMetadata,
     RasterCollectionMetadata,
@@ -85,31 +85,30 @@ def with_default(v: Optional[T], default_value: T) -> T:
 
 def band_metadata(
     asset: pystac.asset.Asset, default: RasterBandMetadata
-) -> RasterBandMetadata:
+) -> List[RasterBandMetadata]:
     """
     Compute band metadata from Asset raster extension with defaults from default.
 
     :param asset: Asset with raster extension
     :param default: Values to use for fallback
-    :return: BandMetadata tuple constructed from raster:bands metadata
+    :return: List of BandMetadata constructed from raster:bands metadata
     """
     try:
         rext = RasterExtension.ext(asset)
     except pystac.errors.ExtensionNotImplemented:
-        return default
+        return [default]
 
     if rext.bands is None or len(rext.bands) == 0:
-        return default
+        return [default]
 
-    if len(rext.bands) > 1:
-        warn(f"Defaulting to first band of {len(rext.bands)}")
-    band = rext.bands[0]
-
-    return RasterBandMetadata(
-        with_default(band.data_type, default.data_type),
-        with_default(band.nodata, default.nodata),
-        with_default(band.unit, default.unit),
-    )
+    return [
+        RasterBandMetadata(
+            with_default(band.data_type, default.data_type),
+            with_default(band.nodata, default.nodata),
+            with_default(band.unit, default.unit),
+        )
+        for band in rext.bands
+    ]
 
 
 def has_proj_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) -> bool:
@@ -329,7 +328,7 @@ def band2grid_from_gsd(assets: Dict[str, pystac.asset.Asset]) -> Dict[str, str]:
     return band2grid
 
 
-def alias_map_from_eo(item: pystac.item.Item, quiet: bool = False) -> Dict[str, str]:
+def alias_map_from_eo(item: pystac.item.Item) -> Dict[str, List[BandKey]]:
     """
     Generate mapping ``common name -> canonical name``.
 
@@ -338,39 +337,36 @@ def alias_map_from_eo(item: pystac.item.Item, quiet: bool = False) -> Dict[str, 
     common names are ignored with a warning unless ``quiet`` flag is set.
 
     :param item: STAC :class:`~pystac.item.Item` to process
-    :param quiet: Do not print warning if duplicate common names are found, defaults to False
-    :return: common name to canonical name mapping
+    :return: common name to (asset, idx) mapping
     """
-    aliases: Dict[str, Set[str]] = {}
-    for key, asset in item.assets.items():
+    aliases: Dict[str, List[BandKey]] = {}
+
+    asset_band_counts: Dict[str, int] = {}
+    asset_names = set(item.assets)
+    for asset_name, asset in item.assets.items():
         try:
             eo = EOExtension.ext(asset)
         except pystac.errors.ExtensionNotImplemented:
             return {}
         if eo.bands is None:
             continue
-        if len(eo.bands) != 1:
-            if not quiet:
-                warn(
-                    f"Aliases are not supported for multi-band assets, skipping `{key}`"
-                )
-            continue
-        name = eo.bands[0].name
-        if name is not None and name != key:
-            aliases.setdefault(name, set()).add(key)
-        common_name = eo.bands[0].common_name
-        if common_name is not None and common_name != key:
-            aliases.setdefault(common_name, set()).add(key)
 
-    def _aliases(aliases):
-        for alias, bands in aliases.items():
-            if len(bands) == 1:
-                (band,) = bands
-                yield (alias, band)
-            elif not quiet:
-                warn(f"Alias `{alias}` is repeated, skipping")
+        asset_band_counts[asset_name] = len(eo.bands)
 
-    return dict(_aliases(aliases))
+        # when alias has the same name as any of the assets
+        # it is ignored
+        for idx, band in enumerate(eo.bands):
+            for alias in [band.name, band.common_name]:
+                if alias is not None and alias not in asset_names:
+                    aliases.setdefault(alias, []).append((asset_name, idx + 1))
+
+    # Alias pointing to an asset with fewer bands is
+    # of higher priority, 1-band data asset vs 3 band visual
+    def _cmp(x):
+        asset, _ = x
+        return (asset_band_counts[asset], asset)
+
+    return {alias: sorted(bands, key=_cmp) for alias, bands in aliases.items()}
 
 
 def norm_band_metadata(
@@ -456,7 +452,7 @@ def extract_collection_metadata(
 
     _cfg = copy(cfg.get("*", {}))
     _cfg.update(cfg.get(collection_id, {}))
-    quiet = _cfg.get("warnings", "all") == "ignore"
+    # quiet = _cfg.get("warnings", "all") == "ignore"
     ignore_proj: bool = _cfg.get("ignore_proj", False)
     band_defaults, band_cfg = _norm_band_cfg(_cfg.get("assets", {}))
 
@@ -479,7 +475,12 @@ def extract_collection_metadata(
     if len(data_bands) == 0:
         raise ValueError("Unable to find any bands")
 
-    bands: Dict[str, RasterBandMetadata] = {}
+    bands: Dict[BandKey, RasterBandMetadata] = {}
+    cfg_aliases: Dict[str, List[BandKey]] = {
+        k: [(v, 1) if isinstance(v, str) else v]
+        for k, v in _cfg.get("aliases", {}).items()
+    }
+    aliases = alias_map_from_eo(item)
 
     # 1. If band in user config -- use that
     # 2. Use data from raster extension (with fallback to "*" config)
@@ -487,11 +488,14 @@ def extract_collection_metadata(
     for name, asset in data_bands.items():
         bm = band_cfg.get(name, None)
         if bm is None:
-            bm = band_metadata(asset, band_defaults)
-        bands[name] = copy(bm)
+            bands.update(
+                ((name, idx + 1), bm)
+                for idx, bm in enumerate(band_metadata(asset, band_defaults))
+            )
+        else:
+            bands[(name, 1)] = copy(bm)
 
-    aliases = alias_map_from_eo(item, quiet=quiet)
-    aliases.update(_cfg.get("aliases", {}))
+    aliases.update(cfg_aliases)
 
     # We assume that grouping of data bands into grids is consistent across
     # entire collection, so we compute it once and keep it
@@ -525,7 +529,7 @@ def parse_item(
     _assets = item.assets
 
     _grids: Dict[str, GeoBox] = {}
-    bands: Dict[str, RasterSource] = {}
+    bands: Dict[BandKey, RasterSource] = {}
     geometry: Optional[Geometry] = None
 
     if item.geometry is not None:
@@ -539,22 +543,22 @@ def parse_item(
         _grids[grid_name] = grid
         return grid
 
-    for band, meta in template.bands.items():
-        asset = _assets.get(band)
+    for bk, meta in template.bands.items():
+        asset_name, _ = bk
+        asset = _assets.get(asset_name)
         if asset is None:
-            warn(f"Missing asset with name: {band}")
             continue
 
-        grid_name = band2grid.get(band, "default")
+        grid_name = band2grid.get(asset_name, "default")
         geobox: Optional[GeoBox] = _get_grid(grid_name, asset) if has_proj else None
 
         uri = asset.get_absolute_href()
         if uri is None:
             raise ValueError(
-                f"Can not determine absolute path for band: {band}"
+                f"Can not determine absolute path for band: {asset_name}"
             )  # pragma: no cover (https://github.com/stac-utils/pystac/issues/754)
 
-        bands[band] = RasterSource(uri=uri, geobox=geobox, meta=meta)
+        bands[bk] = RasterSource(uri=uri, geobox=geobox, meta=meta)
 
     md = item.common_metadata
     return ParsedItem(

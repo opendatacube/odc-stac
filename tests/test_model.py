@@ -22,7 +22,7 @@ def test_band_load_info():
 
     band = RasterSource("file:///")
     assert RasterLoadParams.same_as(band).dtype == "float32"
-    assert RasterLoadParams().dtype == None
+    assert RasterLoadParams().dtype is None
     assert RasterLoadParams().nearest is True
     assert RasterLoadParams(resampling="average").nearest is False
 
@@ -72,10 +72,10 @@ def collection_ab() -> RasterCollectionMetadata:
     return RasterCollectionMetadata(
         "ab",
         {
-            "a": RasterBandMetadata("uint8"),
-            "b": RasterBandMetadata("uint16"),
+            ("a", 1): RasterBandMetadata("uint8"),
+            ("b", 1): RasterBandMetadata("uint16"),
         },
-        {"A": "a", "AA": "a", "B": "b"},
+        {"A": [("a", 1)], "AA": [("a", 1)], "B": [("b", 1)]},
         has_proj=True,
         band2grid={},
     )
@@ -86,37 +86,73 @@ def parsed_item_ab(collection_ab: RasterCollectionMetadata) -> ParsedItem:
     return ParsedItem(
         "item-ab",
         collection_ab,
-        {k: RasterSource(k, meta=collection_ab[k]) for k in collection_ab},
+        {
+            k: RasterSource(f"file:///{k[0]}-{k[1]}.tif", meta=collection_ab[k])
+            for k in collection_ab
+        },
     )
 
 
 def test_collection(collection_ab: RasterCollectionMetadata):
     xx = collection_ab
 
+    assert xx.canonical_name("b") == "b"
     assert xx.canonical_name("B") == "b"
     assert xx.canonical_name("AA") == "a"
+    assert xx.canonical_name("a") == "a"
+
+    assert xx.band_key("B") == ("b", 1)
+    assert xx.band_key("AA") == ("a", 1)
     assert xx["AA"].data_type == "uint8"
     assert xx["b"].data_type == "uint16"
+    assert "b" in xx
+    assert "b.1" in xx
+    assert ("b", 1) in xx
+    assert {} not in xx
+    assert ("some-random", 1) not in xx
+    assert "no-such-band" not in xx
 
     assert xx.resolve_bands("AA")["AA"] == xx["a"]
     assert list(xx.resolve_bands(["a", "B"])) == ["a", "B"]
     assert xx.resolve_bands(["a", "B"])["B"] is xx["b"]
     assert xx.resolve_bands(["a", "B"])["a"] is xx["a"]
-    assert set(xx) == set(["a", "b"])
+    assert set(xx) == set([("a", 1), ("b", 1)])
     assert len(xx) == 2
 
     for k in "a AA A b B".split(" "):
-        assert xx.canonical_name(k) in xx.bands
+        assert xx.band_key(k) in xx.bands
+        assert xx.canonical_name(k) in ["a", "b"]
         assert k in xx
         assert isinstance(xx[k], RasterBandMetadata)
-        assert xx[k] is xx[xx.canonical_name(k)]
+        assert xx[k] is xx[xx.band_key(k)]
 
     with pytest.raises(ValueError):
         _ = xx.resolve_bands(["xxxxxxxx", "a"])
 
 
+def test_collection_allbands():
+    xx = mk_parsed_item([b_("a.1"), b_("a.2"), b_("a.3")])
+    md = xx.collection
+    assert md.all_bands == ["a", "a.2", "a.3"]
+
+    md.aliases["AA"] = [("a", 2)]
+    md.aliases["AAA"] = [("a", 3)]
+    assert md["AA"] == md["a.2"]
+    assert md["AAA"] == md["a.3"]
+
+    # expect aliases to be used for all_band when multi-band
+    # assets have unique aliases
+    assert md.all_bands == ["a", "AA", "AAA"]
+    assert md.canonical_name("a.2") == "AA"
+    assert md.canonical_name("AA") == "AA"
+    assert md.canonical_name("a.3") == "AAA"
+    assert md.canonical_name("AAA") == "AAA"
+
+
 def test_parsed_item(parsed_item_ab: ParsedItem):
     xx = parsed_item_ab
+    assert xx["AA"] is not None
+    assert xx["b"] is not None
     assert xx["AA"].meta.data_type == "uint8"
     assert xx["b"].meta.data_type == "uint16"
 
@@ -124,9 +160,12 @@ def test_parsed_item(parsed_item_ab: ParsedItem):
     assert list(xx.resolve_bands(["a", "B"])) == ["a", "B"]
     assert xx.resolve_bands(["a", "B"])["B"] is xx["b"]
     assert xx.resolve_bands(["a", "B"])["a"] is xx["a"]
-    assert set(xx) == set(["a", "b"])
+    assert set(xx) == set([("a", 1), ("b", 1)])
     assert len(xx) == 2
     assert len(set([xx, xx, xx])) == 1
+    assert ("a", 1) in xx
+    assert ("a", 2) not in xx
+    assert ("a", 2, 3) not in xx
 
     for k in "a AA A b B".split(" "):
         assert k in xx

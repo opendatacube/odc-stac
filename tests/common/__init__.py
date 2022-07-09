@@ -18,8 +18,9 @@ STAC_CFG = {
             "SCL": RasterBandMetadata("uint8", 0, "1"),
             "visual": dict(data_type="uint8", nodata=0, unit="1"),
         },
-        "aliases": {  # Work around duplicate rededge common_name
-            "rededge": "B05",
+        "aliases": {
+            # Work around duplicate rededge common_name
+            # by defining custom unique aliases
             "rededge1": "B05",
             "rededge2": "B06",
             "rededge3": "B07",

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+- Multi band support when parsing STAC items
+- Remove ambiguous alias warnings and errors, instead pick "best" band for a
+  given common name based on a simple heuristic (favour single band assets over
+  multi-band, use alphabet order when band count is the same).
+- Accept `<asset name>.<band index: 1..>` syntax for specifying bands
 ## [v0.3.1] - 2022-06-28
 
 - Use asset key as a canonical name, fixes landsat collection parsing

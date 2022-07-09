@@ -34,7 +34,7 @@ from .._mdtools import (
     mk_sample_item,
     parse_item,
 )
-from .._model import ParsedItem, RasterBandMetadata, RasterCollectionMetadata
+from .._model import BandKey, ParsedItem, RasterBandMetadata, RasterCollectionMetadata
 
 # uuid.uuid5(uuid.NAMESPACE_URL, "https://stacspec.org")
 UUID_NAMESPACE_STAC = uuid.UUID("55d26088-a6d0-5c77-bf9a-3a7f3c6a6dab")
@@ -62,11 +62,14 @@ STAC_TO_EO3_RENAMES = {
 
 def _to_product(md: RasterCollectionMetadata) -> DatasetType:
     def make_band(
-        name: str,
+        band_key: BandKey,
         band: RasterBandMetadata,
-        band_aliases: Dict[str, List[str]],
+        band_aliases: Dict[BandKey, List[str]],
     ) -> Dict[str, Any]:
-        aliases = band_aliases.get(name)
+        name, idx = band_key
+        if idx > 1:
+            name = f"{name}_{idx}"
+        aliases = band_aliases.get(band_key)
 
         # map to ODC names for raster:bands
         doc: Dict[str, Any] = {
@@ -77,15 +80,19 @@ def _to_product(md: RasterCollectionMetadata) -> DatasetType:
         }
         if aliases is not None:
             doc["aliases"] = aliases
+        if idx > 0:
+            doc["band"] = idx + 1  # one based in datacube
         return doc
 
-    band_aliases = md.band_aliases()
+    # drop ambigous aliases
+    band_aliases = md.band_aliases(unique=True)
     doc = {
         "name": md.name,
         "metadata_type": "eo3",
         "metadata": {"product": {"name": md.name}},
         "measurements": [
-            make_band(name, band, band_aliases) for name, band in md.bands.items()
+            make_band(band_key, band, band_aliases)
+            for band_key, band in md.bands.items()
         ],
     }
     return DatasetType(_eo3, doc)
@@ -159,16 +166,20 @@ def _to_dataset(
     ds_uuid: uuid.UUID,
     product: DatasetType,
 ) -> Dataset:
+    # pylint: disable=too-many-locals
+
     md = item.collection
     band2grid = md.band2grid
     grids: Dict[str, Dict[str, Any]] = {}
     measurements: Dict[str, Dict[str, Any]] = {}
     crs: Optional[CRS] = None
 
-    for name, src in item.bands.items():
+    for band_key, src in item.bands.items():
+        name, idx = band_key
+
         m: Dict[str, Any] = {"path": src.uri}
-        if src.band != 1:
-            m["band"] = src.band
+        if idx > 1:
+            m["band"] = idx
         measurements[name] = m
 
         if not md.has_proj:

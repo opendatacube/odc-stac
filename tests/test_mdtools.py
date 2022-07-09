@@ -1,5 +1,3 @@
-import math
-
 import pystac
 import pystac.asset
 import pystac.collection
@@ -119,13 +117,15 @@ def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
     asset = item.assets["SCL"]
     bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
-    assert bm == RasterBandMetadata("uint8", 0, "1")
+    assert bm == [RasterBandMetadata("uint8", 0, "1")]
 
-    # Test multiple bands per asset cause a warning
+    # Test multiple bands per asset produce multiple outputs
     asset.extra_fields["raster:bands"].append({"nodata": -10})
-    with pytest.warns(UserWarning, match="Defaulting to first band of 2"):
-        bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
-    assert bm == RasterBandMetadata("uint8", 0, "1")
+    bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
+    assert bm == [
+        RasterBandMetadata("uint8", 0, "1"),
+        RasterBandMetadata(data_type="uint16", nodata=-10, unit="1"),
+    ]
 
 
 def test_is_raster_data_more():
@@ -157,37 +157,30 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
 
     assert item.collection_id in STAC_CFG
 
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        md = extract_collection_metadata(item, STAC_CFG)
+    md = extract_collection_metadata(item, STAC_CFG)
 
     assert md.name == "sentinel-2-l2a"
 
-    assert set(md.bands) == S2_ALL_BANDS
+    assert set(md.all_bands) == S2_ALL_BANDS
 
     # check defaults were set
     for b in ["B01", "B02", "B03"]:
+        b = (b, 1)
         assert md.bands[b].data_type == "uint16"
         assert md.bands[b].nodata == 0
         assert md.bands[b].unit == "1"
 
-    assert md.bands["SCL"].data_type == "uint8"
-    assert md.bands["visual"].data_type == "uint8"
+    assert md.bands[("SCL", 1)].data_type == "uint8"
+    assert md.bands[("visual", 1)].data_type == "uint8"
 
     # check aliases configuration
-    assert md.aliases["rededge"] == "B05"
-    assert md.aliases["rededge1"] == "B05"
-    assert md.aliases["rededge2"] == "B06"
-    assert md.aliases["rededge3"] == "B07"
+    assert md.aliases["rededge"] == [("B05", 1), ("B06", 1), ("B07", 1), ("B8A", 1)]
+    assert md.aliases["rededge1"] == [("B05", 1)]
+    assert md.aliases["rededge2"] == [("B06", 1)]
+    assert md.aliases["rededge3"] == [("B07", 1)]
 
     # check without config
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        md = extract_collection_metadata(item)
+    md = extract_collection_metadata(item)
 
     for band in md.bands.values():
         assert band.data_type == "float32"
@@ -216,59 +209,55 @@ def test_noassets_case(no_bands_stac):
 def test_extract_md_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext
 
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        md = extract_collection_metadata(item, STAC_CFG)
+    md = extract_collection_metadata(item, STAC_CFG)
 
-    assert md.aliases["red"] == "B04"
-    assert md.aliases["green"] == "B03"
-    assert md.aliases["blue"] == "B02"
+    assert md.aliases["red"] == [("B04", 1), ("visual", 1)]
+    assert md.aliases["green"] == [("B03", 1), ("visual", 2)]
+    assert md.aliases["blue"] == [("B02", 1), ("visual", 3)]
 
 
 def test_parse_item(sentinel_stac_ms: pystac.item.Item):
     item0 = sentinel_stac_ms
     item = pystac.Item.from_dict(item0.to_dict())
 
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        md = extract_collection_metadata(item, STAC_CFG)
+    md = extract_collection_metadata(item, STAC_CFG)
 
     xx = parse_item(item, md)
     assert xx.datetime_range == (None, None)
     assert xx.datetime == item.datetime
     assert xx.nominal_datetime == item.datetime
 
-    assert set(xx.bands) == S2_ALL_BANDS
-    assert xx.bands["B02"].geobox is not None
+    assert all(band in md for band in S2_ALL_BANDS)
+    assert all((band, 1) in md for band in S2_ALL_BANDS)
+    assert item not in xx
+
+    assert set(n for n, _ in xx.bands) == S2_ALL_BANDS
+    assert xx["B02"].geobox is not None
+    assert xx["B02"] is xx[("B02", 1)]
+    assert xx["B02"] is xx["B02.1"]
+    assert xx.get("B02", None) is xx["B02.1"]
 
     assert xx.geoboxes() == xx.geoboxes(S2_ALL_BANDS)
-    assert xx.geoboxes(["B02", "B03"]) == (xx.bands["B02"].geobox,)
+    assert xx.geoboxes(["B02", "B03"]) == (xx["B02"].geobox,)
     assert xx.geoboxes(["B01", "B02", "B03"]) == (
-        xx.bands["B02"].geobox,
-        xx.bands["B01"].geobox,
+        xx["B02"].geobox,
+        xx["B01"].geobox,
     )
     assert xx.geoboxes() == (
-        xx.bands["B02"].geobox,  # 10m
-        xx.bands["B05"].geobox,  # 20m
-        xx.bands["B01"].geobox,  # 60m
+        xx["B02"].geobox,  # 10m
+        xx["B05"].geobox,  # 20m
+        xx["B01"].geobox,  # 60m
     )
 
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        (yy,) = list(parse_items(iter([item]), STAC_CFG))
-        assert xx == yy
+    (yy,) = list(parse_items(iter([item]), STAC_CFG))
+    assert xx == yy
 
     # Test missing band case
     item = pystac.Item.from_dict(item0.to_dict())
     item.assets.pop("B01")
-    with pytest.warns(UserWarning, match="Missing asset"):
-        xx = parse_item(item, md)
+    xx = parse_item(item, md)
+    assert "B01" not in xx
+    assert xx.get("B01", None) is None
 
 
 @pytest.mark.xfail
@@ -293,8 +282,7 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
     )
     assert has_proj_ext(item) is False
 
-    with pytest.warns(UserWarning, match="`rededge`"):
-        md = extract_collection_metadata(item, STAC_CFG)
+    md = extract_collection_metadata(item, STAC_CFG)
 
     xx = parse_item(item, md)
     for band in xx.bands.values():
@@ -307,11 +295,7 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
 
 @pytest.fixture
 def parsed_item_s2(sentinel_stac_ms: pystac.item.Item):
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        (item,) = parse_items([sentinel_stac_ms], STAC_CFG)
+    (item,) = parse_items([sentinel_stac_ms], STAC_CFG)
     yield item
 
 
@@ -320,9 +304,9 @@ def test_auto_load_params(parsed_item_s2: ParsedItem):
     assert len(xx.geoboxes()) == 3
     crs = xx.geoboxes()[0].crs
 
-    _10m = xx.bands["B02"].geobox.resolution
-    _20m = xx.bands["B05"].geobox.resolution
-    _60m = xx.bands["B01"].geobox.resolution
+    _10m = xx["B02"].geobox.resolution
+    _20m = xx["B05"].geobox.resolution
+    _60m = xx["B01"].geobox.resolution
 
     assert _10m.xy == (10, -10)
     assert _20m.xy == (20, -20)
@@ -394,9 +378,9 @@ def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
     assert output_geobox([], like=xr_zeros(gbox[:10, :20])) == gbox[:10, :20]
 
     # no resolution/crs
-    assert output_geobox([], bbox=[0, 1, 2, 3]) is None
-    assert output_geobox([], bbox=[0, 1, 2, 3], resolution=10) is None
-    assert output_geobox([], bbox=[0, 1, 2, 3], crs="epsg:4326") is None
+    assert output_geobox([], bbox=(0, 1, 2, 3)) is None
+    assert output_geobox([], bbox=(0, 1, 2, 3), resolution=10) is None
+    assert output_geobox([], bbox=(0, 1, 2, 3), crs="epsg:4326") is None
 
     # lon-lat/x-y/bbox
     gbox = GeoBox.from_bbox((0, -10, 100, 25), resolution=1)
@@ -491,8 +475,8 @@ def test_mk_parsed_item():
     assert item.crs() is None
     assert item.collection.has_proj is False
 
-    assert set(item.bands) == set(["b1", "b2"])
-    assert item.bands["b1"].uri.endswith("b1.tif")
+    assert set(item.bands) == set([("b1", 1), ("b2", 1)])
+    assert item["b1"].uri.endswith("b1.tif")
 
     item = mk_parsed_item(
         [b_("b1"), b_("b2")],
@@ -565,10 +549,10 @@ def test_usgs_v1_1_1_aliases(usgs_landsat_stac_v1_1_1: pystac.Item) -> None:
     parsed_item = next(parse_items([usgs_landsat_stac_v1_1_1]))
     collection = parsed_item.collection
     assert collection.aliases == {
-        "B1": "blue",
-        "B2": "green",
-        "B3": "red",
-        "B4": "nir08",
-        "B5": "swir16",
-        "B7": "swir22",
+        "B1": [("blue", 1)],
+        "B2": [("green", 1)],
+        "B3": [("red", 1)],
+        "B4": [("nir08", 1)],
+        "B5": [("swir16", 1)],
+        "B7": [("swir22", 1)],
     }

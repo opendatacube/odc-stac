@@ -21,8 +21,7 @@ def test_infer_product_collection(
     sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ):
 
-    with pytest.warns(UserWarning):
-        product = infer_dc_product(sentinel_stac_collection)
+    product = infer_dc_product(sentinel_stac_collection)
     assert product.measurements["SCL"].dtype == "uint8"
     # check aliases from eo extension
     assert product.canonical_measurement("red") == "B04"
@@ -35,7 +34,6 @@ def test_infer_product_collection(
     assert b2g["B02"] == "default"
     assert b2g["B01"] == "g60"
     assert set(b2g.values()) == set("default g20 g60".split(" "))
-    assert set(b2g) == set(product.measurements)
 
     # Check that we can use product derived this way on an Item
     item = sentinel_stac_ms_with_raster_ext.clone()
@@ -63,11 +61,7 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
 
     assert item.collection_id in STAC_CFG
 
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        product = infer_dc_product(item, STAC_CFG)
+    product = infer_dc_product(item, STAC_CFG)
 
     assert product.measurements["SCL"].dtype == "uint8"
     assert product.measurements["visual"].dtype == "uint8"
@@ -76,7 +70,6 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
     assert product.canonical_measurement("green") == "B03"
     assert product.canonical_measurement("blue") == "B02"
     # check aliases from config
-    assert product.canonical_measurement("rededge") == "B05"
     assert product.canonical_measurement("rededge1") == "B05"
     assert product.canonical_measurement("rededge2") == "B06"
     assert product.canonical_measurement("rededge3") == "B07"
@@ -87,20 +80,12 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
     item_no_collection = pystac.item.Item.from_dict(_stac)
     assert item_no_collection.collection_id is None
 
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        product = infer_dc_product(item_no_collection)
+    product = infer_dc_product(item_no_collection)
 
 
 def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
-    with pytest.warns(
-        UserWarning,
-        match="Aliases are not supported for multi-band assets, skipping `visual`",
-    ):
-        product = infer_dc_product(item)
+    product = infer_dc_product(item)
 
     assert product.measurements["SCL"].dtype == "uint8"
     assert product.measurements["visual"].dtype == "uint8"
@@ -118,8 +103,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
 
     assert item.collection_id in STAC_CFG
 
-    with pytest.warns(UserWarning, match="`rededge`"):
-        product = infer_dc_product(item, STAC_CFG)
+    product = infer_dc_product(item, STAC_CFG)
     ds = _item_to_ds(item, product)
 
     assert set(ds.measurements) == set(product.measurements)
@@ -132,16 +116,14 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
     # key names .platform would be None
     assert ds.metadata.platform == "Sentinel-2B"
 
-    with pytest.warns(UserWarning, match="`rededge`"):
-        dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
+    dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
     assert len(dss) == 3
     assert len({id(ds.type) for ds in dss}) == 1
 
     # Test missing band case
     item = item0.clone()
     item.assets.pop("B01")
-    with pytest.warns(UserWarning, match="Missing asset"):
-        ds = _item_to_ds(item, product, STAC_CFG)
+    ds = _item_to_ds(item, product, STAC_CFG)
 
     # Test no eo extension case
     item = item0.clone()
@@ -167,8 +149,7 @@ def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
     )
     assert has_proj_ext(item) is False
 
-    with pytest.warns(UserWarning, match="`rededge`"):
-        product = infer_dc_product(item, STAC_CFG)
+    product = infer_dc_product(item, STAC_CFG)
 
     geom = Geometry(item.geometry, "EPSG:4326")
     ds = _item_to_ds(item, product, STAC_CFG)
