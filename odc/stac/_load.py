@@ -35,6 +35,7 @@ from xarray.core.npcompat import DTypeLike
 from ._dask import unpack_chunks
 from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
 from ._model import (
+    BandQuery,
     ParsedItem,
     RasterBandMetadata,
     RasterCollectionMetadata,
@@ -156,7 +157,7 @@ def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
 
 
 def patch_urls(
-    item: ParsedItem, edit: Callable[[str], str], bands: Optional[Iterable[str]] = None
+    item: ParsedItem, edit: Callable[[str], str], bands: BandQuery = None
 ) -> ParsedItem:
     """
     Map function over dataset measurement urls.
@@ -173,10 +174,9 @@ def patch_urls(
             for k, src in item.bands.items()
         }
     else:
-        aliases = item.collection.aliases
-        bands = set(aliases.get(b, b) for b in bands)
+        _to_edit = set(map(item.collection.band_key, bands))
         _bands = {
-            k: dataclasses.replace(src, uri=edit(src.uri) if k in bands else src.uri)
+            k: dataclasses.replace(src, uri=edit(src.uri) if k in _to_edit else src.uri)
             for k, src in item.bands.items()
         }
 
@@ -573,7 +573,11 @@ def load(
             _tasks.append(task)
 
         dst_slice = ds[task.band].data[task.dst_roi]
-        srcs = [_parsed[idx][band] for idx, band in task.srcs]
+        srcs = [
+            src
+            for src in (_parsed[idx].get(band, None) for idx, band in task.srcs)
+            if src is not None
+        ]
         _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, dst_slice)
         t, y, x = task.idx_tyx
         return (task.band, t, y, x)
