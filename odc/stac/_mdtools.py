@@ -373,18 +373,6 @@ def alias_map_from_eo(item: pystac.item.Item, quiet: bool = False) -> Dict[str, 
     return dict(_aliases(aliases))
 
 
-def normalise_product_name(name: str) -> str:
-    """
-    Create valid product name from an arbitrary string.
-
-    Right now just maps ``-`` and `` `` to ``_``.
-
-    :param name: Usually comes from ``collection_id``.
-    """
-    # TODO: for now just map `-`,` ` to `_`
-    return name.replace("-", "_").replace(" ", "_")
-
-
 def norm_band_metadata(
     v: Union[RasterBandMetadata, Dict[str, Any]],
     fallback: RasterBandMetadata = BAND_DEFAULTS,
