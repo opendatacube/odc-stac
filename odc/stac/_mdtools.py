@@ -99,10 +99,17 @@ def band_metadata(
     if rext.bands is None or len(rext.bands) == 0:
         return [default]
 
+    def _norm_nodata(nodata) -> Union[float, None]:
+        if nodata is None:
+            return None
+        if isinstance(nodata, (int, float)):
+            return nodata
+        return float(nodata)
+
     return [
         RasterBandMetadata(
             with_default(band.data_type, default.data_type),
-            with_default(band.nodata, default.nodata),
+            with_default(_norm_nodata(band.nodata), default.nodata),
             with_default(band.unit, default.unit),
         )
         for band in rext.bands
