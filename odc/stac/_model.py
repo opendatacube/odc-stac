@@ -1,8 +1,10 @@
 """Metadata and data loading model classes."""
 
 import datetime as dt
-from dataclasses import astuple, dataclass, replace
+from copy import copy
+from dataclasses import astuple, dataclass, field, replace
 from typing import (
+    Any,
     Dict,
     Iterator,
     List,
@@ -479,6 +481,59 @@ class RasterLoadParams:
 
     def __dask_tokenize__(self):
         return astuple(self)
+
+
+@dataclass(frozen=True)
+class MDParseConfig:
+    """Item parsing config."""
+
+    band_defaults: RasterBandMetadata = field(default_factory=RasterBandMetadata)
+    band_cfg: Dict[str, RasterBandMetadata] = field(default_factory=dict)
+    aliases: Dict[str, BandKey] = field(default_factory=dict)
+    ignore_proj: bool = False
+
+    @staticmethod
+    def from_dict(collection_id: str, cfg=Dict[str, Any]) -> "MDParseConfig":
+        _cfg = copy(cfg.get("*", {}))
+        _cfg.update(cfg.get(collection_id, {}))
+        band_defaults, band_cfg = _norm_band_cfg(_cfg.get("assets", {}))
+
+        aliases = {
+            alias: ((band, 1) if isinstance(band, str) else band)
+            for alias, band in _cfg.get("aliases", {}).items()
+        }
+        ignore_proj: bool = _cfg.get("ignore_proj", False)
+        return MDParseConfig(
+            band_defaults=band_defaults,
+            band_cfg=band_cfg,
+            ignore_proj=ignore_proj,
+            aliases=aliases,
+        )
+
+
+BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")
+
+
+def norm_band_metadata(
+    v: Union[RasterBandMetadata, Dict[str, Any]],
+    fallback: RasterBandMetadata = BAND_DEFAULTS,
+) -> RasterBandMetadata:
+    if isinstance(v, RasterBandMetadata):
+        return v
+    return RasterBandMetadata(
+        v.get("data_type", fallback.data_type),
+        v.get("nodata", fallback.nodata),
+        v.get("unit", fallback.unit),
+    )
+
+
+def _norm_band_cfg(
+    cfg: Dict[str, Any]
+) -> Tuple[RasterBandMetadata, Dict[str, RasterBandMetadata]]:
+    fallback = norm_band_metadata(cfg.get("*", {}))
+    return fallback, {
+        k: norm_band_metadata(v, fallback) for k, v in cfg.items() if k != "*"
+    }
 
 
 def _convert_to_solar_time(utc: dt.datetime, longitude: float) -> dt.datetime:
