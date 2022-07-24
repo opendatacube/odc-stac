@@ -50,6 +50,7 @@ from toolz import dicttoolz
 
 from ._model import (
     BandKey,
+    MDParseConfig,
     ParsedItem,
     RasterBandMetadata,
     RasterCollectionMetadata,
@@ -58,8 +59,6 @@ from ._model import (
 
 T = TypeVar("T")
 ConversionConfig = Dict[str, Any]
-
-BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")
 
 EPSG4326 = CRS("EPSG:4326")
 
@@ -369,28 +368,6 @@ def alias_map_from_eo(item: pystac.item.Item) -> Dict[str, List[BandKey]]:
     return {alias: sorted(bands, key=_cmp) for alias, bands in aliases.items()}
 
 
-def norm_band_metadata(
-    v: Union[RasterBandMetadata, Dict[str, Any]],
-    fallback: RasterBandMetadata = BAND_DEFAULTS,
-) -> RasterBandMetadata:
-    if isinstance(v, RasterBandMetadata):
-        return v
-    return RasterBandMetadata(
-        v.get("data_type", fallback.data_type),
-        v.get("nodata", fallback.nodata),
-        v.get("unit", fallback.unit),
-    )
-
-
-def _norm_band_cfg(
-    cfg: Dict[str, Any]
-) -> Tuple[RasterBandMetadata, Dict[str, RasterBandMetadata]]:
-    fallback = norm_band_metadata(cfg.get("*", {}))
-    return fallback, {
-        k: norm_band_metadata(v, fallback) for k, v in cfg.items() if k != "*"
-    }
-
-
 def mk_sample_item(collection: pystac.collection.Collection) -> pystac.item.Item:
     try:
         item_assets = ItemAssetsExtension.ext(collection).item_assets
@@ -445,24 +422,20 @@ def extract_collection_metadata(
     """
     # TODO: split this in-to smaller functions
     # pylint: disable=too-many-locals
+    collection_id = _collection_id(item)
+
     if cfg is None:
         cfg = {}
 
-    collection_id = _collection_id(item)
-
-    _cfg = copy(cfg.get("*", {}))
-    _cfg.update(cfg.get(collection_id, {}))
-    # quiet = _cfg.get("warnings", "all") == "ignore"
-    ignore_proj: bool = _cfg.get("ignore_proj", False)
-    band_defaults, band_cfg = _norm_band_cfg(_cfg.get("assets", {}))
+    c = MDParseConfig.from_dict(collection_id, cfg)
 
     def _keep(kv, check_proj):
         name, asset = kv
-        if name in band_cfg:
+        if name in c.band_cfg:
             return True
         return is_raster_data(asset, check_proj=check_proj)
 
-    has_proj = False if ignore_proj else has_proj_ext(item)
+    has_proj = False if c.ignore_proj else has_proj_ext(item)
     data_bands: Dict[str, pystac.asset.Asset] = dicttoolz.itemfilter(
         partial(_keep, check_proj=has_proj), item.assets
     )
@@ -470,32 +443,29 @@ def extract_collection_metadata(
         # Proj is enabled but no Asset has all the proj data
         has_proj = False
         data_bands = dicttoolz.itemfilter(partial(_keep, check_proj=False), item.assets)
-        _cfg.update(ignore_proj=True)
 
     if len(data_bands) == 0:
         raise ValueError("Unable to find any bands")
 
     bands: Dict[BandKey, RasterBandMetadata] = {}
-    cfg_aliases: Dict[str, List[BandKey]] = {
-        k: [(v, 1) if isinstance(v, str) else v]
-        for k, v in _cfg.get("aliases", {}).items()
-    }
     aliases = alias_map_from_eo(item)
 
     # 1. If band in user config -- use that
     # 2. Use data from raster extension (with fallback to "*" config)
     # 3. Use config for "*" from user config as fallback
     for name, asset in data_bands.items():
-        bm = band_cfg.get(name, None)
+        bm = c.band_cfg.get(name, None)
         if bm is None:
             bands.update(
                 ((name, idx + 1), bm)
-                for idx, bm in enumerate(band_metadata(asset, band_defaults))
+                for idx, bm in enumerate(band_metadata(asset, c.band_defaults))
             )
         else:
             bands[(name, 1)] = copy(bm)
 
-    aliases.update(cfg_aliases)
+    # place configured alias first
+    for alias, bkey in c.aliases.items():
+        aliases.setdefault(alias, []).insert(0, bkey)
 
     # We assume that grouping of data bands into grids is consistent across
     # entire collection, so we compute it once and keep it
