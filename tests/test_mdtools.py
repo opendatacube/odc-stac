@@ -19,6 +19,7 @@ from odc.stac._mdtools import (
     compute_eo3_grids,
     extract_collection_metadata,
     has_proj_ext,
+    has_raster_ext,
     is_raster_data,
     output_geobox,
     parse_item,
@@ -68,8 +69,12 @@ def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
     # More than 1 CRS should work
     item = item0.clone()
     ProjectionExtension.ext(item.assets["B01"]).epsg = 3857
+    assert ProjectionExtension.ext(item.assets["B01"]).epsg == 3857
+
+    data_bands = {k: item.assets[k] for k in data_bands}
     grids, b2g = compute_eo3_grids(data_bands)
     assert b2g["B01"] != b2g["B02"]
+    assert grids[b2g["B01"]].crs is not None
     assert grids[b2g["B01"]].crs.epsg == 3857
 
 
@@ -115,6 +120,7 @@ def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item):
 
 def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
+    assert has_raster_ext(item) is True
     asset = item.assets["SCL"]
     bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
     assert bm == [RasterBandMetadata("uint8", 0, "1")]
