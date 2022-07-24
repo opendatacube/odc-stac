@@ -16,3 +16,4 @@ odc-ui
 planetary-computer
 pylint
 pytest
+pystac==1.4.0
