@@ -11,7 +11,7 @@ from datacube.utils.geometry import Geometry
 from pystac.extensions.projection import ProjectionExtension
 from toolz import dicttoolz
 
-from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext
+from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext, has_raster_ext
 from odc.stac.eo3 import infer_dc_product, stac2ds
 from odc.stac.eo3._eo3converter import _compute_uuid, _item_to_ds
 
@@ -20,7 +20,7 @@ def test_infer_product_collection(
     sentinel_stac_collection: pystac.collection.Collection,
     sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ):
-
+    assert has_raster_ext(sentinel_stac_collection) is True
     product = infer_dc_product(sentinel_stac_collection)
     assert product.measurements["SCL"].dtype == "uint8"
     # check aliases from eo extension
@@ -37,6 +37,7 @@ def test_infer_product_collection(
 
     # Check that we can use product derived this way on an Item
     item = sentinel_stac_ms_with_raster_ext.clone()
+
     ds = _item_to_ds(item, product)
     geobox = native_geobox(ds, basis="B02")
     assert geobox.shape == (10980, 10980)
@@ -85,6 +86,7 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
 
 def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
+    assert has_raster_ext(item) is True
     product = infer_dc_product(item)
 
     assert product.measurements["SCL"].dtype == "uint8"

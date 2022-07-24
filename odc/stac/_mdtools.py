@@ -123,6 +123,20 @@ def has_proj_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) ->
         return False
 
 
+def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) -> bool:
+    """
+    Check if STAC Item/Collection have EOExtension.
+
+    :returns: ``True`` if Raster exetension is enabled
+    :returns: ``False`` if no Rasetr extension was found
+    """
+    try:
+        RasterExtension.validate_has_extension(item, add_if_missing=False)
+        return True
+    except pystac.errors.ExtensionNotImplemented:
+        return False
+
+
 def has_proj_data(asset: pystac.asset.Asset) -> bool:
     """
     Check if STAC Asset contains proj extension data.
