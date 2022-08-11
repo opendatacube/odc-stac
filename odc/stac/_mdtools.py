@@ -44,7 +44,7 @@ from odc.geo.xr import ODCExtension
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
-from pystac.extensions.raster import RasterExtension
+from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
 from ._model import (
@@ -82,6 +82,13 @@ def with_default(v: Optional[T], default_value: T) -> T:
     return v
 
 
+def _band_metadata_raw(asset: pystac.asset.Asset) -> List[RasterBand]:
+    bands = asset.to_dict().get("raster:bands", None)
+    if bands is None:
+        return []
+    return [RasterBand(props) for props in bands]
+
+
 def band_metadata(
     asset: pystac.asset.Asset, default: RasterBandMetadata
 ) -> List[RasterBandMetadata]:
@@ -92,12 +99,15 @@ def band_metadata(
     :param default: Values to use for fallback
     :return: List of BandMetadata constructed from raster:bands metadata
     """
+    bands: List[RasterBand] = []
     try:
         rext = RasterExtension.ext(asset)
+        if rext.bands is not None:
+            bands = rext.bands
     except pystac.errors.ExtensionNotImplemented:
-        return [default]
+        bands = _band_metadata_raw(asset)
 
-    if rext.bands is None or len(rext.bands) == 0:
+    if len(bands) == 0:
         return [default]
 
     def _norm_nodata(nodata) -> Union[float, None]:
@@ -113,7 +123,7 @@ def band_metadata(
             with_default(_norm_nodata(band.nodata), default.nodata),
             with_default(band.unit, default.unit),
         )
-        for band in rext.bands
+        for band in bands
     ]
 
 
@@ -142,7 +152,10 @@ def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) 
         RasterExtension.validate_has_extension(item, add_if_missing=False)
         return True
     except pystac.errors.ExtensionNotImplemented:
-        return False
+        return any(
+            ext_name.startswith("https://stac-extensions.github.io/raster/")
+            for ext_name in item.stac_extensions
+        )
 
 
 def has_proj_data(asset: pystac.asset.Asset) -> bool:
