@@ -811,11 +811,10 @@ def _group_items(
 
 
 def _tiles(item: ParsedItem, gbt: GeoboxTiles) -> Iterator[Tuple[int, int]]:
-    # TODO: should probably prefer native geometry if set in proj
-    # TODO: extract geometry from geobox if proj data is available
-    if item.geometry is None:
+    geom = item.safe_geometry(gbt.base.crs)
+    if geom is None:
         raise ValueError("Can not process items without defined footprint")
-    yield from gbt.tiles(item.geometry)
+    yield from gbt.tiles(geom)
 
 
 def _tyx_bins(
