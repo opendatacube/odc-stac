@@ -17,7 +17,7 @@ dependencies:
   - pystac ==1.4.0
   - toolz
   - xarray ~=0.20.1
-  - odc-geo >=0.2.0
+  - odc-geo >=0.2.2
 
   # For mypy
   - types-python-dateutil
