@@ -49,6 +49,7 @@ from toolz import dicttoolz
 
 from ._model import (
     BandKey,
+    BandQuery,
     MDParseConfig,
     ParsedItem,
     RasterBandMetadata,
@@ -727,11 +728,15 @@ def _normalize_geometry(xx: Any) -> Geometry:
     return Geometry(_geojson_to_shapely(_geo), _crs)
 
 
-def _compute_bbox(items: Iterable[ParsedItem], crs: CRS) -> geom.BoundingBox:
+def _compute_bbox(
+    items: Iterable[ParsedItem],
+    crs: CRS,
+    bands: BandQuery = None,
+) -> geom.BoundingBox:
     def _bbox(item: ParsedItem) -> geom.BoundingBox:
-        g = item.geometry
+        g = item.safe_geometry(crs, bands=bands)
         assert g is not None
-        return g.to_crs(crs).boundingbox
+        return g.boundingbox
 
     return geom.bbox_union(map(_bbox, items))
 

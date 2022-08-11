@@ -1,6 +1,7 @@
 """Metadata and data loading model classes."""
 
 import datetime as dt
+import math
 from copy import copy
 from dataclasses import astuple, dataclass, field, replace
 from typing import (
@@ -17,7 +18,7 @@ from typing import (
     Union,
 )
 
-from odc.geo import CRS, Geometry
+from odc.geo import CRS, Geometry, MaybeCRS
 from odc.geo.geobox import GeoBox
 
 T = TypeVar("T")
@@ -304,6 +305,45 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
                 return gbox.crs
 
         return None
+
+    def image_geometry(
+        self,
+        crs: MaybeCRS = None,
+        bands: BandQuery = None,
+    ) -> Optional[Geometry]:
+        for gbox in self.geoboxes(bands):
+            if gbox.crs is not None:
+                if crs is None or crs == gbox.crs:
+                    return gbox.extent
+                return gbox.footprint(crs)
+
+        return None
+
+    def safe_geometry(
+        self,
+        crs: MaybeCRS = None,
+        bands: BandQuery = None,
+    ) -> Optional[Geometry]:
+        """
+        Get item geometry footprint in desired projection or native.
+
+        1. Use full-image footprint if proj data is available
+        2. Fallback to item geometry if not
+        """
+
+        img_geom = self.image_geometry(crs, bands=bands)
+        if img_geom is not None:
+            return img_geom
+
+        if self.geometry is None:
+            return None
+
+        if crs is None:
+            return self.geometry
+
+        N = 100  # minimum number of points along perimiter we desire
+        min_sample_distance = math.sqrt(self.geometry.area) * 4 / N
+        return self.geometry.to_crs(crs, min_sample_distance).dropna()
 
     def resolve_bands(
         self, bands: BandQuery = None
