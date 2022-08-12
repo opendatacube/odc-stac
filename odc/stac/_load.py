@@ -551,6 +551,7 @@ def load(
                 srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
                 yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
 
+    _rio_env = _capture_rio_env()
     if chunks is not None:
         # Dask case: dummy for now
         _loader = _DaskGraphBuilder(
@@ -558,7 +559,7 @@ def load(
             _parsed,
             tyx_bins,
             gbt,
-            _capture_rio_env(),
+            _rio_env,
         )
         return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
 
@@ -578,7 +579,8 @@ def load(
             for src in (_parsed[idx].get(band, None) for idx, band in task.srcs)
             if src is not None
         ]
-        _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, dst_slice)
+        with rio_env(**_rio_env):
+            _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, dst_slice)
         t, y, x = task.idx_tyx
         return (task.band, t, y, x)
 
@@ -643,11 +645,9 @@ def _dask_loader_tyx(
     env: Dict[str, Any],
 ):
     assert cfg.dtype is not None
-    env = {**env}
-    session = env.pop("_aws", None)
     gbox = gbt[iyx]
     chunk = np.empty(gbox.shape.yx, dtype=cfg.dtype)
-    with rio_env(session, **env):
+    with rio_env(**env):
         return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
 
 

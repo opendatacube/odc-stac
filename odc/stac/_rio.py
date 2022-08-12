@@ -34,6 +34,7 @@ SESSION_KEYS = (
     "AWS_REGION",
     "AWS_S3_ENDPOINT",
     "AWS_NO_SIGN_REQUEST",
+    "AWS_REQUEST_PAYER",
     "AZURE_STORAGE_ACCOUNT",
     "AZURE_NO_SIGN_REQUEST",
     "OSS_ENDPOINT",
@@ -162,6 +163,8 @@ def rio_env(session=None, **kw):
 
     re-uses GDAL environment and session between calls.
     """
+    if session is None:
+        session = kw.pop("_aws", None)
     return rasterio.env.Env(_local.session(session), **kw)
 
 
