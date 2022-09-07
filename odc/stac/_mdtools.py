@@ -700,28 +700,6 @@ def _auto_load_params(
     return (crs, res)
 
 
-def _geojson_to_shapely(xx: Any) -> shapely.geometry.base.BaseGeometry:
-    _type = xx.get("type", None)
-
-    if _type is None:
-        raise ValueError("Not a valid GeoJSON")
-
-    _type = _type.lower()
-    if _type == "featurecollection":
-        features = xx.get("features", [])
-        if len(features) == 1:
-            return shapely.geometry.shape(features[0]["geometry"])
-
-        return shapely.geometry.GeometryCollection(
-            [shapely.geometry.shape(feature["geometry"]) for feature in features]
-        )
-
-    if _type == "feature":
-        return shapely.geometry.shape(xx["geometry"])
-
-    return shapely.geometry.shape(xx)
-
-
 def _normalize_geometry(xx: Any) -> Geometry:
     if isinstance(xx, shapely.geometry.base.BaseGeometry):
         return Geometry(xx, "epsg:4326")
@@ -730,7 +708,7 @@ def _normalize_geometry(xx: Any) -> Geometry:
         return xx
 
     if isinstance(xx, dict):
-        return Geometry(_geojson_to_shapely(xx), "epsg:4326")
+        return Geometry(xx, "epsg:4326")
 
     # GeoPandas
     _geo = getattr(xx, "__geo_interface__", None)
@@ -738,7 +716,7 @@ def _normalize_geometry(xx: Any) -> Geometry:
         raise ValueError("Can't interpret value as geometry")
 
     _crs = getattr(xx, "crs", "epsg:4326")
-    return Geometry(_geojson_to_shapely(_geo), _crs)
+    return Geometry(_geo, _crs)
 
 
 def _compute_bbox(
@@ -828,6 +806,7 @@ def output_geobox(
             raise ValueError("No geospatial info on `like=` input")
 
         report_extra_args(params - {"like"}, "like")
+        assert isinstance(_odc.geobox, GeoBox)
         return _odc.geobox
 
     if not check_arg_sets("x", "y"):
