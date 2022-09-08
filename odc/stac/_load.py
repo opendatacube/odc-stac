@@ -27,8 +27,8 @@ import xarray as xr
 from dask import array as da
 from dask.base import quote, tokenize
 from dask.utils import ndeepmap
-from odc.geo import CRS, XY, MaybeCRS, SomeResolution
-from odc.geo.geobox import GeoBox, GeoboxTiles
+from odc.geo import CRS, MaybeCRS, SomeResolution
+from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 from odc.geo.xr import xr_coords
 from xarray.core.npcompat import DTypeLike
@@ -213,7 +213,7 @@ def load(
     # Geo selection
     crs: MaybeCRS = Unset(),
     resolution: Optional[SomeResolution] = None,
-    align: Optional[Union[float, int, XY[float]]] = None,
+    anchor: Optional[GeoboxAnchor] = None,
     geobox: Optional[GeoBox] = None,
     bbox: Optional[Tuple[float, float, float, float]] = None,
     lon: Optional[Tuple[float, float]] = None,
@@ -351,9 +351,10 @@ def load(
     :param y:
        Define output bounds in output projection coordinate units
 
-    :param align:
-       Control pixel snapping, default is to align pixel grid to ``X``/``Y``
-       axis such that pixel edges lie on the axis.
+    :param anchor:
+       Controls pixel snapping, default is to align pixel grid to ``X``/``Y``
+       axis such that pixel edges align with ``x=0, y=0``. Other common option is to
+       align pixel centers to ``0,0`` rather than edges.
 
     :param geobox:
        Allows to specify exact region/resolution/projection using
@@ -463,7 +464,8 @@ def load(
         bands=bands,
         crs=crs,
         resolution=resolution,
-        align=align,
+        anchor=anchor,
+        align=kw.get("align", None),
         geobox=geobox,
         like=like,
         geopolygon=geopolygon,

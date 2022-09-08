@@ -35,10 +35,12 @@ from odc.geo import (
     Resolution,
     SomeResolution,
     geom,
+    res_,
     wh_,
     xy_,
 )
-from odc.geo.geobox import GeoBox
+from odc.geo.geobox import AnchorEnum, GeoBox, GeoboxAnchor
+from odc.geo.types import Unset
 from odc.geo.xr import ODCExtension
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
@@ -737,12 +739,30 @@ def _compute_bbox(
     return geom.bbox_union(bboxes(items))
 
 
+def _align2anchor(
+    align: Optional[Union[float, int, XY[float]]], resolution: SomeResolution
+) -> GeoboxAnchor:
+    if align is None:
+        return AnchorEnum.EDGE
+
+    if isinstance(align, (float, int)):
+        align = xy_(align, align)
+
+    # support old-style "align", which is basically anchor but in CRS units
+    ax, ay = align.xy
+    if ax == 0 and ay == 0:
+        return AnchorEnum.EDGE
+    resolution = res_(resolution)
+    return xy_(ax / abs(resolution.x), ay / abs(resolution.y))
+
+
 def output_geobox(
     items: Sequence[ParsedItem],
     bands: Optional[Sequence[str]] = None,
     *,
     crs: MaybeCRS = Unset(),
     resolution: Optional[SomeResolution] = None,
+    anchor: Optional[GeoboxAnchor] = None,
     align: Optional[Union[float, int, XY[float]]] = None,
     geobox: Optional[GeoBox] = None,
     like: Optional[Any] = None,
@@ -761,7 +781,7 @@ def output_geobox(
     # x,y,crs      --> geopolygon[crs]
     # [items]      --> crs, geopolygon[crs]
     # [items]      --> crs, resolution
-    # geopolygon, crs, resolution[, align] --> GeoBox
+    # geopolygon, crs, resolution[, anchor|align] --> GeoBox
 
     params = {
         k
@@ -773,18 +793,17 @@ def output_geobox(
             crs=crs,
             resolution=resolution,
             align=align,
+            anchor=anchor,
             like=like,
             geopolygon=geopolygon,
             bbox=bbox,
             geobox=geobox,
         ).items()
-        if v is not None
+        if not (v is None or isinstance(v, Unset))
     }
-    if align is not None:
-        if isinstance(align, (int, float)):
-            align = xy_(align, align)
 
-    def report_extra_args(args: Set[str], primary: str):
+    def report_extra_args(primary: str, *ok_args):
+        args = params - set([primary, *ok_args])
         if len(args) > 0:
             raise ValueError(
                 f"Too many arguments when using `{primary}=`: {','.join(args)}"
@@ -797,9 +816,10 @@ def output_geobox(
         return False
 
     if geobox is not None:
-        report_extra_args(params - {"geobox"}, "geobox")
+        report_extra_args("geobox")
         return geobox
     if like is not None:
+        report_extra_args("like")
         if isinstance(like, GeoBox):
             return like
         _odc = getattr(like, "odc", None)
@@ -810,7 +830,6 @@ def output_geobox(
         if _odc.geobox is None:
             raise ValueError("No geospatial info on `like=` input")
 
-        report_extra_args(params - {"like"}, "like")
         assert isinstance(_odc.geobox, GeoBox)
         return _odc.geobox
 
@@ -823,6 +842,8 @@ def output_geobox(
     if isinstance(crs, Unset):
         crs = None
 
+    grid_params = ("crs", "align", "anchor", "resolution")
+
     query_crs: Optional[CRS] = None
     if geopolygon is not None:
         geopolygon = _normalize_geometry(geopolygon)
@@ -830,25 +851,21 @@ def output_geobox(
 
     # Normalize  x.y|lon.lat|bbox|geopolygon arguments to a geopolygon|None
     if geopolygon is not None:
-        report_extra_args(
-            params - {"geopolygon", "crs", "align", "resolution"}, "geopolygon"
-        )
+        report_extra_args("geopolygon", *grid_params)
     elif bbox is not None:
-        report_extra_args(params - {"bbox", "crs", "align", "resolution"}, "bbox")
+        report_extra_args("bbox", *grid_params)
         x0, y0, x1, y1 = bbox
         geopolygon = geom.box(x0, y0, x1, y1, EPSG4326)
     elif lat is not None and lon is not None:
         # lon=(x0, x1), lat=(y0, y1)
-        report_extra_args(
-            params - {"lon", "lat", "crs", "align", "resolution"}, "lon,lat"
-        )
+        report_extra_args("lon,lat", "lon", "lat", *grid_params)
         x0, x1 = sorted(lon)
         y0, y1 = sorted(lat)
         geopolygon = geom.box(x0, y0, x1, y1, EPSG4326)
     elif x is not None and y is not None:
         if crs is None:
             raise ValueError("Need to supply `crs=` when using `x=`, `y=`.")
-        report_extra_args(params - {"x", "y", "crs", "align", "resolution"}, "x,y")
+        report_extra_args("x,y", "x", "y", *grid_params)
         x0, x1 = sorted(x)
         y0, y1 = sorted(y)
         geopolygon = geom.box(x0, y0, x1, y1, crs)
@@ -869,13 +886,18 @@ def output_geobox(
         if resolution is None or crs is None:
             return None
 
+    if anchor is None:
+        anchor = _align2anchor(align, resolution)
+
     if geopolygon is not None:
         assert isinstance(geopolygon, Geometry)
         return GeoBox.from_geopolygon(
-            geopolygon, resolution=resolution, crs=crs, align=align
+            geopolygon,
+            resolution=resolution,
+            crs=crs,
+            anchor=anchor,
         )
 
     # compute from parsed items
-    x0, y0, x1, y1 = _compute_bbox(items, crs)
-    geopolygon = geom.box(x0, y0, x1, y1, crs)
-    return GeoBox.from_geopolygon(geopolygon, resolution=resolution, align=align)
+    _bbox = _compute_bbox(items, crs)
+    return GeoBox.from_bbox(_bbox, resolution=resolution, anchor=anchor)
