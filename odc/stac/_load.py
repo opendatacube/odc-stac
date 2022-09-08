@@ -29,6 +29,7 @@ from dask.base import quote, tokenize
 from dask.utils import ndeepmap
 from odc.geo import CRS, XY, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxTiles
+from odc.geo.types import Unset
 from odc.geo.xr import xr_coords
 from xarray.core.npcompat import DTypeLike
 
@@ -210,7 +211,7 @@ def load(
     chunks: Optional[Dict[str, int]] = None,
     pool: Union[ThreadPoolExecutor, int, None] = None,
     # Geo selection
-    crs: MaybeCRS = None,
+    crs: MaybeCRS = Unset(),
     resolution: Optional[SomeResolution] = None,
     align: Optional[Union[float, int, XY[float]]] = None,
     geobox: Optional[GeoBox] = None,
@@ -448,7 +449,7 @@ def load(
 
     # normalize args
     # dc.load compatible name for crs is `output_crs`
-    if crs is None:
+    if isinstance(crs, Unset) or crs is None:
         crs = cast(MaybeCRS, kw.pop("output_crs", None))
 
     if groupby is None:
