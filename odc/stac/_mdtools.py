@@ -38,7 +38,6 @@ from odc.geo import (
     wh_,
     xy_,
 )
-from odc.geo.crs import norm_crs
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtension
 from pystac.extensions.eo import EOExtension
@@ -721,22 +720,28 @@ def _normalize_geometry(xx: Any) -> Geometry:
 
 def _compute_bbox(
     items: Iterable[ParsedItem],
-    crs: CRS,
+    crs: MaybeCRS,
     bands: BandQuery = None,
 ) -> geom.BoundingBox:
-    def _bbox(item: ParsedItem) -> geom.BoundingBox:
-        g = item.safe_geometry(crs, bands=bands)
-        assert g is not None
-        return g.boundingbox
+    def bboxes(items: Iterable[ParsedItem]) -> Iterator[geom.BoundingBox]:
+        crs0 = crs
+        for item in items:
+            g = item.safe_geometry(crs0, bands=bands)
+            assert g is not None
+            if crs0 is crs:
+                # If crs is something like "utm", make sure
+                # same one is used going forward
+                crs0 = g.crs
+            yield g.boundingbox
 
-    return geom.bbox_union(map(_bbox, items))
+    return geom.bbox_union(bboxes(items))
 
 
 def output_geobox(
     items: Sequence[ParsedItem],
     bands: Optional[Sequence[str]] = None,
     *,
-    crs: MaybeCRS = None,
+    crs: MaybeCRS = Unset(),
     resolution: Optional[SomeResolution] = None,
     align: Optional[Union[float, int, XY[float]]] = None,
     geobox: Optional[GeoBox] = None,
@@ -815,7 +820,9 @@ def output_geobox(
     if not check_arg_sets("lon", "lat"):
         raise ValueError("Need to supply both lon= and lat=")
 
-    crs = norm_crs(crs)
+    if isinstance(crs, Unset):
+        crs = None
+
     query_crs: Optional[CRS] = None
     if geopolygon is not None:
         geopolygon = _normalize_geometry(geopolygon)

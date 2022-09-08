@@ -19,8 +19,8 @@ from typing import (
 )
 
 from odc.geo import CRS, Geometry, MaybeCRS
-from odc.geo.crs import norm_crs
 from odc.geo.geobox import GeoBox
+from odc.geo.types import Unset
 
 T = TypeVar("T")
 
@@ -309,10 +309,12 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
 
     def image_geometry(
         self,
-        crs: MaybeCRS = None,
+        crs: MaybeCRS = Unset(),
         bands: BandQuery = None,
     ) -> Optional[Geometry]:
-        crs = norm_crs(crs)
+        if isinstance(crs, Unset):
+            crs = None
+
         for gbox in self.geoboxes(bands):
             if gbox.crs is not None:
                 if crs is None or crs == gbox.crs:
@@ -323,7 +325,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
 
     def safe_geometry(
         self,
-        crs: MaybeCRS = None,
+        crs: MaybeCRS = Unset(),
         bands: BandQuery = None,
     ) -> Optional[Geometry]:
         """
@@ -340,8 +342,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
         if self.geometry is None:
             return None
 
-        crs = norm_crs(crs)
-        if crs is None:
+        if crs is None or isinstance(crs, Unset):
             return self.geometry
 
         N = 100  # minimum number of points along perimiter we desire
