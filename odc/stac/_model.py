@@ -19,6 +19,7 @@ from typing import (
 )
 
 from odc.geo import CRS, Geometry, MaybeCRS
+from odc.geo.crs import norm_crs
 from odc.geo.geobox import GeoBox
 
 T = TypeVar("T")
@@ -311,6 +312,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
         crs: MaybeCRS = None,
         bands: BandQuery = None,
     ) -> Optional[Geometry]:
+        crs = norm_crs(crs)
         for gbox in self.geoboxes(bands):
             if gbox.crs is not None:
                 if crs is None or crs == gbox.crs:
@@ -338,6 +340,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
         if self.geometry is None:
             return None
 
+        crs = norm_crs(crs)
         if crs is None:
             return self.geometry
 

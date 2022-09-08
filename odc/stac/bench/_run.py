@@ -15,6 +15,7 @@ import pystac.item
 import xarray as xr
 from dask.utils import format_bytes
 from odc.geo import CRS
+from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtension
 
 import odc.stac
@@ -236,6 +237,7 @@ def collect_context_info(
     geobox = xx.odc.geobox
     if geobox is None or geobox.crs is None:
         raise ValueError("Can't find GEO info")
+    assert isinstance(geobox, GeoBox)
     crs = f"epsg:{geobox.crs.epsg}"
     transform = geobox.transform
 

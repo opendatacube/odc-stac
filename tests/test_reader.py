@@ -15,7 +15,6 @@ from odc.stac._reader import (
     _resolve_src_nodata,
     _same_nodata,
     rio_read,
-    src_geobox,
 )
 from odc.stac.testing.fixtures import with_temp_tiff
 
@@ -65,18 +64,6 @@ def test_pick_overiew():
     assert _pick_overview(7, [2, 4, 8]) == 1
     assert _pick_overview(8, [2, 4, 8]) == 2
     assert _pick_overview(20, [2, 4, 8]) == 2
-
-
-def test_src_geobox():
-    gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(160, 320), tight=True)
-    assert src_geobox(RasterSource("some.tif", geobox=gbox)) is gbox
-
-    xx = xr_zeros(gbox, dtype="int16")
-    assert xx.odc.geobox == gbox
-
-    with with_temp_tiff(xx, compress=None) as uri:
-        assert src_geobox(uri) == gbox
-        assert src_geobox(RasterSource(uri)) == gbox
 
 
 def test_rio_read():
