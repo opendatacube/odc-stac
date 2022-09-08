@@ -6,12 +6,13 @@ Utilities for reading pixels from raster files.
 """
 
 import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 import rasterio
 import rasterio.enums
 import rasterio.warp
+from odc.geo.converters import rio_geobox
 from odc.geo.geobox import GeoBox
 from odc.geo.overlap import ReprojectInfo, compute_reproject_roi
 from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
@@ -70,10 +71,6 @@ def _pick_overview(read_shrink: int, overviews: List[int]) -> Optional[int]:
     return _idx
 
 
-def _rio_geobox(src: rasterio.DatasetReader) -> GeoBox:
-    return GeoBox(src.shape, src.transform, src.crs)
-
-
 def _same_nodata(a: Optional[float], b: Optional[float]) -> bool:
     if a is None:
         return b is None
@@ -97,28 +94,7 @@ def _nodata_mask(pix: np.ndarray, nodata: Optional[float]) -> np.ndarray:
 def _reproject_info_from_rio(
     rdr: rasterio.DatasetReader, dst_geobox: GeoBox, ttol: float
 ) -> ReprojectInfo:
-    if rdr.crs is None:
-        # Assume GCP
-        # For now just use worst-case reproject structure
-        # - Assume that need to read all of the input image
-        # - Assume that need to update all of the output image
-        # - Read from native resolution of the source (read_shrink=1,scale=1)
-        #
-        # TODO: estimate src resolution from GCPs and use that to set scale/read_shrink
-        #
-        s1, s2 = rdr.shape
-        d1, d2 = dst_geobox.shape
-
-        return ReprojectInfo(
-            np.s_[0:s1, 0:s2],
-            np.s_[0:d1, 0:d2],
-            paste_ok=False,
-            read_shrink=1,
-            scale=1.0,
-            transform=None,  # type: ignore
-        )
-
-    return compute_reproject_roi(_rio_geobox(rdr), dst_geobox, ttol=ttol)
+    return compute_reproject_roi(rio_geobox(rdr), dst_geobox, ttol=ttol)
 
 
 def _do_read(
@@ -173,23 +149,6 @@ def _do_read(
         )
 
     return (rr.roi_dst, _dst)
-
-
-def src_geobox(src: Union[str, RasterSource]) -> GeoBox:
-    """
-    Get GeoBox of the source.
-
-    1. If src is RasterSource with .geobox populated return that
-    2. Else open file and read it
-    """
-    if isinstance(src, RasterSource):
-        if src.geobox is not None:
-            return src.geobox
-
-        src = src.uri
-
-    with rasterio.open(src, "r") as f:
-        return _rio_geobox(f)
 
 
 def rio_read(
