@@ -17,4 +17,4 @@ planetary-computer
 pylint
 pytest
 pystac==1.4.0
-odc-geo==0.3.0rc1
+odc-geo==0.3.0
