@@ -55,4 +55,4 @@ dependencies:
   - pip:
       # dev
       - shed
-      - odc-geo ==0.3.0rc1
+      - odc-geo ==0.3.0
