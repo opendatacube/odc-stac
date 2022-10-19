@@ -31,7 +31,7 @@ from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 from odc.geo.xr import xr_coords
-from xarray.core.npcompat import DTypeLike
+from numpy.typing import DTypeLike
 
 from ._dask import unpack_chunks
 from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
