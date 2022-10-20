@@ -5,6 +5,8 @@ from typing import Any, Dict, Iterable, Iterator, Union
 
 import pandas as pd
 
+# pylint: disable=unsupported-assignment-operation
+
 
 def load_results(
     sources: Union[str, Iterable[str]],
