@@ -10,7 +10,7 @@ from ._model import T
 
 def tokenize_stream(
     xx: Iterator[T],
-    key: Callable[[str], Hashable] = None,
+    key: Optional[Callable[[str], Hashable]] = None,
     dsk: Optional[MutableMapping[Hashable, Any]] = None,
 ) -> Iterator[Tuple[Hashable, T]]:
     if key:

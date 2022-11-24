@@ -41,7 +41,7 @@ def main():
     type=click.Path(exists=True, dir_okay=False, readable=True),
 )
 @click.option("--overwrite", is_flag=True, help="Overwite output file")
-def prepare(sample_site, list_sample_sites, from_file, overwrite):
+def prepare(sample_site: str, list_sample_sites: bool, from_file, overwrite):
     """Prepare benchmarking dataset."""
     if list_sample_sites:
         click.echo("Sample sites:")
@@ -125,16 +125,16 @@ def _dask(n_workers, threads_per_worker, memory_limit):
 )
 @click.argument("site", type=click.Path(exists=True, dir_okay=False, readable=True))
 def run(
-    site,
+    site: str,
     config,
-    method,
-    ntimes,
-    bands,
+    method: str,
+    ntimes: int,
+    bands: str,
     chunks,
-    resolution,
-    crs,
-    resampling,
-    show_config,
+    resolution: float,
+    crs: str,
+    resampling: str,
+    show_config: bool,
     scheduler,
 ):
     """
@@ -215,7 +215,7 @@ def run(
 @click.argument(
     "pkls", type=click.Path(exists=True, dir_okay=False, readable=True), nargs=-1
 )
-def report(matching, output, pkls):
+def report(matching: str, output: str, pkls):
     """
     Collate results of multiple benchmark experiments.
 

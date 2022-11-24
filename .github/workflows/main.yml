@@ -170,7 +170,7 @@ jobs:
       - name: Check with mypy
         shell: bash
         run: |
-          mypy odc
+          python -m mypy --namespace-packages --explicit-package-bases odc
 
   test-without-botocore:
     runs-on: ubuntu-latest
