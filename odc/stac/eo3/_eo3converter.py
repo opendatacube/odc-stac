@@ -13,7 +13,7 @@ import pystac.asset
 import pystac.collection
 import pystac.errors
 import pystac.item
-from datacube.index.eo3 import prep_eo3
+from datacube.index.eo3 import prep_eo3  # type: ignore
 
 try:
     from datacube.index.index import default_metadata_type_docs  # type: ignore
@@ -343,5 +343,5 @@ def infer_dc_product_from_collection(
     # unless configured to ignore projection info assume that it will be present
     ignore_proj = cfg.get(product.name, {}).get("ignore_proj", False)
     if not ignore_proj:
-        product._md = dataclasses.replace(product._md, has_proj=True)
+        product._md = dataclasses.replace(product._md, has_proj=True)  # type: ignore
     return product
