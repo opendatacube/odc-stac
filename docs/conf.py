@@ -138,6 +138,7 @@ intersphinx_mapping = {
     "xarray": ("https://xarray.pydata.org/en/stable/", None),
     "xr": ("https://xarray.pydata.org/en/stable/", None),
     "datacube": ("https://datacube-core.readthedocs.io/en/latest/", None),
+    "odc-geo": ("https://odc-geo.readthedocs.io/en/latest/", None),
     "pystac": ("https://pystac.readthedocs.io/en/latest/", None),
     "rasterio": ("https://rasterio.readthedocs.io/en/latest/", None),
 }
