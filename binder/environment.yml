@@ -3,17 +3,12 @@ channels:
   - conda-forge
 
 dependencies:
-  - python =3.9
-  - pip =22
-  - mamba
+  - python =3.10
+  - pip
 
   # odc-stac dependencies
-  - affine
-  - odc-geo >=0.1.3
-  - rasterio
-  - dask-core
-  - numpy
-  - pandas
+  - odc-geo >=0.3.2
+  - rasterio >=1.3.3
   - pystac >=1.0.0,<2
   - toolz
   - xarray
@@ -22,42 +17,26 @@ dependencies:
 
   # planetary-computer lib for URL signing
   - planetary-computer
+  - pystac-client
 
   # JupyterLab
   - jupytext
-  - nodejs
-  - nbdime
   - jupyter-server-proxy
-  - jupyterlab-git
   - matplotlib
   - ipympl
   - dask
-  - dask-labextension
-  - python-graphviz
-  - bokeh
 
   # Some Geo libs
-  - ipyleaflet
-  - bqplot
-  - leafmap
   - geopandas
-  - hvplot
-  - holoviews
-  - rioxarray
-  - fiona
-  - numba
-  - zarr
-  - stackstac
+  - folium
 
   # conveniences
   - autopep8
   - black
   - isort
   - python-dotenv # for notebooks
+  - jupyterlab_code_formatter
 
   - pip:
       # odc-stac local checkout
       - -e ../
-
-      # JupyterLab dev conveniences
-      - jupyterlab-code-formatter
