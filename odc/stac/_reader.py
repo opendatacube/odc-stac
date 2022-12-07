@@ -5,6 +5,7 @@ Utilities for reading pixels from raster files.
 - read + reproject
 """
 
+import logging
 import math
 from typing import List, Optional, Tuple
 
@@ -20,6 +21,8 @@ from odc.geo.warp import resampling_s2rio
 
 from ._model import RasterLoadParams, RasterSource
 from ._rio import rio_env
+
+log = logging.getLogger(__name__)
 
 
 def _resolve_src_nodata(
@@ -178,6 +181,37 @@ def rio_read(
            mosaic[roi] = pix  # if sources are true tiles (no overlaps)
 
     """
+
+    try:
+        return _rio_read(src, cfg, dst_geobox, dst)
+    except rasterio.errors.RasterioIOError as e:
+        if cfg.fail_on_error:
+            log.error(
+                "Aborting load due to failure while reading: %s:%d",
+                src.uri,
+                src.band,
+            )
+            raise e
+
+    # Failed to read, but asked to continue
+    log.warning("Ignoring read failure while reading: %s:%d", src.uri, src.band)
+
+    # TODO: capture errors somehow
+
+    if dst is not None:
+        out = dst[0:0, 0:0]
+    else:
+        out = np.ndarray((0, 0), dtype=cfg.dtype)
+
+    return np.s_[0:0, 0:0], out
+
+
+def _rio_read(
+    src: RasterSource,
+    cfg: RasterLoadParams,
+    dst_geobox: GeoBox,
+    dst: Optional[np.ndarray] = None,
+) -> Tuple[NormalizedROI, np.ndarray]:
     # if resampling is `nearest` then ignore sub-pixel translation when deciding
     # whether we can just paste source into destination
     ttol = 0.9 if cfg.nearest else 0.05
