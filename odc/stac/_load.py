@@ -27,11 +27,11 @@ import xarray as xr
 from dask import array as da
 from dask.base import quote, tokenize
 from dask.utils import ndeepmap
+from numpy.typing import DTypeLike
 from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 from odc.geo.xr import xr_coords
-from numpy.typing import DTypeLike
 
 from ._dask import unpack_chunks
 from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
@@ -330,13 +330,17 @@ def load(
     regardless of the requested bounding box.
 
     :param crs:
-       Load data in a given CRS
+       Load data in a given CRS. Special name of ``"utm"`` is also understood, in which case an
+       appropriate UTM projection will be picked based on the output bounding box.
 
     :param resolution:
-       Set resolution of output in ``Y, X`` order, it is common for ``Y`` to be negative,
-       e.g. ``resolution=(-10, 10)``. Resolution must be supplied in the units of the
-       output CRS, so they are commonly in meters for *Projected* and in degrees for
-       *Geographic* CRSs. ``resolution=10`` is equivalent to ``resolution=(-10, 10)``.
+       Set resolution of output in units of the output CRS. This can be a single float, in which
+       case pixels are assumed to be square with ``Y`` axis flipped. To specify non-square or
+       non-flipped pixels use :py:func:`odc.geo.resxy_` or :py:func:`odc.geo.resyx_`.
+       ``resolution=10`` is equivalent to ``resolution=odc.geo.resxy_(10, -10)``.
+
+       Resolution must be supplied in the units of the output CRS. Units are commonly meters
+       for *Projected* and degrees for *Geographic* CRSs.
 
     :param bbox:
        Specify bounding box in Lon/Lat. ``[min(lon), min(lat), max(lon), max(lat)]``
