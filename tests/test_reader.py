@@ -2,6 +2,7 @@ from math import isnan
 
 import numpy as np
 import pytest
+import rasterio
 from numpy import ma
 from numpy.testing import assert_array_equal
 from odc.geo.geobox import GeoBox
@@ -196,3 +197,26 @@ def test_reader_unhappy_paths():
         # no such band error
         with pytest.raises(ValueError):
             _, _ = rio_read(src, cfg, gbox)
+
+
+def test_reader_fail_on_error():
+    gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(160, 320), tight=True)
+    xx = xr_zeros(gbox, dtype="int16")
+    src = RasterSource("file:///no-such-path/no-such.tif")
+    cfg = RasterLoadParams(dtype=str(xx.dtype), fail_on_error=True)
+
+    # check that it raises error when fail_on_error=True
+    with pytest.raises(rasterio.errors.RasterioIOError):
+        _, _ = rio_read(src, cfg, gbox)
+
+    # check that errors are suppressed when fail_on_error=False
+    cfg = RasterLoadParams(dtype=str(xx.dtype), fail_on_error=False)
+    roi, yy = rio_read(src, cfg, gbox)
+    assert yy.shape == (0, 0)
+    assert yy.dtype == cfg.dtype
+    assert roi == np.s_[0:0, 0:0]
+
+    roi, yy = rio_read(src, cfg, gbox, dst=xx.data)
+    assert yy.shape == (0, 0)
+    assert yy.dtype == cfg.dtype
+    assert roi == np.s_[0:0, 0:0]

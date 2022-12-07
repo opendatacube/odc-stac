@@ -504,6 +504,9 @@ class RasterLoadParams:
     resampling: str = "nearest"
     """Resampling method to use."""
 
+    fail_on_error: bool = True
+    """Quit on the first error or continue."""
+
     @staticmethod
     def same_as(src: Union[RasterBandMetadata, RasterSource]) -> "RasterLoadParams":
         """Construct from source object."""

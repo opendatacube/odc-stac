@@ -224,6 +224,7 @@ def load(
     geopolygon: Optional[Any] = None,
     # UI
     progress: Optional[Any] = None,
+    fail_on_error: bool = True,
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
@@ -291,6 +292,9 @@ def load(
 
     :param progress:
        Pass in ``tqdm`` progress bar or similar, only used in non-Dask load.
+
+    :param fail_on_error:
+        Set this to ``False`` to skip over load failures.
 
     :param pool:
        Use thread pool to perform load locally, only used in non-Dask load.
@@ -505,6 +509,7 @@ def load(
         dtype=dtype,
         use_overviews=kw.get("use_overviews", True),
         nodata=kw.get("nodata", None),
+        fail_on_error=fail_on_error,
     )
 
     if patch_url is not None:
@@ -608,6 +613,7 @@ def _resolve_load_cfg(
     dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
     use_overviews: bool = True,
     nodata: Optional[float] = None,
+    fail_on_error: bool = True,
 ) -> Dict[str, RasterLoadParams]:
     def _dtype(name: str, band_dtype: Optional[str], fallback: str) -> str:
         if dtype is None:
@@ -639,6 +645,7 @@ def _resolve_load_cfg(
             fill_value=_fill_value(band),
             use_overviews=use_overviews,
             resampling=_resampling(name, "nearest"),
+            fail_on_error=fail_on_error,
         )
 
     return {name: _resolve(name, band) for name, band in bands.items()}
