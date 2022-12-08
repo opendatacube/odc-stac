@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Config
       id: cfg
@@ -25,11 +25,11 @@ jobs:
         nb_dir="docs/notebooks"
         nb_hash=$(python scripts/notebook_hash.py)
         echo "Notebooks hash: ${nb_hash}"
-        echo "::set-output name=nb-dir::${nb_dir}"
-        echo "::set-output name=nb-hash::${nb_hash}"
-        echo "::set-output name=nb-archive::odc-stac-notebooks-${nb_hash}.tar.gz"
+        echo "nb-dir=${nb_dir}" >> $GITHUB_OUTPUT
+        echo "nb-hash=${nb_hash}" >> $GITHUB_OUTPUT
+        echo "nb-archive=odc-stac-notebooks-${nb_hash}.tar.gz" >> $GITHUB_OUTPUT
 
-    - uses: actions/cache@v2
+    - uses: actions/cache@v3
       id: nb_cache
       with:
         path: ${{ steps.cfg.outputs.nb-dir }}
@@ -82,7 +82,7 @@ jobs:
         S3_DST: 's3://datacube-core-deployment/odc-stac/nb'
 
     - name: Upload results (artifact)
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: rendered-notebooks
         path: docs/notebooks

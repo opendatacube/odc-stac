@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Build Binder Image
-      uses: jupyterhub/repo2docker-action@0.2
+      uses: jupyterhub/repo2docker-action@0.3
       id: dkr
       with:
         IMAGE_NAME: kirillodc/odc-stac-binder
@@ -44,7 +44,7 @@ jobs:
           DKR: ${{ steps.dkr.outputs.IMAGE_SHA_NAME }}
 
     - name: Publish environment.yaml artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: environment
         path: /tmp/environment.yaml
