@@ -95,6 +95,51 @@ jobs:
         run: |
           mamba env export -p /tmp/test_env
 
+  build-binder-env:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        id: binder_cache
+        with:
+          path: /tmp/binder_env
+          key: ${{ runner.os }}-binder-env-${{ hashFiles('binder/environment.yml') }}
+
+      - uses: conda-incubator/setup-miniconda@v2
+        if: steps.binder_cache.outputs.cache-hit != 'true'
+        with:
+          channels: conda-forge
+          channel-priority: true
+          activate-environment: ""
+          mamba-version: "*"
+          use-mamba: true
+
+      - name: Dump Conda Environment Info
+        shell: bash -l {0}
+        if: steps.binder_cache.outputs.cache-hit != 'true'
+        run: |
+          conda info
+          conda list
+          mamba -V
+          conda config --show-sources
+          conda config --show
+          printenv | sort
+
+      - name: Build Python Environment for Notebooks
+        shell: bash -l {0}
+        if: steps.binder_cache.outputs.cache-hit != 'true'
+        run: |
+          cd binder
+          mamba env create -f environment.yml -p /tmp/binder_env
+
+      - name: Check Python Env
+        shell: bash -l {0}
+        if: steps.binder_cache.outputs.cache-hit != 'true'
+        run: |
+          mamba env export -p /tmp/binder_env
+
   run-black-check:
     runs-on: ubuntu-latest
     needs:
@@ -303,6 +348,9 @@ jobs:
   build-notebooks:
     runs-on: ubuntu-latest
 
+    needs:
+      - build-binder-env
+
     steps:
       - uses: actions/checkout@v3
 
@@ -312,22 +360,31 @@ jobs:
           path: docs/notebooks
           key: docs-notebooks-${{ hashFiles('notebooks/*.py') }}
 
+      - name: Get Conda Environment from Cache
+        if: steps.nb_cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v3
+        id: conda_cache
+        with:
+          path: /tmp/binder_env
+          key: ${{ runner.os }}-binder-env-${{ hashFiles('binder/environment.yml') }}
+
+      - name: Update PATH
+        if: steps.nb_cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          echo "/tmp/binder_env/bin" >> $GITHUB_PATH
+
       - name: Run Notebooks
         if: steps.nb_cache.outputs.cache-hit != 'true'
         run: |
-          docker pull $DKR
-
           nb_dir=docs/notebooks
           mkdir -p $nb_dir
           for src in $(find notebooks -type f -maxdepth 1 -name '*py'); do
              dst="$nb_dir/$(basename ${src%%.py}.ipynb)"
              echo "$src -> $dst"
-             docker run -i --entrypoint ./binder/render-nb-pipe.sh $DKR <$src >$dst
+             ./binder/render-nb-pipe.sh <$src >$dst
           done
           ls -lh $nb_dir
-
-        env:
-          DKR: kirillodc/odc-stac-binder:latest
 
   check-docs:
     runs-on: ubuntu-latest
