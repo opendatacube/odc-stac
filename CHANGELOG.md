@@ -4,9 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.3.4] - TBD
+## [v0.3.4] - 2022-12-08
 
 - Implement `fail_on_error=False` option for skipping over errors while loading data
+- Maintenance of github actions
 
 ## [v0.3.3] - 2022-10-20
 
