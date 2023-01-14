@@ -131,11 +131,17 @@ class _DaskGraphBuilder:
         md_key = f"md-{name}-{tk}"
         shape_in_blocks = (shape[0], *self.gbt.shape.yx)
         for idx, item in enumerate(self.items):
-            dsk[md_key, idx] = item[name]
+            band = item.get(name, None)
+            if band is not None:
+                dsk[md_key, idx] = band
 
         for ti, yi, xi in np.ndindex(shape_in_blocks):
             tyx_idx = (ti, yi, xi)
-            srcs = [(md_key, idx) for idx in self.tyx_bins.get(tyx_idx, [])]
+            srcs = [
+                (md_key, idx)
+                for idx in self.tyx_bins.get(tyx_idx, [])
+                if (md_key, idx) in dsk
+            ]
             dsk[band_key, ti, yi, xi] = (
                 _dask_loader_tyx,
                 srcs,
