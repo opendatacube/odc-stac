@@ -66,10 +66,8 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v2
         if: steps.conda_cache.outputs.cache-hit != 'true'
         with:
-          channels: conda-forge,defaults
-          channel-priority: true
-          activate-environment: ""
-          mamba-version: "*"
+          miniforge-variant: Mambaforge
+          miniforge-version: latest
           use-mamba: true
 
       - name: Dump Conda Environment Info
@@ -110,10 +108,8 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v2
         if: steps.binder_cache.outputs.cache-hit != 'true'
         with:
-          channels: conda-forge
-          channel-priority: true
-          activate-environment: ""
-          mamba-version: "*"
+          miniforge-variant: Mambaforge
+          miniforge-version: latest
           use-mamba: true
 
       - name: Dump Conda Environment Info
