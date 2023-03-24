@@ -4,7 +4,7 @@
 ## Developer Notes
 
 Do not commit `*.ipynb` files here! We use `jupytext` for keeping notebooks in
-version control, specifically "py:percent" format. Install `jupytetxt` into your
+version control, specifically "py:percent" format. Install `jupytext` into your
 jupyterlab environment, then you should be able to "Open With->Notebook" on
 these `.py` files.
 
