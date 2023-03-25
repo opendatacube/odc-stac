@@ -158,7 +158,7 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
             unit=meta.unit,
         )
 
-    for (asset_name, bands) in item.assets().items():
+    for asset_name, bands in item.assets().items():
         b = bands[0]  # all bands shoudl share same uri
         xx.add_asset(
             asset_name,

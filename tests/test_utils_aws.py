@@ -39,7 +39,7 @@ def test_ec2_current_region():
         ("not valid json", None),
     ]
 
-    for (rv, expect) in tests:
+    for rv, expect in tests:
         with mock.patch("odc.stac._aws._fetch_text", return_value=rv):
             assert ec2_current_region() == expect
 
@@ -74,7 +74,6 @@ def test_fetch_text():
 
 
 def test_get_aws_settings(monkeypatch, without_aws_env):
-
     pp = write_files(
         {
             "config": """
