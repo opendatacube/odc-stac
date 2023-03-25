@@ -9,7 +9,7 @@ dependencies:
   # odc-stac dependencies
   - odc-geo >=0.3.2
   - rasterio >=1.3.3
-  - pystac >=1.0.0,<2
+  - pystac >=1.0.0,<1.7.0 # Change after fixing #106
   - toolz
   - xarray
   # for reading with rasterio from s3
