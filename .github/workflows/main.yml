@@ -158,6 +158,7 @@ jobs:
       - name: Check formatting (black)
         shell: bash
         run: |
+          black --version
           black --check --diff .
 
   run-pylint:

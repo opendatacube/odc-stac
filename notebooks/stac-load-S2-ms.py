@@ -139,6 +139,7 @@ display(xx)
 # %% [markdown]
 # ## Do some math with bands
 
+
 # %%
 def to_float(xx):
     _xx = xx.astype("float32")
