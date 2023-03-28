@@ -80,8 +80,8 @@ def _to_product(md: RasterCollectionMetadata) -> DatasetType:
         }
         if aliases is not None:
             doc["aliases"] = aliases
-        if idx > 0:
-            doc["band"] = idx + 1  # one based in datacube
+        if idx > 1:
+            doc["band"] = idx
         return doc
 
     # drop ambigous aliases

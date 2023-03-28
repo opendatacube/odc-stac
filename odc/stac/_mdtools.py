@@ -638,7 +638,7 @@ def parse_item(
         return grid
 
     for bk, meta in template.bands.items():
-        asset_name, _ = bk
+        asset_name, band_idx = bk
         asset = _assets.get(asset_name)
         if asset is None:
             continue
@@ -652,7 +652,7 @@ def parse_item(
                 f"Can not determine absolute path for band: {asset_name}"
             )  # pragma: no cover (https://github.com/stac-utils/pystac/issues/754)
 
-        bands[bk] = RasterSource(uri=uri, geobox=geobox, meta=meta)
+        bands[bk] = RasterSource(uri=uri, band=band_idx, geobox=geobox, meta=meta)
 
     md = item.common_metadata
     return ParsedItem(

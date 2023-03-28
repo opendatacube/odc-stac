@@ -23,6 +23,7 @@ def test_infer_product_collection(
     assert has_raster_ext(sentinel_stac_collection) is True
     product = infer_dc_product(sentinel_stac_collection)
     assert product.measurements["SCL"].dtype == "uint8"
+    assert product.measurements["SCL"].get("band") is None
     # check aliases from eo extension
     assert product.canonical_measurement("red") == "B04"
     assert product.canonical_measurement("green") == "B03"
@@ -91,12 +92,17 @@ def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.
 
     assert product.measurements["SCL"].dtype == "uint8"
     assert product.measurements["visual"].dtype == "uint8"
+    assert product.measurements["visual_2"].dtype == "uint8"
+    assert product.measurements["visual_2"].band == 2
+    assert product.measurements["visual_3"].band == 3
 
     # check aliases from eo extension
     assert product.canonical_measurement("red") == "B04"
     assert product.canonical_measurement("green") == "B03"
     assert product.canonical_measurement("blue") == "B02"
-    assert set(product._md.band2grid) == set(product.measurements)
+    assert set(product._md.band2grid) | set(["visual_2", "visual_3"]) == set(
+        product.measurements
+    )
 
 
 def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):

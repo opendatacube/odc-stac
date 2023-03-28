@@ -669,7 +669,11 @@
         -10.0,
         6800040.0
       ],
-      "raster:bands": [{"nodata": 0, "data_type": "uint8"}],
+      "raster:bands": [
+        {"data_type": "uint8"},
+        {"data_type": "uint8"},
+        {"data_type": "uint8"}
+      ],
       "roles": [
         "data"
       ]

@@ -266,6 +266,18 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item):
     assert xx.get("B01", None) is None
 
 
+def test_parse_item_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+    item = sentinel_stac_ms_with_raster_ext
+    parsed = parse_item(item)
+    assert parsed[("visual", 2)].band == 2
+    assert parsed["visual.2"].band == 2
+    assert parsed[("visual", 3)] is parsed["visual.3"]
+
+    for (band, idx), b in parsed.bands.items():
+        assert idx == b.band
+        assert band in S2_ALL_BANDS
+
+
 @pytest.mark.xfail
 def test_parse_no_absolute_href(relative_href_only: pystac.item.Item):
     # Currently pystac never returns `None` from attached asset
