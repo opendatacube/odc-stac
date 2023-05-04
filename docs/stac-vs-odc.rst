@@ -83,7 +83,7 @@ contained within.
 .. _`Open Datacube`: https://www.opendatacube.org/
 .. _`STAC`: https://stacspec.org/
 .. _`Projection Extension`: https://github.com/stac-extensions/projection
-.. _`Raster Extension`: https://github.com/stac-extensions/eo
+.. _`Raster Extension`: https://github.com/stac-extensions/raster
 .. _`Item Assets`: https://github.com/stac-extensions/item-assets
 .. _Band: https://github.com/stac-extensions/eo#band-object
 .. _`Common Name`: https://github.com/stac-extensions/eo#common-band-names
