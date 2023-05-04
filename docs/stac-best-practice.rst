@@ -48,6 +48,6 @@ collection.
 
 It is assumed that Assets within a single Item share common native projection.
 
-.. _`Raster Extension`: https://github.com/stac-extensions/eo
-.. _`Projection Extension`: https://github.com/stac-extensions/eo
+.. _`Raster Extension`: https://github.com/stac-extensions/raster
+.. _`Projection Extension`: https://github.com/stac-extensions/projection
 .. _`Electro Optical Extension`: https://github.com/stac-extensions/eo
