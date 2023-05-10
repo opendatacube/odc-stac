@@ -67,7 +67,27 @@ EPSG4326 = CRS("EPSG:4326")
 ROLES_THUMBNAIL = {"thumbnail", "overview"}
 
 # Used to detect image assets when media_type is missing
-RASTER_FILE_EXTENSIONS = {"tif", "tiff", "jpeg", "jpg", "jp2", "img"}
+RASTER_FILE_EXTENSIONS = {
+    "tif",
+    "tiff",
+    "jpeg",
+    "jpg",
+    "jp2",
+    "img",
+    "hdf",
+    "nc",
+    "zarr",
+}
+
+# image/* and these media-type are considered to be raster
+NON_IMAGE_RASTER_MEDIA_TYPES = {
+    "application/x-hdf",
+    "application/hdf",
+    "application/x-netcdf",
+    "application/netcdf",
+    "application/x-zarr",
+    "application/zarr",
+}
 
 
 def with_default(v: Optional[T], default_value: T) -> T:
@@ -207,19 +227,26 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
             return True
         if "metadata" in roles:
             return False
-    elif "image/" in media_type:
+
+        ext = asset.href.split(".")[-1].lower()
+        return ext in RASTER_FILE_EXTENSIONS
+
+    media_type, *_ = media_type.split(";")
+    media_type = media_type.lower()
+
+    if media_type.startswith("image/"):
         # Image:
         #    False -- when thumbnail
         #    True  -- otherwise
         if any(r in roles for r in ROLES_THUMBNAIL):
             return False
         return True
-    else:
-        # Some type that is not `image/*`
-        return False
 
-    ext = asset.href.split(".")[-1].lower()
-    return ext in RASTER_FILE_EXTENSIONS
+    if media_type in NON_IMAGE_RASTER_MEDIA_TYPES:
+        return True
+
+    # some unsupported mime type
+    return False
 
 
 def mk_1x1_geobox(g: Geometry) -> GeoBox:
