@@ -217,8 +217,8 @@ def test_partial_proj(partial_proj_stac):
 
 
 def test_noassets_case(no_bands_stac):
-    with pytest.raises(ValueError):
-        list(stac2ds([no_bands_stac]))
+    (ds,) = stac2ds([no_bands_stac])
+    assert len(ds.measurements) == 0
 
 
 def test_old_imports():

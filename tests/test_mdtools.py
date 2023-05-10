@@ -208,8 +208,8 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
 
 
 def test_noassets_case(no_bands_stac):
-    with pytest.raises(ValueError):
-        _ = extract_collection_metadata(no_bands_stac)
+    md = extract_collection_metadata(no_bands_stac)
+    assert len(md.bands) == 0
 
 
 def test_extract_md_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
