@@ -304,6 +304,7 @@ def _group_geoboxes(
     geoboxes: Dict[str, GeoBox]
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     # pylint: disable=too-many-locals
+    assert len(geoboxes) > 0
 
     def gbox_name(geobox: GeoBox) -> str:
         gsd = geobox_gsd(geobox)
@@ -343,6 +344,9 @@ def _group_geoboxes(
 
 
 def band2grid_from_gsd(assets: Dict[str, pystac.asset.Asset]) -> Dict[str, str]:
+    if not assets:
+        return {}
+
     grids: Dict[float, List[str]] = {}
     for name, asset in assets.items():
         gsd = asset.common_metadata.gsd
