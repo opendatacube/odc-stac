@@ -125,7 +125,9 @@ class RasterCollectionMetadata(Mapping[Union[str, BandKey], RasterBandMetadata])
 
     def _norm_key(self, k: BandKey) -> str:
         asset, idx = k
-        if idx == 1:
+
+        # if single band asset it's just asset name
+        if idx == 1 and (asset, 2) not in self.bands:
             return asset
 
         # if any alias references this key as first choice return that

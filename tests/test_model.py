@@ -133,7 +133,7 @@ def test_collection(collection_ab: RasterCollectionMetadata):
 def test_collection_allbands():
     xx = mk_parsed_item([b_("a.1"), b_("a.2"), b_("a.3")])
     md = xx.collection
-    assert md.all_bands == ["a", "a.2", "a.3"]
+    assert md.all_bands == ["a.1", "a.2", "a.3"]
 
     md.aliases["AA"] = [("a", 2)]
     md.aliases["AAA"] = [("a", 3)]
@@ -142,7 +142,7 @@ def test_collection_allbands():
 
     # expect aliases to be used for all_band when multi-band
     # assets have unique aliases
-    assert md.all_bands == ["a", "AA", "AAA"]
+    assert md.all_bands == ["a.1", "AA", "AAA"]
     assert md.canonical_name("a.2") == "AA"
     assert md.canonical_name("AA") == "AA"
     assert md.canonical_name("a.3") == "AAA"
