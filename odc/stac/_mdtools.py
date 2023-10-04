@@ -514,10 +514,11 @@ class _CMDAssembler:
         if bm is not None:
             return {(name, 1): copy(bm)}
 
-        return {
-            (name, idx + 1): bm
-            for idx, bm in enumerate(band_metadata(asset, c.band_defaults))
-        }
+        bm = c.band_cfg.get(f"{name}.*", None)
+        if bm is None:
+            bm = c.band_defaults
+
+        return {(name, idx + 1): bm for idx, bm in enumerate(band_metadata(asset, bm))}
 
     def _bootstrap(self, item: pystac.item.Item):
         """Called on the very first item only."""
