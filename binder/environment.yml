@@ -22,6 +22,7 @@ dependencies:
   # JupyterLab
   - jupytext
   - jupyter-server-proxy
+  - ipykernel
   - matplotlib
   - ipympl
   - dask
