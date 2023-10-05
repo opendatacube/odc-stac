@@ -85,7 +85,7 @@ class _LoadChunkTask:
     @property
     def dst_gbox(self) -> GeoBox:
         _, y, x = self.idx_tyx
-        return self.gbt[y, x]
+        return cast(GeoBox, self.gbt[y, x])
 
 
 class _DaskGraphBuilder:
@@ -665,7 +665,7 @@ def _dask_loader_tyx(
     env: Dict[str, Any],
 ):
     assert cfg.dtype is not None
-    gbox = gbt[iyx]
+    gbox = cast(GeoBox, gbt[iyx])
     chunk = np.empty(gbox.shape.yx, dtype=cfg.dtype)
     with rio_env(**env):
         return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
