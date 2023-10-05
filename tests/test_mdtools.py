@@ -6,13 +6,16 @@ import pystac.utils
 import pytest
 from common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
 from odc.geo import geom
-from odc.geo.geobox import GeoBox, geobox_union_conservative
+from odc.geo.geobox import AnchorEnum, GeoBox, geobox_union_conservative
+from odc.geo.types import xy_
 from odc.geo.xr import xr_zeros
 from pystac.extensions.projection import ProjectionExtension
 
 from odc.stac._mdtools import (
     RasterBandMetadata,
     _auto_load_params,
+    _gbox_anchor,
+    _most_common_gbox,
     _normalize_geometry,
     asset_geobox,
     band_metadata,
@@ -325,18 +328,19 @@ def test_auto_load_params(parsed_item_s2: ParsedItem):
     _10m = xx["B02"].geobox.resolution
     _20m = xx["B05"].geobox.resolution
     _60m = xx["B01"].geobox.resolution
+    _edge = AnchorEnum.EDGE
 
     assert _10m.xy == (10, -10)
     assert _20m.xy == (20, -20)
     assert _60m.xy == (60, -60)
 
     assert _auto_load_params([]) is None
-    assert _auto_load_params([xx]) == (crs, _10m)
-    assert _auto_load_params([xx] * 3) == (crs, _10m)
+    assert _auto_load_params([xx]) == (crs, _10m, _edge)
+    assert _auto_load_params([xx] * 3) == (crs, _10m, _edge)
 
-    assert _auto_load_params([xx], ["B01"]) == (crs, _60m)
-    assert _auto_load_params([xx] * 3, ["B01", "B05", "B06"]) == (crs, _20m)
-    assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m)
+    assert _auto_load_params([xx], ["B01"]) == (crs, _60m, _edge)
+    assert _auto_load_params([xx] * 3, ["B01", "B05", "B06"]) == (crs, _20m, _edge)
+    assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m, _edge)
 
 
 def test_norm_geom(gpd_iso3):
@@ -574,3 +578,48 @@ def test_usgs_v1_1_1_aliases(usgs_landsat_stac_v1_1_1: pystac.Item) -> None:
         "B5": [("swir16", 1)],
         "B7": [("swir22", 1)],
     }
+
+
+def test_gbox_anchor():
+    gbox = GeoBox.from_bbox((0, 0, 100, 200), resolution=10, crs=3857)
+    assert _gbox_anchor(gbox) == AnchorEnum.EDGE
+    assert _gbox_anchor(gbox.translate_pix(0.5, 0.5)) == AnchorEnum.CENTER
+    assert _gbox_anchor(gbox.translate_pix(-1 / 4, -1 / 8)) == xy_(1 / 4, 1 / 8)
+
+
+def test_most_common_gbox():
+    gbox = GeoBox.from_bbox((0, 0, 100, 200), resolution=10, crs=3857)
+    assert _most_common_gbox(
+        [gbox, gbox.center_pixel, gbox[:1, :1], gbox.zoom_out(1.3)]
+    ) == (
+        gbox.crs,
+        gbox.resolution,
+        AnchorEnum.EDGE,
+    )
+    # not enough consensus for anchor
+    # fallback to EDGE aligned
+    assert _most_common_gbox(
+        [
+            gbox.translate_pix(-0.3, -0.2),
+            gbox.center_pixel.translate_pix(-0.1, -0.4),
+            gbox.zoom_out(1.3),
+            gbox.to_crs(4326),
+        ],
+        1 / 4 + 0.1,
+    ) == (
+        gbox.crs,
+        gbox.resolution,
+        AnchorEnum.EDGE,
+    )
+
+    # CENTER
+    gbox = GeoBox.from_bbox(
+        (0, 0, 100, 200), resolution=10, crs=3857, anchor=AnchorEnum.CENTER
+    )
+    assert _most_common_gbox(
+        [gbox, gbox.center_pixel, gbox[:1, :1], gbox.zoom_out(1.3)]
+    ) == (
+        gbox.crs,
+        gbox.resolution,
+        AnchorEnum.CENTER,
+    )
