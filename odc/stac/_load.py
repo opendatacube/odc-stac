@@ -1,4 +1,6 @@
 """stac.load - dc.load from STAC Items."""
+from __future__ import annotations
+
 import dataclasses
 import functools
 import itertools
@@ -12,6 +14,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Literal,
     Optional,
     Protocol,
     Sequence,
@@ -25,6 +28,7 @@ import pystac
 import pystac.item
 import xarray as xr
 from dask import array as da
+from dask.array.core import normalize_chunks
 from dask.base import quote, tokenize
 from dask.utils import ndeepmap
 from numpy.typing import DTypeLike
@@ -214,7 +218,7 @@ def load(
     groupby: Optional[Groupby] = "time",
     resampling: Optional[Union[str, Dict[str, str]]] = None,
     dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
-    chunks: Optional[Dict[str, int]] = None,
+    chunks: Optional[Dict[str, int | Literal["auto"]]] = None,
     pool: Union[ThreadPoolExecutor, int, None] = None,
     # Geo selection
     crs: MaybeCRS = Unset(),
@@ -493,14 +497,6 @@ def load(
     if gbox is None:
         raise ValueError("Failed to auto-guess CRS/resolution.")
 
-    if chunks is not None:
-        chunk_shape = _resolve_chunk_shape(gbox, chunks)
-    else:
-        chunk_shape = _resolve_chunk_shape(
-            gbox,
-            {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
-        )
-
     debug = kw.get("debug", False)
 
     # Check we have all the bands of interest
@@ -517,6 +513,23 @@ def load(
         nodata=kw.get("nodata", None),
         fail_on_error=fail_on_error,
     )
+
+    if dtype is None:
+        _dtypes = sorted(
+            set(cfg.dtype for cfg in load_cfg.values() if cfg.dtype is not None),
+            key=lambda x: np.dtype(x).itemsize,
+            reverse=True,
+        )
+        dtype = "uint16" if len(_dtypes) == 0 else _dtypes[0]
+
+    if chunks is not None:
+        chunk_shape = _resolve_chunk_shape(gbox, chunks, dtype)
+    else:
+        chunk_shape = _resolve_chunk_shape(
+            gbox,
+            {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
+            dtype,
+        )
 
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
@@ -852,14 +865,13 @@ def _tyx_bins(
         yield from (((t_idx, *idx), ii_item) for idx, ii_item in _yx.items())
 
 
-def _resolve_chunk_shape(gbox: GeoBox, chunks: Dict[str, int]) -> Tuple[int, int]:
-    def _norm_dim(chunk: int, sz: int) -> int:
-        if chunk < 0 or chunk > sz:
-            return sz
-        return chunk
+def _resolve_chunk_shape(
+    gbox: GeoBox, chunks: Dict[str, int | Literal["auto"]], dtype: Any
+) -> Tuple[int, int]:
+    ty, tx = (
+        chunks.get(dim, chunks.get(fallback_dim, -1))
+        for dim, fallback_dim in zip(gbox.dimensions, ["y", "x"])
+    )
+    ny, nx = (ch[0] for ch in normalize_chunks((ty, tx), gbox.shape.yx, dtype=dtype))
 
-    ny, nx = [
-        _norm_dim(chunks.get(dim, chunks.get(fallback_dim, -1)), n)
-        for dim, fallback_dim, n in zip(gbox.dimensions, ["y", "x"], gbox.shape.yx)
-    ]
     return ny, nx
