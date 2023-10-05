@@ -40,6 +40,7 @@ from odc.geo import (
     xy_,
 )
 from odc.geo.geobox import AnchorEnum, GeoBox, GeoboxAnchor
+from odc.geo.math import maybe_zero, snap_scale, split_float
 from odc.geo.types import Unset
 from odc.geo.xr import ODCExtension
 from pystac.extensions.eo import EOExtension
@@ -261,6 +262,20 @@ def mk_1x1_geobox(g: Geometry) -> GeoBox:
     #   0,0 -> X_min, Y_max
     #   1,1 -> X_max, Y_min
     return GeoBox((1, 1), Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), g.crs)
+
+
+def _gbox_anchor(gbox: GeoBox, tol: float = 1e-3) -> GeoboxAnchor:
+    def _anchor(px: float, tol: float) -> float:
+        _, x = split_float(px)  # x in (-0.5, +0.5)
+        x = (1 + x) if x < 0 else x  # x in [0, 1)
+        return snap_scale(maybe_zero(x, tol), tol)
+
+    anchor = tuple(_anchor(px, tol) for px in (~gbox.transform) * (0, 0))
+    if anchor == (0, 0):
+        return AnchorEnum.EDGE
+    if anchor == (0.5, 0.5):
+        return AnchorEnum.CENTER
+    return xy_(anchor)
 
 
 def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
@@ -714,23 +729,37 @@ def parse_items(
         yield parse_item(item, proc.md)
 
 
+def _most_common_gbox(
+    gboxes: Sequence[GeoBox],
+    thresh: float = 0.1,
+) -> Tuple[Optional[CRS], Resolution, GeoboxAnchor]:
+    gg = [(g.crs, g.resolution, _gbox_anchor(g)) for g in gboxes]
+    hist = Counter(gg)
+    (best, n), *_ = hist.most_common(1)
+    if n / len(gg) > thresh:
+        return best
+
+    # too few in the majority group
+    # redo ignoring anchor this time
+    hist = Counter((crs, res) for crs, res, _ in gg)
+    (best, _), *_ = hist.most_common(1)
+    return (*best, AnchorEnum.EDGE)
+
+
 def _auto_load_params(
     items: Sequence[ParsedItem], bands: Optional[Sequence[str]] = None
-) -> Optional[Tuple[Optional[CRS], Resolution]]:
-    def _key(item: ParsedItem) -> Optional[Tuple[Optional[CRS], Resolution]]:
+) -> Optional[Tuple[Optional[CRS], Resolution, GeoboxAnchor]]:
+    def _extract_gbox(
+        item: ParsedItem,
+    ) -> Optional[GeoBox]:
         gbx = item.geoboxes(bands)
-        if len(gbx) == 0:
-            return None
-        g, *_ = gbx
-        return (g.crs, g.resolution)
+        return gbx[0] if len(gbx) else None
 
-    best = Counter(filter(lambda x: x is not None, map(_key, items))).most_common(1)
-    if len(best) == 0:
+    geoboxes = [gbox for gbox in map(_extract_gbox, items) if gbox is not None]
+    if len(geoboxes) == 0:
         return None
-    best, _ = best[0]
-    assert best is not None  # filter is too hard for mypy
-    crs, res = best
-    return (crs, res)
+
+    return _most_common_gbox(geoboxes, 0.1)
 
 
 def _normalize_geometry(xx: Any) -> Geometry:
@@ -902,10 +931,12 @@ def output_geobox(
         y0, y1 = sorted(y)
         geopolygon = geom.box(x0, y0, x1, y1, crs)
 
+    _anchor: GeoboxAnchor = AnchorEnum.EDGE
+
     if crs is None or resolution is None:
         rr = _auto_load_params(items, bands)
         if rr is not None:
-            _crs, _res = rr
+            _crs, _res, _anchor = rr
         else:
             _crs, _res = None, None
 
@@ -918,8 +949,10 @@ def output_geobox(
         if resolution is None or crs is None:
             return None
 
-    if anchor is None:
+    if anchor is None and align is not None:
         anchor = _align2anchor(align, resolution)
+    else:
+        anchor = _anchor
 
     if geopolygon is not None:
         assert isinstance(geopolygon, Geometry)
