@@ -102,13 +102,15 @@ class _DaskGraphBuilder:
         tyx_bins: Dict[Tuple[int, int, int], List[int]],
         gbt: GeoboxTiles,
         env: Dict[str, Any],
+        time_chunks: int = 1,
     ) -> None:
         self.cfg = cfg
         self.items = items
         self.tyx_bins = tyx_bins
         self.gbt = gbt
         self.env = env
-        self._tk = tokenize(items, cfg, gbt, tyx_bins, env)
+        self._tk = tokenize(items, cfg, gbt, tyx_bins, env, time_chunks)
+        self.chunk_shape = (time_chunks, *self.gbt.chunk_shape((0, 0)).yx)
 
     def __call__(
         self,
@@ -123,6 +125,11 @@ class _DaskGraphBuilder:
         cfg = self.cfg[name]
         assert dtype == cfg.dtype
 
+        chunks = unpack_chunks(self.chunk_shape, shape)
+        tchunk_range = [
+            range(last - n, last) for last, n in zip(np.cumsum(chunks[0]), chunks[0])
+        ]
+
         cfg_key = f"cfg-{tokenize(cfg)}"
         gbt_key = f"grid-{tokenize(self.gbt)}"
 
@@ -133,19 +140,23 @@ class _DaskGraphBuilder:
         tk = self._tk
         band_key = f"{name}-{tk}"
         md_key = f"md-{name}-{tk}"
-        shape_in_blocks = (shape[0], *self.gbt.shape.yx)
+        shape_in_blocks = tuple(len(ch) for ch in chunks)
         for idx, item in enumerate(self.items):
             band = item.get(name, None)
             if band is not None:
                 dsk[md_key, idx] = band
 
         for ti, yi, xi in np.ndindex(shape_in_blocks):
-            tyx_idx = (ti, yi, xi)
-            srcs = [
-                (md_key, idx)
-                for idx in self.tyx_bins.get(tyx_idx, [])
-                if (md_key, idx) in dsk
-            ]
+            srcs = []
+            for _ti in tchunk_range[ti]:
+                srcs.append(
+                    [
+                        (md_key, idx)
+                        for idx in self.tyx_bins.get((_ti, yi, xi), [])
+                        if (md_key, idx) in dsk
+                    ]
+                )
+
             dsk[band_key, ti, yi, xi] = (
                 _dask_loader_tyx,
                 srcs,
@@ -154,9 +165,6 @@ class _DaskGraphBuilder:
                 cfg_key,
                 self.env,
             )
-
-        chunk_shape = (1, *self.gbt.chunk_shape((0, 0)).yx)
-        chunks = unpack_chunks(chunk_shape, shape)
 
         return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
 
@@ -522,15 +530,6 @@ def load(
         )
         dtype = "uint16" if len(_dtypes) == 0 else _dtypes[0]
 
-    if chunks is not None:
-        chunk_shape = _resolve_chunk_shape(gbox, chunks, dtype)
-    else:
-        chunk_shape = _resolve_chunk_shape(
-            gbox,
-            {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
-            dtype,
-        )
-
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
@@ -546,9 +545,19 @@ def load(
 
     tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
 
+    if chunks is not None:
+        chunk_shape = _resolve_chunk_shape(len(tss), gbox, chunks, dtype)
+    else:
+        chunk_shape = _resolve_chunk_shape(
+            len(tss),
+            gbox,
+            {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
+            dtype,
+        )
+
     # Spatio-temporal binning
     assert isinstance(gbox.crs, CRS)
-    gbt = GeoboxTiles(gbox, chunk_shape)
+    gbt = GeoboxTiles(gbox, chunk_shape[1:])
     tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
     _parsed = [item.strip() for item in _parsed]
 
@@ -573,15 +582,6 @@ def load(
         )
         return ds
 
-    def _task_stream(bands: List[str]) -> Iterator[_LoadChunkTask]:
-        _shape = (len(_grouped_idx), *gbt.shape)
-        for band_name in bands:
-            cfg = load_cfg[band_name]
-            for ti, yi, xi in np.ndindex(_shape):
-                tyx_idx = (ti, yi, xi)
-                srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
-                yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
-
     _rio_env = _capture_rio_env()
     if chunks is not None:
         # Dask case: dummy for now
@@ -591,8 +591,18 @@ def load(
             tyx_bins,
             gbt,
             _rio_env,
+            time_chunks=chunk_shape[0],
         )
         return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
+
+    def _task_stream(bands: List[str]) -> Iterator[_LoadChunkTask]:
+        _shape = (len(_grouped_idx), *gbt.shape)
+        for band_name in bands:
+            cfg = load_cfg[band_name]
+            for ti, yi, xi in np.ndindex(_shape):
+                tyx_idx = (ti, yi, xi)
+                srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
+                yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
 
     ds = _mk_dataset(gbox, tss, load_cfg)
     ny, nx = gbt.shape.yx
@@ -671,7 +681,7 @@ def _resolve_load_cfg(
 
 
 def _dask_loader_tyx(
-    srcs: List[RasterSource],
+    srcs: List[List[RasterSource]],
     gbt: GeoboxTiles,
     iyx: Tuple[int, int],
     cfg: RasterLoadParams,
@@ -679,9 +689,11 @@ def _dask_loader_tyx(
 ):
     assert cfg.dtype is not None
     gbox = cast(GeoBox, gbt[iyx])
-    chunk = np.empty(gbox.shape.yx, dtype=cfg.dtype)
+    chunk = np.empty((len(srcs), *gbox.shape.yx), dtype=cfg.dtype)
     with rio_env(**env):
-        return _fill_2d_slice(srcs, gbox, cfg, chunk)[np.newaxis]
+        for i, plane in enumerate(srcs):
+            _fill_2d_slice(plane, gbox, cfg, chunk[i, :, :])
+        return chunk
 
 
 def _fill_2d_slice(
@@ -866,12 +878,16 @@ def _tyx_bins(
 
 
 def _resolve_chunk_shape(
-    gbox: GeoBox, chunks: Dict[str, int | Literal["auto"]], dtype: Any
-) -> Tuple[int, int]:
+    nt: int, gbox: GeoBox, chunks: Dict[str, int | Literal["auto"]], dtype: Any
+) -> Tuple[int, int, int]:
+    tt = chunks.get("time", 1)
     ty, tx = (
         chunks.get(dim, chunks.get(fallback_dim, -1))
         for dim, fallback_dim in zip(gbox.dimensions, ["y", "x"])
     )
-    ny, nx = (ch[0] for ch in normalize_chunks((ty, tx), gbox.shape.yx, dtype=dtype))
+    nt, ny, nx = (
+        ch[0]
+        for ch in normalize_chunks((tt, ty, tx), (nt, *gbox.shape.yx), dtype=dtype)
+    )
 
-    return ny, nx
+    return nt, ny, nx
