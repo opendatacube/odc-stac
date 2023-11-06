@@ -78,10 +78,10 @@ x, y = (113.887, -25.843)  # Center point of a query
 r = 100 * km2deg
 bbox = (x - r, y - r, x + r, y + r)
 
-catalog = Client.open("https://earth-search.aws.element84.com/v0")
+catalog = Client.open("https://earth-search.aws.element84.com/v1/")
 
 query = catalog.search(
-    collections=["sentinel-s2-l2a-cogs"], datetime="2021-09-16", limit=100, bbox=bbox
+    collections=["sentinel-2-l2a"], datetime="2020-01-01/2020-02-31", limit=100, bbox=bbox
 )
 
 items = list(query.get_items())
