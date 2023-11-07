@@ -44,19 +44,6 @@ def convert_bounds(bbox, invert_y=False):
     return ((y1, x1), (y2, x2))
 
 
-# %%
-cfg = {
-    "sentinel-s2-l2a-cogs": {
-        "assets": {
-            "*": {"data_type": "uint16", "nodata": 0},
-            "SCL": {"data_type": "uint8", "nodata": 0},
-            "visual": {"data_type": "uint8", "nodata": 0},
-        },
-        "aliases": {"red": "B04", "green": "B03", "blue": "B02"},
-    },
-    "*": {"warnings": "ignore"},
-}
-
 # %% [markdown]
 # ## Start Dask Client
 #
@@ -81,7 +68,7 @@ bbox = (x - r, y - r, x + r, y + r)
 catalog = Client.open("https://earth-search.aws.element84.com/v1/")
 
 query = catalog.search(
-    collections=["sentinel-2-l2a"], datetime="2020-01-01/2020-02-31", limit=100, bbox=bbox
+    collections=["sentinel-2-l2a"], datetime="2021-09-16", limit=100, bbox=bbox
 )
 
 items = list(query.get_items())
@@ -100,9 +87,9 @@ gdf = gpd.GeoDataFrame.from_features(stac_json, "epsg:4326")
 
 # Compute granule id from components
 gdf["granule"] = (
-    gdf["sentinel:utm_zone"].apply(lambda x: f"{x:02d}")
-    + gdf["sentinel:latitude_band"]
-    + gdf["sentinel:grid_square"]
+    gdf["mgrs:utm_zone"].apply(lambda x: f"{x:02d}")
+    + gdf["mgrs:latitude_band"]
+    + gdf["mgrs:grid_square"]
 )
 
 fig = gdf.plot(
@@ -140,7 +127,6 @@ gdf.explore(
     tooltip=[
         "granule",
         "datetime",
-        "sentinel:data_coverage",
         "eo:cloud_cover",
     ],
     popup=True,
@@ -172,7 +158,6 @@ xx = stac_load(
     resolution=10 * zoom,
     chunks={},  # <-- use Dask
     groupby="solar_day",
-    stac_cfg=cfg,
 )
 display(xx)
 
@@ -223,7 +208,6 @@ yy = stac_load(
     resolution=10,
     chunks={},  # <-- use Dask
     groupby="solar_day",
-    stac_cfg=cfg,
     bbox=small_bbox,
 )
 display(yy.odc.geobox)
