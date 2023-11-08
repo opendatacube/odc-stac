@@ -413,6 +413,17 @@ jobs:
         run: |
           echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
+      - name: Config
+        id: cfg
+        run: |
+          find notebooks/ -maxdepth 1 -name '*.py' -type f | sort -f -d
+  
+          nb_dir="docs/notebooks"
+          nb_hash=$(python scripts/notebook_hash.py)
+          echo "Notebooks hash: ${nb_hash}"
+          echo "nb-hash=${nb_hash}" >> $GITHUB_OUTPUT
+          echo "nb-hash-short=${nb_hash:0:16}" >> $GITHUB_OUTPUT
+  
       - name: Install in Edit mode
         shell: bash
         run: |
@@ -428,12 +439,13 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: nwtgck/actions-netlify@v2
         with:
-          production-branch: "main"
+          production-branch: "develop"
           publish-dir: "docs/_build/html"
           deploy-message: "Deploy from GitHub Actions"
           github-token: ${{ secrets.GITHUB_TOKEN }}
           enable-pull-request-comment: true
           enable-commit-comment: false
+          alias: ${{ steps.cfg.outputs.nb-hash-short }}
 
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}

@@ -13,10 +13,10 @@ import logging as pylogging
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import subprocess
 import sys
 from pathlib import Path
 
+import requests
 from sphinx.util import logging
 
 sys.path.insert(0, os.path.abspath(".."))
@@ -39,40 +39,36 @@ logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(FilterForIssue123
 # End of a workaround
 
 
-def ensure_notebooks(https_url, dst_folder):
+def ensure_notebooks(dst_folder):
     """
     Download pre-rendered notebooks from a tar archive
     """
-
     dst_folder = Path(dst_folder)
     if dst_folder.exists():
         print(f"Found pre-rendered notebooks in {dst_folder}")
         return True
 
-    print(f"Testing: {https_url}")
-    result = subprocess.run([f"curl -f -s -I {https_url}"], shell=True)
-    if result.returncode != 0:
-        print(f"Cached notebook URL does not exist: {https_url}")
-        return False
-
     dst_folder.mkdir()
-    print(f"Fetching: {https_url} to {dst_folder}")
-    log = subprocess.check_output(
-        ["/bin/bash", "-c", f"curl -s {https_url} | tar xz -C {dst_folder}"]
-    ).decode("utf-8")
-    print(log)
+    nb_hash, nb_paths = notebook_hash.compute("../notebooks")
+    nb_names = [p.rsplit("/", 1)[-1].rsplit(".", 1)[0] + ".ipynb" for p in nb_paths]
+
+    for nb in nb_names:
+        url = f"https://{nb_hash[:16]}--odc-stac-docs.netlify.app/notebooks/{nb}"
+        print(f"{url} -> notebooks/{nb}")
+        rr = requests.get(url, timeout=5)
+        if not rr:
+            return False
+        with open(dst_folder / nb, "wt", encoding="utf") as dst:
+            dst.write(rr.text)
+
     return True
 
 
 # working directory is docs/
 # download pre-rendered notebooks unless folder is already populated
-nb_hash = notebook_hash.compute("../notebooks")
-https_url = (
-    f"https://packages.dea.ga.gov.au/odc-stac/nb/odc-stac-notebooks-{nb_hash}.tar.gz"
-)
-if not ensure_notebooks(https_url, "notebooks"):
+if not ensure_notebooks("notebooks"):
     notebooks_directory = os.path.abspath("../notebooks")
-    raise Exception(
+    raise RuntimeException(
         "There is no cached version of these notebooks. "
         "Build the notebooks before building the documentation. "
         f"Notebooks are located in {notebooks_directory}."

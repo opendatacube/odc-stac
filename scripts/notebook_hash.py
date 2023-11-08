@@ -1,6 +1,5 @@
-import os.path
-
 import hashlib
+import os.path
 
 
 def compute(folder: str) -> str:
@@ -15,9 +14,10 @@ def compute(folder: str) -> str:
         with open(path, "rb") as file:
             bytes = file.read()
             hash.update(bytes)
-    return hash.hexdigest()
+    return hash.hexdigest(), paths
 
 
 if __name__ == "__main__":
     folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "notebooks"))
-    print(compute(folder))
+    hsh, _ = compute(folder)
+    print(hsh)
