@@ -268,7 +268,8 @@ def _gbox_anchor(gbox: GeoBox, tol: float = 1e-3) -> GeoboxAnchor:
     def _anchor(px: float, tol: float) -> float:
         _, x = split_float(px)  # x in (-0.5, +0.5)
         x = (1 + x) if x < 0 else x  # x in [0, 1)
-        return snap_scale(maybe_zero(x, tol), tol)
+        x = snap_scale(maybe_zero(x, tol), tol)
+        return 0 if x >= 1 else x
 
     anchor = tuple(_anchor(px, tol) for px in (~gbox.transform) * (0, 0))
     if anchor == (0, 0):
