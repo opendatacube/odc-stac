@@ -83,7 +83,9 @@ RASTER_FILE_EXTENSIONS = {
 # image/* and these media-type are considered to be raster
 NON_IMAGE_RASTER_MEDIA_TYPES = {
     "application/x-hdf",
+    "application/x-hdf5",
     "application/hdf",
+    "application/hdf5",
     "application/x-netcdf",
     "application/netcdf",
     "application/x-zarr",
