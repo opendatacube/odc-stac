@@ -1,7 +1,13 @@
 """STAC Item -> ODC Dataset[eo3]."""
 from ._version import __version__  # isort:skip  this has to be 1st import
 from ._load import load
-from ._mdtools import ConversionConfig
+from ._mdtools import (
+    ConversionConfig,
+    parse_item,
+    parse_items,
+    extract_collection_metadata,
+    output_geobox,
+)
 from ._model import (
     RasterBandMetadata,
     RasterCollectionMetadata,
@@ -23,6 +29,10 @@ __all__ = (
     "stac_load",
     "configure_rio",
     "configure_s3_access",
+    "parse_item",
+    "parse_items",
+    "extract_collection_metadata",
+    "output_geobox",
     "__version__",
 )
 
