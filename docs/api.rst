@@ -19,6 +19,10 @@ odc.stac
    load
    configure_rio
    configure_s3_access
+   parse_item
+   parse_items
+   extract_collection_metadata
+   output_geobox
 
 odc.stac.bench
 **************
