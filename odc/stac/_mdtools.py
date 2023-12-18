@@ -153,31 +153,32 @@ def has_proj_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) ->
     """
     Check if STAC Item or Collection has projection extension.
 
-    :returns: ``True`` if PROJ exetension is enabled
+    :returns: ``True`` if PROJ extension is enabled
     :returns: ``False`` if no PROJ extension was found
     """
-    try:
-        ProjectionExtension.validate_has_extension(item, add_if_missing=False)
+    if ProjectionExtension.has_extension(item):
         return True
-    except pystac.errors.ExtensionNotImplemented:
-        return False
+    # can remove this block once pystac 1.9.0 is the min supported version
+    return any(
+        ext_name.startswith("https://stac-extensions.github.io/projection/")
+        for ext_name in item.stac_extensions
+    )
 
 
 def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) -> bool:
     """
-    Check if STAC Item/Collection have EOExtension.
+    Check if STAC Item/Collection have RasterExtension.
 
-    :returns: ``True`` if Raster exetension is enabled
-    :returns: ``False`` if no Rasetr extension was found
+    :returns: ``True`` if Raster extension is enabled
+    :returns: ``False`` if no Raster extension was found
     """
-    try:
-        RasterExtension.validate_has_extension(item, add_if_missing=False)
+    if RasterExtension.has_extension(item):
         return True
-    except pystac.errors.ExtensionNotImplemented:
-        return any(
-            ext_name.startswith("https://stac-extensions.github.io/raster/")
-            for ext_name in item.stac_extensions
-        )
+    # can remove this block once pystac 1.9.0 is the min supported version
+    return any(
+        ext_name.startswith("https://stac-extensions.github.io/raster/")
+        for ext_name in item.stac_extensions
+    )
 
 
 def has_proj_data(asset: pystac.asset.Asset) -> bool:
