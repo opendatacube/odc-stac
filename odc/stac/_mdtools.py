@@ -156,7 +156,14 @@ def has_proj_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) ->
     :returns: ``True`` if PROJ extension is enabled
     :returns: ``False`` if no PROJ extension was found
     """
-    return ProjectionExtension.has_extension(item)
+    if ProjectionExtension.has_extension(item):
+        return True
+    # can remove this block once pystac 1.9.0 is the min supported version
+    else:
+        return any(
+            ext_name.startswith("https://stac-extensions.github.io/projection/")
+            for ext_name in item.stac_extensions
+        )
 
 
 def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) -> bool:
@@ -166,7 +173,14 @@ def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) 
     :returns: ``True`` if Raster extension is enabled
     :returns: ``False`` if no Raster extension was found
     """
-    return RasterExtension.has_extension(item)
+    if RasterExtension.has_extension(item):
+        return True
+    # can remove this block once pystac 1.9.0 is the min supported version
+    else:
+        return any(
+            ext_name.startswith("https://stac-extensions.github.io/raster/")
+            for ext_name in item.stac_extensions
+        )
 
 
 def has_proj_data(asset: pystac.asset.Asset) -> bool:
