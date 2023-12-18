@@ -178,7 +178,7 @@ def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) 
     return any(
         ext_name.startswith("https://stac-extensions.github.io/raster/")
         for ext_name in item.stac_extensions
-        )
+    )
 
 
 def has_proj_data(asset: pystac.asset.Asset) -> bool:
