@@ -349,7 +349,11 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
 
         N = 100  # minimum number of points along perimiter we desire
         min_sample_distance = math.sqrt(self.geometry.area) * 4 / N
-        return self.geometry.to_crs(crs, min_sample_distance).dropna()
+        return self.geometry.to_crs(
+            crs,
+            min_sample_distance,
+            check_and_fix=True,
+        ).dropna()
 
     def resolve_bands(
         self, bands: BandQuery = None
