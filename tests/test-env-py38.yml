@@ -14,12 +14,13 @@ dependencies:
   - jinja2
   - numpy
   - pandas
-  - pystac >=1.0.0,<1.7.0  # Change after fixing #106
   - toolz
-  - dask ==2022.10.0
-  - xarray ==2022.10.0
-  - rasterio >=1.3.3
   - odc-geo
+  # pins because py38 support being dropped
+  - pystac ==1.8.4
+  - dask ==2023.5.0
+  - xarray ==2023.1.0
+  - rasterio ==1.3.7
 
   # For mypy
   - types-python-dateutil
