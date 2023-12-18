@@ -159,11 +159,10 @@ def has_proj_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) ->
     if ProjectionExtension.has_extension(item):
         return True
     # can remove this block once pystac 1.9.0 is the min supported version
-    else:
-        return any(
-            ext_name.startswith("https://stac-extensions.github.io/projection/")
-            for ext_name in item.stac_extensions
-        )
+    return any(
+        ext_name.startswith("https://stac-extensions.github.io/projection/")
+        for ext_name in item.stac_extensions
+    )
 
 
 def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) -> bool:
@@ -176,10 +175,9 @@ def has_raster_ext(item: Union[pystac.item.Item, pystac.collection.Collection]) 
     if RasterExtension.has_extension(item):
         return True
     # can remove this block once pystac 1.9.0 is the min supported version
-    else:
-        return any(
-            ext_name.startswith("https://stac-extensions.github.io/raster/")
-            for ext_name in item.stac_extensions
+    return any(
+        ext_name.startswith("https://stac-extensions.github.io/raster/")
+        for ext_name in item.stac_extensions
         )
 
 
