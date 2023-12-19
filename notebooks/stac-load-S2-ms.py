@@ -79,7 +79,7 @@ query = catalog.search(
     query={"s2:mgrs_tile": dict(eq="06VVN")},
 )
 
-items = list(query.get_items())
+items = list(query.items())
 print(f"Found: {len(items):d} datasets")
 
 # %% [markdown]

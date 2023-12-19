@@ -26,7 +26,7 @@ import folium
 import folium.plugins
 import geopandas as gpd
 import shapely.geometry
-from IPython.display import HTML, display
+from IPython.display import display
 from pystac_client import Client
 
 from odc.stac import configure_rio, stac_load
@@ -71,11 +71,11 @@ query = catalog.search(
     collections=["sentinel-2-l2a"], datetime="2021-09-16", limit=100, bbox=bbox
 )
 
-items = list(query.get_items())
+items = list(query.items())
 print(f"Found: {len(items):d} datasets")
 
 # Convert STAC items into a GeoJSON FeatureCollection
-stac_json = query.get_all_items_as_dict()
+stac_json = query.item_collection_as_dict()
 
 # %% [markdown]
 # ## Review Query Result
