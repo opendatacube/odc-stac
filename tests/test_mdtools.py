@@ -298,9 +298,7 @@ def test_parse_no_absolute_href(relative_href_only: pystac.item.Item):
 def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
     item0 = sentinel_stac_ms
     item = pystac.Item.from_dict(item0.to_dict())
-    item.stac_extensions.remove(
-        "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
-    )
+    item.stac_extensions.remove(ProjectionExtension.get_schema_uri())
     assert has_proj_ext(item) is False
 
     md = extract_collection_metadata(item, STAC_CFG)

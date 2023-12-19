@@ -8,6 +8,8 @@ import pytest
 from common import NO_WARN_CFG, STAC_CFG, mk_stac_item
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
+from pystac.extensions.eo import EOExtension
+from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
 from toolz import dicttoolz
 
@@ -47,9 +49,7 @@ def test_infer_product_collection(
 
     # Check unhappy path
     collection = sentinel_stac_collection.clone()
-    collection.stac_extensions.remove(
-        "https://stac-extensions.github.io/item-assets/v1.0.0/schema.json"
-    )
+    collection.stac_extensions.remove(ItemAssetsExtension.get_schema_uri())
     with pytest.raises(ValueError):
         infer_dc_product(collection)
 
@@ -135,9 +135,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
 
     # Test no eo extension case
     item = item0.clone()
-    item.stac_extensions.remove(
-        "https://stac-extensions.github.io/eo/v1.0.0/schema.json"
-    )
+    item.stac_extensions.remove(EOExtension.get_schema_uri())
     product = infer_dc_product(item, STAC_CFG)
     with pytest.raises(ValueError):
         product.canonical_measurement("green")
@@ -152,9 +150,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
 def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
     item0 = sentinel_stac_ms
     item = item0.clone()
-    item.stac_extensions.remove(
-        "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
-    )
+    item.stac_extensions.remove(ProjectionExtension.get_schema_uri())
     assert has_proj_ext(item) is False
 
     product = infer_dc_product(item, STAC_CFG)
