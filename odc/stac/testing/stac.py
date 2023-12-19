@@ -164,7 +164,9 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
             asset_name,
             pystac.asset.Asset(b.uri, media_type="image/tiff", roles=["data"]),
         )
-        RasterExtension(xx.assets[asset_name]).apply(list(map(_to_raster_band, bands)))
+        RasterExtension.ext(xx.assets[asset_name]).apply(
+            list(map(_to_raster_band, bands))
+        )
 
     for asset_name, asset in xx.assets.items():
         bb = item.bands[(asset_name, 1)]
