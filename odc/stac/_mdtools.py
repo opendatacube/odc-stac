@@ -216,7 +216,7 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
     if check_proj:
         if (
             asset.owner is not None
-            and has_proj_ext(asset.owner)
+            and has_proj_ext(asset.owner)  # type: ignore
             and not has_proj_data(asset)
         ):
             return False
