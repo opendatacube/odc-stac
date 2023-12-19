@@ -13,12 +13,12 @@
 #     name: python3
 # ---
 
-# %% [markdown] tags=[]
+# %% [markdown]
 # # Access Sentinel 2 Data on Planetary Computer
 #
 # [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?labpath=notebooks%2Fstac-load-S2-ms.ipynb)
 
-# %% [markdown] tags=[]
+# %% [markdown]
 # ## Setup Instructions
 #
 # This notebook is meant to run on Planetary Computer lab hub.
@@ -33,24 +33,6 @@ from IPython.display import display
 from pystac_client import Client
 
 from odc.stac import configure_rio, stac_load
-
-# %% [markdown]
-# ## Configuration
-#
-# For now we need to manually supply band `dtype` and `nodata` information for
-# each band in the collection. Use band named `*` as a wildcard.
-
-# %%
-cfg = {
-    "sentinel-2-l2a": {
-        "assets": {
-            "*": {"data_type": "uint16", "nodata": 0},
-            "SCL": {"data_type": "uint8", "nodata": 0},
-            "visual": {"data_type": "uint8", "nodata": 0},
-        },
-    },
-    "*": {"warnings": "ignore"},
-}
 
 # %% [markdown]
 # ## Start Dask Client
@@ -89,15 +71,12 @@ print(f"Found: {len(items):d} datasets")
 # won't be loaded. We are "loading" data with Dask, which means that at this
 # point no reads will be happening just yet.
 #
-# If you were to skip `warnings: ignore` in the configuration, you'll see a
-# warning about `rededge` common name being used on several bands. Basically we
-# can only work with common names that uniquely identify some band. In this
-# case EO extension defines common name `rededge` for bands 5, 6 and 7.
+# We have to supply `dtype=` and `nodata=` because items in this collection are missing [raster extension](https://github.com/stac-extensions/raster) metadata.
 
 # %%
 resolution = 10
 SHRINK = 4
-if client.cluster.workers[0].memory_limit < dask.utils.parse_bytes("4G"):
+if client.cluster.workers[0].memory_manager.memory_limit < dask.utils.parse_bytes("4G"):
     SHRINK = 8  # running on Binder with 2Gb RAM
 
 if SHRINK > 1:
@@ -106,9 +85,11 @@ if SHRINK > 1:
 xx = stac_load(
     items,
     chunks={"x": 2048, "y": 2048},
-    stac_cfg=cfg,
     patch_url=pc.sign,
     resolution=resolution,
+    # force dtype and nodata
+    dtype="uint16",
+    nodata=0,
 )
 
 print(f"Bands: {','.join(list(xx.data_vars))}")
@@ -128,8 +109,10 @@ xx = stac_load(
     bands=["red", "green", "blue", "nir", "SCL"],
     resolution=resolution,
     chunks={"x": 2048, "y": 2048},
-    stac_cfg=cfg,
     patch_url=pc.sign,
+    # force dtype and nodata
+    dtype="uint16",
+    nodata=0,
 )
 
 print(f"Bands: {','.join(list(xx.data_vars))}")
