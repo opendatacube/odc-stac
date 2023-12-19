@@ -1,0 +1,52 @@
+# Conda environment for running tests in odc-stac
+#   conda env create -f test-env-py310.yml
+#   conda activate odc-stac-tests-py310
+
+name: odc-stac-tests-py310
+channels:
+  - conda-forge
+dependencies:
+  - python =3.10
+
+  # odc-stac dependencies
+  - affine
+  - datacube >=1.8.5
+  - jinja2
+  - numpy
+  - pandas
+  - toolz
+  - odc-geo
+  - pystac ==1.9.0
+  - dask ==2023.12.0
+  - xarray ==2023.12.0
+  - rasterio ==1.3.9
+
+  # For mypy
+  - types-python-dateutil
+
+  # For tests
+  - pytest
+  - pytest-httpserver
+  - pytest-cov
+  - pytest-timeout
+  - pytest-vcr
+  - mock
+  - deepdiff
+  - pystac-client >=0.2.0
+  - geopandas
+  - stackstac
+
+  # for docs
+  - sphinx
+  - sphinx_rtd_theme
+  - sphinx-autodoc-typehints
+  - nbsphinx
+  - ipywidgets
+  - jupytext
+
+  # dev
+  - autoflake
+  - black >=23.1.0
+  - isort
+  - mypy
+  - pylint ==2.14.4
