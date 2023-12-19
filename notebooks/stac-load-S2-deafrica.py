@@ -26,7 +26,7 @@
 # %%
 from pystac_client import Client
 
-from odc.stac import stac_load, configure_rio
+from odc.stac import configure_rio, stac_load
 
 # %% [markdown]
 # ## Set Collection Configuration
@@ -124,7 +124,7 @@ query = catalog.search(
 )
 
 # Search the STAC catalog for all items matching the query
-items = list(query.get_items())
+items = list(query.items())
 print(f"Found: {len(items):d} datasets")
 
 # %% [markdown]
