@@ -141,12 +141,13 @@ class _DaskGraphBuilder:
         band_key = f"{name}-{tk}"
         md_key = f"md-{name}-{tk}"
         shape_in_blocks = tuple(len(ch) for ch in chunks)
+
         for idx, item in enumerate(self.items):
             band = item.get(name, None)
             if band is not None:
                 dsk[md_key, idx] = band
 
-        for ti, yi, xi in np.ndindex(shape_in_blocks):
+        for ti, yi, xi in np.ndindex(shape_in_blocks):  # type: ignore
             srcs = []
             for _ti in tchunk_range[ti]:
                 srcs.append(
@@ -596,10 +597,10 @@ def load(
         return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
 
     def _task_stream(bands: List[str]) -> Iterator[_LoadChunkTask]:
-        _shape = (len(_grouped_idx), *gbt.shape)
+        _shape: Tuple[int, int, int] = (len(_grouped_idx), *gbt.shape.yx)
         for band_name in bands:
             cfg = load_cfg[band_name]
-            for ti, yi, xi in np.ndindex(_shape):
+            for ti, yi, xi in np.ndindex(_shape):  # type: ignore
                 tyx_idx = (ti, yi, xi)
                 srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
                 yield _LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
