@@ -24,6 +24,28 @@ odc.stac
    extract_collection_metadata
    output_geobox
 
+odc.stac.ParsedItem
+*******************
+
+.. currentmodule:: odc.stac
+.. autosummary::
+   :toctree: _api/
+
+   ParsedItem
+   ParsedItem.assets
+   ParsedItem.crs
+   ParsedItem.geoboxes
+   ParsedItem.image_geometry
+   ParsedItem.resolve_bands
+   ParsedItem.safe_geometry
+   ParsedItem.solar_date_at
+   ParsedItem.strip
+
+   RasterBandMetadata
+   RasterCollectionMetadata
+   RasterLoadParams
+   RasterSource
+
 odc.stac.bench
 **************
 

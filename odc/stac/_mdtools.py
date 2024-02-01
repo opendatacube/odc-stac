@@ -720,6 +720,11 @@ def parse_item(
 def parse_items(
     items: Iterable[pystac.item.Item], cfg: Optional[ConversionConfig] = None
 ) -> Iterator[ParsedItem]:
+    """
+    Parse sequence of STAC Items into internal representation.
+
+    Exposed for debugging purposes.
+    """
     proc_cache: Dict[str, _CMDAssembler] = {}
 
     for item in items:
@@ -847,6 +852,11 @@ def output_geobox(
     x: Optional[Tuple[float, float]] = None,
     y: Optional[Tuple[float, float]] = None,
 ) -> Optional[GeoBox]:
+    """
+    Used to compute output geobox from load parameters.
+
+    Exposed at top-level for debugging.
+    """
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-return-statements
 
     # geobox, like --> GeoBox
