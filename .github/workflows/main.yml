@@ -9,14 +9,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: wheels_cache
         with:
           path: ./wheels
@@ -55,15 +55,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/test_env
           key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
 
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
         if: steps.conda_cache.outputs.cache-hit != 'true'
         with:
           miniforge-variant: Mambaforge
@@ -97,15 +97,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: binder_cache
         with:
           path: /tmp/binder_env
           key: ${{ runner.os }}-binder-env-${{ hashFiles('binder/environment.yml') }}
 
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
         if: steps.binder_cache.outputs.cache-hit != 'true'
         with:
           miniforge-variant: Mambaforge
@@ -142,9 +142,9 @@ jobs:
       - build-test-env-base
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get Conda Environment from Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/test_env
@@ -167,9 +167,9 @@ jobs:
       - build-test-env-base
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get Conda Environment from Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/test_env
@@ -196,9 +196,9 @@ jobs:
       - build-test-env-base
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get Conda Environment from Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/test_env
@@ -217,10 +217,10 @@ jobs:
   test-without-botocore:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: 3.8
           cache: "pip"
@@ -250,10 +250,10 @@ jobs:
       - run-black-check
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Get Conda Environment from Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/test_env
@@ -302,17 +302,17 @@ jobs:
       - build-wheels
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Get Wheels from Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: wheels_cache
         with:
           path: ./wheels
           key: wheels-${{ github.sha }}
 
       - name: Get Conda Environment from Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/test_env
@@ -349,9 +349,9 @@ jobs:
       - build-binder-env
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: nb_cache
         with:
           path: docs/notebooks
@@ -359,7 +359,7 @@ jobs:
 
       - name: Get Conda Environment from Cache
         if: steps.nb_cache.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/binder_env
@@ -392,17 +392,17 @@ jobs:
       - build-notebooks
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Get Rendered Notebooks
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: nb_cache
         with:
           path: docs/notebooks
           key: docs-notebooks-${{ hashFiles('notebooks/*.py') }}
 
       - name: Get Conda Environment from Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/test_env
