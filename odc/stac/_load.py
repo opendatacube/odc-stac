@@ -1,4 +1,5 @@
 """stac.load - dc.load from STAC Items."""
+
 from __future__ import annotations
 
 import dataclasses
@@ -69,8 +70,7 @@ class MkArray(Protocol):
         dtype: DTypeLike,
         /,
         name: Hashable,
-    ) -> Any:
-        ...  # pragma: no cover
+    ) -> Any: ...  # pragma: no cover
 
 
 @dataclasses.dataclass(frozen=True)

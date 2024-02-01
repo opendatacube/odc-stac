@@ -1,4 +1,5 @@
 """CLI app for benchmarking."""
+
 import json
 from datetime import datetime
 from time import sleep

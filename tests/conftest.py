@@ -1,6 +1,7 @@
 """
 Test for SQS to DC tool
 """
+
 import json
 import os
 from pathlib import Path

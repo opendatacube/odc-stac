@@ -17,6 +17,7 @@ pip install odc-stac==0.3.0rc1 tqdm planetary_computer pystac-client
 ```
 
 """
+
 import planetary_computer
 import pystac_client
 from affine import Affine

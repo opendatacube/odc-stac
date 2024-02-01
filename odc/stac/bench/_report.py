@@ -1,4 +1,5 @@
 """Helper methods for benchmark reporting."""
+
 import glob
 import pickle
 from typing import Any, Dict, Iterable, Iterator, Union
