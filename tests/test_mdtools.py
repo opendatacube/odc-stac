@@ -323,9 +323,12 @@ def test_auto_load_params(parsed_item_s2: ParsedItem):
     assert len(xx.geoboxes()) == 3
     crs = xx.geoboxes()[0].crs
 
-    _10m = xx["B02"].geobox.resolution
-    _20m = xx["B05"].geobox.resolution
-    _60m = xx["B01"].geobox.resolution
+    _gbox_10m = xx["B02"].geobox
+    _gbox_20m = xx["B05"].geobox
+    _gbox_60m = xx["B01"].geobox
+    _10m = _gbox_10m.resolution
+    _20m = _gbox_20m.resolution
+    _60m = _gbox_60m.resolution
     _edge = AnchorEnum.EDGE
 
     assert _10m.xy == (10, -10)
@@ -333,12 +336,17 @@ def test_auto_load_params(parsed_item_s2: ParsedItem):
     assert _60m.xy == (60, -60)
 
     assert _auto_load_params([]) is None
-    assert _auto_load_params([xx]) == (crs, _10m, _edge)
-    assert _auto_load_params([xx] * 3) == (crs, _10m, _edge)
+    assert _auto_load_params([xx]) == (crs, _10m, _edge, _gbox_10m)
+    assert _auto_load_params([xx] * 3) == (crs, _10m, _edge, _gbox_10m)
 
-    assert _auto_load_params([xx], ["B01"]) == (crs, _60m, _edge)
-    assert _auto_load_params([xx] * 3, ["B01", "B05", "B06"]) == (crs, _20m, _edge)
-    assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m, _edge)
+    assert _auto_load_params([xx], ["B01"]) == (crs, _60m, _edge, _gbox_60m)
+    assert _auto_load_params([xx] * 3, ["B01", "B05", "B06"]) == (
+        crs,
+        _20m,
+        _edge,
+        _gbox_20m,
+    )
+    assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m, _edge, _gbox_10m)
 
 
 def test_norm_geom(gpd_iso3):
@@ -600,6 +608,7 @@ def test_most_common_gbox():
         gbox.crs,
         gbox.resolution,
         AnchorEnum.EDGE,
+        None,
     )
     # not enough consensus for anchor
     # fallback to EDGE aligned
@@ -615,6 +624,7 @@ def test_most_common_gbox():
         gbox.crs,
         gbox.resolution,
         AnchorEnum.EDGE,
+        None,
     )
 
     # CENTER
@@ -627,4 +637,5 @@ def test_most_common_gbox():
         gbox.crs,
         gbox.resolution,
         AnchorEnum.CENTER,
+        None,
     )
