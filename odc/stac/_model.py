@@ -281,7 +281,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
 
     def geoboxes(self, bands: BandQuery = None) -> Tuple[GeoBox, ...]:
         """
-        Unique ``GeoBox``s, highest resolution first.
+        Unique ``GeoBox`` s, highest resolution first.
 
         :param bands: which bands to consider, default is all
         """
@@ -314,6 +314,9 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
         crs: MaybeCRS = Unset(),
         bands: BandQuery = None,
     ) -> Optional[Geometry]:
+        """
+        Extract footprint of a given band(s) from proj metadata in a given projection.
+        """
         if isinstance(crs, Unset):
             crs = None
 
@@ -403,7 +406,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
         - datetime if set
         - start_datetime if set
         - end_datetime if set
-        - raise ValueError otherwise
+        - ``raise ValueError`` otherwise
         """
         for ts in [self.datetime, *self.datetime_range]:
             if ts is not None:

@@ -4,10 +4,11 @@ from ._version import __version__  # isort:skip  this has to be 1st import
 from ._load import load
 from ._mdtools import (
     ConversionConfig,
-    parse_item,
-    parse_items,
+    ParsedItem,
     extract_collection_metadata,
     output_geobox,
+    parse_item,
+    parse_items,
 )
 from ._model import (
     RasterBandMetadata,
@@ -21,6 +22,7 @@ stac_load = load
 
 
 __all__ = (
+    "ParsedItem",
     "RasterBandMetadata",
     "RasterCollectionMetadata",
     "RasterLoadParams",
