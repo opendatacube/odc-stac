@@ -1,6 +1,7 @@
 """
 Generic tools with only standard lib dependencies.
 """
+
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable, Iterator, Sized, TypeVar, Union
 

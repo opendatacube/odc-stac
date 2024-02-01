@@ -1,4 +1,5 @@
 """Benchmarking tools."""
+
 from ._prepare import SAMPLE_SITES, dump_site
 from ._report import load_results
 from ._run import (
