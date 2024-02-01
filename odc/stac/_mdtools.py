@@ -736,23 +736,32 @@ def parse_items(
 def _most_common_gbox(
     gboxes: Sequence[GeoBox],
     thresh: float = 0.1,
-) -> Tuple[Optional[CRS], Resolution, GeoboxAnchor]:
+) -> Tuple[Optional[CRS], Resolution, GeoboxAnchor, Optional[GeoBox]]:
+    gboxes = list(gboxes)
+
+    # First check for identical geoboxes
+    _gboxes = set(gboxes)
+    if len(_gboxes) == 1:
+        g = _gboxes.pop()
+        return (g.crs, g.resolution, _gbox_anchor(g), g)
+
+    # Most common shared CRS, Resolution, Anchor
     gg = [(g.crs, g.resolution, _gbox_anchor(g)) for g in gboxes]
     hist = Counter(gg)
     (best, n), *_ = hist.most_common(1)
     if n / len(gg) > thresh:
-        return best
+        return (*best, None)
 
     # too few in the majority group
     # redo ignoring anchor this time
     hist = Counter((crs, res) for crs, res, _ in gg)
     (best, _), *_ = hist.most_common(1)
-    return (*best, AnchorEnum.EDGE)
+    return (*best, AnchorEnum.EDGE, None)
 
 
 def _auto_load_params(
     items: Sequence[ParsedItem], bands: Optional[Sequence[str]] = None
-) -> Optional[Tuple[Optional[CRS], Resolution, GeoboxAnchor]]:
+) -> Optional[Tuple[Optional[CRS], Resolution, GeoboxAnchor, Optional[GeoBox]]]:
     def _extract_gbox(
         item: ParsedItem,
     ) -> Optional[GeoBox]:
@@ -935,14 +944,19 @@ def output_geobox(
         y0, y1 = sorted(y)
         geopolygon = geom.box(x0, y0, x1, y1, crs)
 
+    full_auto = len(params) == 0
     _anchor: GeoboxAnchor = AnchorEnum.EDGE
+    _the_gbox: Optional[GeoBox] = None
 
     if crs is None or resolution is None:
         rr = _auto_load_params(items, bands)
         if rr is not None:
-            _crs, _res, _anchor = rr
+            _crs, _res, _anchor, _the_gbox = rr
         else:
             _crs, _res = None, None
+
+        if full_auto and _the_gbox is not None:
+            return _the_gbox
 
         if crs is None:
             crs = _crs or query_crs
