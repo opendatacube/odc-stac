@@ -5,27 +5,15 @@ Utilities for reading pixels from raster files.
 - read + reproject
 """
 
-import logging
 import math
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
-import rasterio
-import rasterio.enums
-import rasterio.warp
-from odc.geo.converters import rio_geobox
-from odc.geo.geobox import GeoBox
-from odc.geo.overlap import ReprojectInfo, compute_reproject_roi
-from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
-from odc.geo.warp import resampling_s2rio
 
-from ._model import RasterLoadParams, RasterSource
-from ._rio import rio_env
-
-log = logging.getLogger(__name__)
+from ._model import RasterLoadParams
 
 
-def _resolve_src_nodata(
+def resolve_src_nodata(
     nodata: Optional[float], cfg: RasterLoadParams
 ) -> Optional[float]:
     if cfg.src_nodata_override is not None:
@@ -35,13 +23,13 @@ def _resolve_src_nodata(
     return cfg.src_nodata_fallback
 
 
-def _resolve_dst_dtype(src_dtype: str, cfg: RasterLoadParams) -> np.dtype:
+def resolve_dst_dtype(src_dtype: str, cfg: RasterLoadParams) -> np.dtype:
     if cfg.dtype is None:
         return np.dtype(src_dtype)
     return np.dtype(cfg.dtype)
 
 
-def _resolve_dst_nodata(
+def resolve_dst_nodata(
     dst_dtype: np.dtype,
     cfg: RasterLoadParams,
     src_nodata: Optional[float] = None,
@@ -61,7 +49,7 @@ def _resolve_dst_nodata(
     return None
 
 
-def _pick_overview(read_shrink: int, overviews: List[int]) -> Optional[int]:
+def pick_overview(read_shrink: int, overviews: List[int]) -> Optional[int]:
     if len(overviews) == 0 or read_shrink < overviews[0]:
         return None
 
@@ -74,7 +62,7 @@ def _pick_overview(read_shrink: int, overviews: List[int]) -> Optional[int]:
     return _idx
 
 
-def _same_nodata(a: Optional[float], b: Optional[float]) -> bool:
+def same_nodata(a: Optional[float], b: Optional[float]) -> bool:
     if a is None:
         return b is None
     if b is None:
@@ -84,7 +72,7 @@ def _same_nodata(a: Optional[float], b: Optional[float]) -> bool:
     return a == b
 
 
-def _nodata_mask(pix: np.ndarray, nodata: Optional[float]) -> np.ndarray:
+def nodata_mask(pix: np.ndarray, nodata: Optional[float]) -> np.ndarray:
     if pix.dtype.kind == "f":
         if nodata is None or math.isnan(nodata):
             return np.isnan(pix)
@@ -92,167 +80,3 @@ def _nodata_mask(pix: np.ndarray, nodata: Optional[float]) -> np.ndarray:
     if nodata is None:
         return np.zeros_like(pix, dtype="bool")
     return pix == nodata
-
-
-def _reproject_info_from_rio(
-    rdr: rasterio.DatasetReader, dst_geobox: GeoBox, ttol: float
-) -> ReprojectInfo:
-    return compute_reproject_roi(rio_geobox(rdr), dst_geobox, ttol=ttol)
-
-
-def _do_read(
-    src: rasterio.Band,
-    cfg: RasterLoadParams,
-    dst_geobox: GeoBox,
-    rr: ReprojectInfo,
-    dst: Optional[np.ndarray] = None,
-) -> Tuple[NormalizedROI, np.ndarray]:
-    resampling = resampling_s2rio(cfg.resampling)
-    rdr = src.ds
-
-    if dst is not None:
-        _dst = dst[rr.roi_dst]  # type: ignore
-    else:
-        _dst = np.ndarray(
-            roi_shape(rr.roi_dst), dtype=_resolve_dst_dtype(src.dtype, cfg)
-        )
-
-    src_nodata0 = rdr.nodatavals[src.bidx - 1]
-    src_nodata = _resolve_src_nodata(src_nodata0, cfg)
-    dst_nodata = _resolve_dst_nodata(_dst.dtype, cfg, src_nodata)
-
-    if roi_is_empty(rr.roi_dst):
-        return (rr.roi_dst, _dst)
-
-    if roi_is_empty(rr.roi_src):
-        # no overlap case
-        if dst_nodata is not None:
-            np.copyto(_dst, dst_nodata)
-        return (rr.roi_dst, _dst)
-
-    if rr.paste_ok and rr.read_shrink == 1:
-        rdr.read(src.bidx, out=_dst, window=w_[rr.roi_src])
-
-        if dst_nodata is not None and not _same_nodata(src_nodata, dst_nodata):
-            # remap nodata from source to output
-            np.copyto(_dst, dst_nodata, where=_nodata_mask(_dst, src_nodata))
-    else:
-        # some form of reproject
-        # TODO: support read with integer shrink then reproject more
-        # TODO: deal with int8 inputs
-
-        rasterio.warp.reproject(
-            src,
-            _dst,
-            src_nodata=src_nodata,
-            dst_crs=str(dst_geobox.crs),
-            dst_transform=dst_geobox[rr.roi_dst].transform,
-            dst_nodata=dst_nodata,
-            resampling=resampling,
-        )
-
-    return (rr.roi_dst, _dst)
-
-
-def rio_read(
-    src: RasterSource,
-    cfg: RasterLoadParams,
-    dst_geobox: GeoBox,
-    dst: Optional[np.ndarray] = None,
-) -> Tuple[NormalizedROI, np.ndarray]:
-    """
-    Internal read method.
-
-    Returns part of the destination image that overlaps with the given source.
-
-    .. code-block: python
-
-       cfg, geobox, sources = ...
-       mosaic = np.full(geobox.shape, cfg.fill_value, dtype=cfg.dtype)
-
-       for src in sources:
-           roi, pix = rio_read(src, cfg, geobox)
-           assert mosaic[roi].shape == pix.shape
-           assert pix.dtype == mosaic.dtype
-
-           # paste over destination pixels that are empty
-           np.copyto(mosaic[roi], pix, where=(mosaic[roi] == nodata))
-           # OR
-           mosaic[roi] = pix  # if sources are true tiles (no overlaps)
-
-    """
-
-    try:
-        return _rio_read(src, cfg, dst_geobox, dst)
-    except (
-        rasterio.errors.RasterioIOError,
-        rasterio.errors.RasterBlockError,
-        rasterio.errors.WarpOperationError,
-        rasterio.errors.WindowEvaluationError,
-    ) as e:
-        if cfg.fail_on_error:
-            log.error(
-                "Aborting load due to failure while reading: %s:%d",
-                src.uri,
-                src.band,
-            )
-            raise e
-    except rasterio.errors.RasterioError as e:
-        if cfg.fail_on_error:
-            log.error(
-                "Aborting load due to some rasterio error: %s:%d",
-                src.uri,
-                src.band,
-            )
-            raise e
-
-    # Failed to read, but asked to continue
-    log.warning("Ignoring read failure while reading: %s:%d", src.uri, src.band)
-
-    # TODO: capture errors somehow
-
-    if dst is not None:
-        out = dst[0:0, 0:0]
-    else:
-        out = np.ndarray((0, 0), dtype=cfg.dtype)
-
-    return np.s_[0:0, 0:0], out
-
-
-def _rio_read(
-    src: RasterSource,
-    cfg: RasterLoadParams,
-    dst_geobox: GeoBox,
-    dst: Optional[np.ndarray] = None,
-) -> Tuple[NormalizedROI, np.ndarray]:
-    # if resampling is `nearest` then ignore sub-pixel translation when deciding
-    # whether we can just paste source into destination
-    ttol = 0.9 if cfg.nearest else 0.05
-
-    with rasterio.open(src.uri, "r", sharing=False) as rdr:
-        assert isinstance(rdr, rasterio.DatasetReader)
-        ovr_idx: Optional[int] = None
-
-        if src.band > rdr.count:
-            raise ValueError(f"No band {src.band} in '{src.uri}'")
-
-        rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
-
-        if cfg.use_overviews and rr.read_shrink > 1:
-            ovr_idx = _pick_overview(rr.read_shrink, rdr.overviews(src.band))
-
-        if ovr_idx is None:
-            with rio_env(VSI_CACHE=False):
-                return _do_read(
-                    rasterio.band(rdr, src.band), cfg, dst_geobox, rr, dst=dst
-                )
-
-        # read from overview
-        with rasterio.open(
-            src.uri, "r", sharing=False, overview_level=ovr_idx
-        ) as rdr_ovr:
-            rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
-            with rio_env(VSI_CACHE=False):
-                return _do_read(
-                    rasterio.band(rdr_ovr, src.band), cfg, dst_geobox, rr, dst=dst
-                )

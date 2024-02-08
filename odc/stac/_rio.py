@@ -5,12 +5,33 @@
 """
 rasterio helpers
 """
+import logging
 import threading
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
+import numpy as np
 import rasterio
+import rasterio.enums
 import rasterio.env
+import rasterio.warp
+from odc.geo.converters import rio_geobox
+from odc.geo.geobox import GeoBox
+from odc.geo.overlap import ReprojectInfo, compute_reproject_roi
+from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
+from odc.geo.warp import resampling_s2rio
 from rasterio.session import AWSSession, Session
+
+from ._model import RasterLoadParams, RasterSource
+from ._reader import (
+    nodata_mask,
+    pick_overview,
+    resolve_dst_dtype,
+    resolve_dst_nodata,
+    resolve_src_nodata,
+    same_nodata,
+)
+
+log = logging.getLogger(__name__)
 
 SECRET_KEYS = (
     "AWS_ACCESS_KEY_ID",
@@ -267,3 +288,183 @@ def configure_s3_access(
 
     _set_default_rio_config(aws=aws, cloud_defaults=cloud_defaults, **gdal_opts)
     return creds
+
+
+def _reproject_info_from_rio(
+    rdr: rasterio.DatasetReader, dst_geobox: GeoBox, ttol: float
+) -> ReprojectInfo:
+    return compute_reproject_roi(rio_geobox(rdr), dst_geobox, ttol=ttol)
+
+
+def _do_read(
+    src: rasterio.Band,
+    cfg: RasterLoadParams,
+    dst_geobox: GeoBox,
+    rr: ReprojectInfo,
+    dst: Optional[np.ndarray] = None,
+) -> Tuple[NormalizedROI, np.ndarray]:
+    resampling = resampling_s2rio(cfg.resampling)
+    rdr = src.ds
+
+    if dst is not None:
+        _dst = dst[rr.roi_dst]  # type: ignore
+    else:
+        _dst = np.ndarray(
+            roi_shape(rr.roi_dst), dtype=resolve_dst_dtype(src.dtype, cfg)
+        )
+
+    src_nodata0 = rdr.nodatavals[src.bidx - 1]
+    src_nodata = resolve_src_nodata(src_nodata0, cfg)
+    dst_nodata = resolve_dst_nodata(_dst.dtype, cfg, src_nodata)
+
+    if roi_is_empty(rr.roi_dst):
+        return (rr.roi_dst, _dst)
+
+    if roi_is_empty(rr.roi_src):
+        # no overlap case
+        if dst_nodata is not None:
+            np.copyto(_dst, dst_nodata)
+        return (rr.roi_dst, _dst)
+
+    if rr.paste_ok and rr.read_shrink == 1:
+        rdr.read(src.bidx, out=_dst, window=w_[rr.roi_src])
+
+        if dst_nodata is not None and not same_nodata(src_nodata, dst_nodata):
+            # remap nodata from source to output
+            np.copyto(_dst, dst_nodata, where=nodata_mask(_dst, src_nodata))
+    else:
+        # some form of reproject
+        # TODO: support read with integer shrink then reproject more
+        # TODO: deal with int8 inputs
+
+        rasterio.warp.reproject(
+            src,
+            _dst,
+            src_nodata=src_nodata,
+            dst_crs=str(dst_geobox.crs),
+            dst_transform=dst_geobox[rr.roi_dst].transform,
+            dst_nodata=dst_nodata,
+            resampling=resampling,
+        )
+
+    return (rr.roi_dst, _dst)
+
+
+def rio_read(
+    src: RasterSource,
+    cfg: RasterLoadParams,
+    dst_geobox: GeoBox,
+    dst: Optional[np.ndarray] = None,
+) -> Tuple[NormalizedROI, np.ndarray]:
+    """
+    Internal read method.
+
+    Returns part of the destination image that overlaps with the given source.
+
+    .. code-block: python
+
+       cfg, geobox, sources = ...
+       mosaic = np.full(geobox.shape, cfg.fill_value, dtype=cfg.dtype)
+
+       for src in sources:
+           roi, pix = rio_read(src, cfg, geobox)
+           assert mosaic[roi].shape == pix.shape
+           assert pix.dtype == mosaic.dtype
+
+           # paste over destination pixels that are empty
+           np.copyto(mosaic[roi], pix, where=(mosaic[roi] == nodata))
+           # OR
+           mosaic[roi] = pix  # if sources are true tiles (no overlaps)
+
+    """
+
+    try:
+        return _rio_read(src, cfg, dst_geobox, dst)
+    except (
+        rasterio.errors.RasterioIOError,
+        rasterio.errors.RasterBlockError,
+        rasterio.errors.WarpOperationError,
+        rasterio.errors.WindowEvaluationError,
+    ) as e:
+        if cfg.fail_on_error:
+            log.error(
+                "Aborting load due to failure while reading: %s:%d",
+                src.uri,
+                src.band,
+            )
+            raise e
+    except rasterio.errors.RasterioError as e:
+        if cfg.fail_on_error:
+            log.error(
+                "Aborting load due to some rasterio error: %s:%d",
+                src.uri,
+                src.band,
+            )
+            raise e
+
+    # Failed to read, but asked to continue
+    log.warning("Ignoring read failure while reading: %s:%d", src.uri, src.band)
+
+    # TODO: capture errors somehow
+
+    if dst is not None:
+        out = dst[0:0, 0:0]
+    else:
+        out = np.ndarray((0, 0), dtype=cfg.dtype)
+
+    return np.s_[0:0, 0:0], out
+
+
+def _rio_read(
+    src: RasterSource,
+    cfg: RasterLoadParams,
+    dst_geobox: GeoBox,
+    dst: Optional[np.ndarray] = None,
+) -> Tuple[NormalizedROI, np.ndarray]:
+    # if resampling is `nearest` then ignore sub-pixel translation when deciding
+    # whether we can just paste source into destination
+    ttol = 0.9 if cfg.nearest else 0.05
+
+    with rasterio.open(src.uri, "r", sharing=False) as rdr:
+        assert isinstance(rdr, rasterio.DatasetReader)
+        ovr_idx: Optional[int] = None
+
+        if src.band > rdr.count:
+            raise ValueError(f"No band {src.band} in '{src.uri}'")
+
+        rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
+
+        if cfg.use_overviews and rr.read_shrink > 1:
+            ovr_idx = pick_overview(rr.read_shrink, rdr.overviews(src.band))
+
+        if ovr_idx is None:
+            with rio_env(VSI_CACHE=False):
+                return _do_read(
+                    rasterio.band(rdr, src.band), cfg, dst_geobox, rr, dst=dst
+                )
+
+        # read from overview
+        with rasterio.open(
+            src.uri, "r", sharing=False, overview_level=ovr_idx
+        ) as rdr_ovr:
+            rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
+            with rio_env(VSI_CACHE=False):
+                return _do_read(
+                    rasterio.band(rdr_ovr, src.band), cfg, dst_geobox, rr, dst=dst
+                )
+
+
+def capture_rio_env() -> Dict[str, Any]:
+    # pylint: disable=protected-access
+    if _CFG._configured:
+        env = {**_CFG._gdal_opts, "_aws": _CFG._aws}
+    else:
+        env = get_rio_env(sanitize=False, no_session_keys=True)
+
+    if len(env) == 0:
+        # not customized, supply defaults
+        return {**GDAL_CLOUD_DEFAULTS}
+
+    # don't want that copied across to workers who might be on different machine
+    env.pop("GDAL_DATA", None)
+    return env

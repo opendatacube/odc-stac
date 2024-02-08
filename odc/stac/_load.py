@@ -48,8 +48,8 @@ from ._model import (
     RasterLoadParams,
     RasterSource,
 )
-from ._reader import _nodata_mask, _resolve_src_nodata, rio_read
-from ._rio import _CFG, GDAL_CLOUD_DEFAULTS, get_rio_env, rio_env
+from ._reader import nodata_mask, resolve_src_nodata
+from ._rio import capture_rio_env, rio_env, rio_read
 from ._utils import SizedIterable, pmap
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
@@ -201,22 +201,6 @@ def patch_urls(
         }
 
     return dataclasses.replace(item, bands=_bands)
-
-
-def _capture_rio_env() -> Dict[str, Any]:
-    # pylint: disable=protected-access
-    if _CFG._configured:
-        env = {**_CFG._gdal_opts, "_aws": _CFG._aws}
-    else:
-        env = get_rio_env(sanitize=False, no_session_keys=True)
-
-    if len(env) == 0:
-        # not customized, supply defaults
-        return {**GDAL_CLOUD_DEFAULTS}
-
-    # don't want that copied across to workers who might be on different machine
-    env.pop("GDAL_DATA", None)
-    return env
 
 
 # pylint: disable=too-many-arguments,too-many-locals,too-many-statements
@@ -583,7 +567,7 @@ def load(
         )
         return ds
 
-    _rio_env = _capture_rio_env()
+    _rio_env = capture_rio_env()
     if chunks is not None:
         # Dask case: dummy for now
         _loader = _DaskGraphBuilder(
@@ -709,7 +693,7 @@ def _fill_2d_slice(
     # ``fill_value`` is the initial value to use, it's equal to ``nodata`` when set,
     #                otherwise defaults to .nan for floats and 0 for integers
     assert dst.shape == dst_gbox.shape.yx
-    nodata = _resolve_src_nodata(cfg.fill_value, cfg)
+    nodata = resolve_src_nodata(cfg.fill_value, cfg)
 
     if nodata is None:
         fill_value = float("nan") if dst.dtype.kind == "f" else 0
@@ -730,7 +714,7 @@ def _fill_2d_slice(
         # nodata mask takes care of nan when working with floats
         # so you can still get proper mask even when nodata is None
         # when working with float32 data.
-        missing = _nodata_mask(dst[_roi], nodata)
+        missing = nodata_mask(dst[_roi], nodata)
         np.copyto(dst[_roi], pix, where=missing)
 
     return dst
