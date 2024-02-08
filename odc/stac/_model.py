@@ -456,7 +456,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
             assets.setdefault(asset, []).append((idx, src))
 
         return {
-            k: [src for _, src in sorted(srcs, key=(lambda x: x[0]))]
+            k: [src for _, src in sorted(srcs, key=lambda x: x[0])]
             for k, srcs in assets.items()
         }
 
