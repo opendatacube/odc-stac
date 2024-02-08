@@ -7,6 +7,7 @@ channels:
   - conda-forge
 dependencies:
   - python =3.10
+  - pip
 
   # odc-stac dependencies
   - affine
@@ -50,3 +51,5 @@ dependencies:
   - isort
   - mypy
   - pylint ==2.14.4
+  - pip:
+    - -e ../
