@@ -7,7 +7,7 @@ rasterio helpers
 """
 import logging
 import threading
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union, ContextManager
 
 import numpy as np
 import rasterio
@@ -67,6 +67,27 @@ GDAL_CLOUD_DEFAULTS = {
     "GDAL_HTTP_MAX_RETRY": "10",
     "GDAL_HTTP_RETRY_DELAY": "0.5",
 }
+
+
+class RioReader:
+    """
+    Protocol for readers.
+    """
+
+    def capture_env(self) -> Dict[str, Any]:
+        return capture_rio_env()
+
+    def restore_env(self, env: Dict[str, Any]) -> ContextManager[Any]:
+        return rio_env(**env)
+
+    def read(
+        self,
+        src: RasterSource,
+        cfg: RasterLoadParams,
+        dst_geobox: GeoBox,
+        dst: Optional[np.ndarray] = None,
+    ) -> Tuple[NormalizedROI, np.ndarray]:
+        return rio_read(src, cfg, dst_geobox, dst)
 
 
 class _GlobalRioConfig:
