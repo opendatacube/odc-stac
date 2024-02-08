@@ -48,8 +48,8 @@ from ._model import (
     RasterLoadParams,
     RasterSource,
 )
-from ._reader import nodata_mask, resolve_src_nodata
-from ._rio import capture_rio_env, rio_env, rio_read
+from ._reader import SomeReader, nodata_mask, resolve_src_nodata
+from ._rio import RioReader
 from ._utils import SizedIterable, pmap
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
@@ -58,6 +58,11 @@ DEFAULT_CHUNK_FOR_LOAD = 2048
 GroupbyCallback = Callable[[pystac.item.Item, ParsedItem, int], Any]
 
 Groupby = Union[str, GroupbyCallback]
+
+
+def _reader_driver(cfg: RasterLoadParams) -> SomeReader:
+    # pylint: disable=unused-argument
+    return RioReader()
 
 
 class MkArray(Protocol):
@@ -93,7 +98,7 @@ class _LoadChunkTask:
 
 
 class _DaskGraphBuilder:
-    # pylint: disable=too-few-public-methods
+    # pylint: disable=too-few-public-methods,too-many-instance-attributes
 
     def __init__(
         self,
@@ -102,6 +107,7 @@ class _DaskGraphBuilder:
         tyx_bins: Dict[Tuple[int, int, int], List[int]],
         gbt: GeoboxTiles,
         env: Dict[str, Any],
+        rdr: SomeReader,
         time_chunks: int = 1,
     ) -> None:
         self.cfg = cfg
@@ -109,6 +115,7 @@ class _DaskGraphBuilder:
         self.tyx_bins = tyx_bins
         self.gbt = gbt
         self.env = env
+        self.rdr = rdr
         self._tk = tokenize(items, cfg, gbt, tyx_bins, env, time_chunks)
         self.chunk_shape = (time_chunks, *self.gbt.chunk_shape((0, 0)).yx)
 
@@ -163,6 +170,7 @@ class _DaskGraphBuilder:
                 srcs,
                 gbt_key,
                 quote((yi, xi)),
+                self.rdr,
                 cfg_key,
                 self.env,
             )
@@ -567,7 +575,8 @@ def load(
         )
         return ds
 
-    _rio_env = capture_rio_env()
+    rdr = _reader_driver(load_cfg[bands[0]])
+    _rdr_env = rdr.capture_env()
     if chunks is not None:
         # Dask case: dummy for now
         _loader = _DaskGraphBuilder(
@@ -575,7 +584,8 @@ def load(
             _parsed,
             tyx_bins,
             gbt,
-            _rio_env,
+            _rdr_env,
+            rdr,
             time_chunks=chunk_shape[0],
         )
         return _with_debug_info(_mk_dataset(gbox, tss, load_cfg, _loader))
@@ -605,8 +615,8 @@ def load(
             for src in (_parsed[idx].get(band, None) for idx, band in task.srcs)
             if src is not None
         ]
-        with rio_env(**_rio_env):
-            _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, dst_slice)
+        with rdr.restore_env(_rdr_env):
+            _ = _fill_2d_slice(srcs, task.dst_gbox, task.cfg, rdr, dst_slice)
         t, y, x = task.idx_tyx
         return (task.band, t, y, x)
 
@@ -669,15 +679,16 @@ def _dask_loader_tyx(
     srcs: List[List[RasterSource]],
     gbt: GeoboxTiles,
     iyx: Tuple[int, int],
+    rdr: SomeReader,
     cfg: RasterLoadParams,
     env: Dict[str, Any],
 ):
     assert cfg.dtype is not None
     gbox = cast(GeoBox, gbt[iyx])
     chunk = np.empty((len(srcs), *gbox.shape.yx), dtype=cfg.dtype)
-    with rio_env(**env):
+    with rdr.restore_env(env):
         for i, plane in enumerate(srcs):
-            _fill_2d_slice(plane, gbox, cfg, chunk[i, :, :])
+            _fill_2d_slice(plane, gbox, cfg, rdr, chunk[i, :, :])
         return chunk
 
 
@@ -685,6 +696,7 @@ def _fill_2d_slice(
     srcs: List[RasterSource],
     dst_gbox: GeoBox,
     cfg: RasterLoadParams,
+    rdr: SomeReader,
     dst: Any,
 ) -> Any:
     # TODO: support masks not just nodata based fusing
@@ -705,11 +717,11 @@ def _fill_2d_slice(
         return dst
 
     src, *rest = srcs
-    _roi, pix = rio_read(src, cfg, dst_gbox, dst=dst)
+    _roi, pix = rdr.read(src, cfg, dst_gbox, dst=dst)
 
     for src in rest:
         # first valid pixel takes precedence over others
-        _roi, pix = rio_read(src, cfg, dst_gbox)
+        _roi, pix = rdr.read(src, cfg, dst_gbox)
 
         # nodata mask takes care of nan when working with floats
         # so you can still get proper mask even when nodata is None
