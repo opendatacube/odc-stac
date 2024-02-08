@@ -53,6 +53,9 @@ class RasterBandMetadata:
     unit: str = "1"
     """Units of the pixel data."""
 
+    dims: Optional[Tuple[str, ...]] = None
+    """Dimension names for this band."""
+
     def __dask_tokenize__(self):
         return astuple(self)
 
