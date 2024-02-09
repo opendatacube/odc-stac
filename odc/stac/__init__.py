@@ -1,7 +1,6 @@
 """STAC Item -> ODC Dataset[eo3]."""
 
 from ._version import __version__  # isort:skip  this has to be 1st import
-from ._load import load
 from ._mdtools import (
     ConversionConfig,
     ParsedItem,
@@ -17,6 +16,7 @@ from ._model import (
     RasterSource,
 )
 from ._rio import configure_rio, configure_s3_access
+from ._stac_load import load
 
 stac_load = load
 
