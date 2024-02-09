@@ -13,7 +13,7 @@ from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
 from .._mdtools import _group_geoboxes
-from .._model import (
+from ..model import (
     ParsedItem,
     RasterBandMetadata,
     RasterCollectionMetadata,

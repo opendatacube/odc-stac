@@ -34,7 +34,7 @@ from .._mdtools import (
     mk_sample_item,
     parse_item,
 )
-from .._model import BandKey, ParsedItem, RasterBandMetadata, RasterCollectionMetadata
+from ..model import BandKey, ParsedItem, RasterBandMetadata, RasterCollectionMetadata
 
 # uuid.uuid5(uuid.NAMESPACE_URL, "https://stacspec.org")
 UUID_NAMESPACE_STAC = uuid.UUID("55d26088-a6d0-5c77-bf9a-3a7f3c6a6dab")
