@@ -15,8 +15,8 @@ from odc.geo.geobox import GeoBox, GeoboxTiles
 from odc.geo.xr import xr_coords
 
 from .._dask import unpack_chunks
-from .._model import ParsedItem, RasterLoadParams, RasterSource
 from .._reader import SomeReader, nodata_mask, resolve_src_nodata
+from .types import RasterLoadParams, RasterSource
 
 
 class MkArray(Protocol):
@@ -65,7 +65,7 @@ class DaskGraphBuilder:
     def __init__(
         self,
         cfg: Dict[str, RasterLoadParams],
-        items: List[ParsedItem],
+        items: List[Any],
         tyx_bins: Dict[Tuple[int, int, int], List[int]],
         gbt: GeoboxTiles,
         env: Dict[str, Any],
