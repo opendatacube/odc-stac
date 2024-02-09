@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
-from typing import Any, Dict, Hashable, List, Optional, Protocol, Tuple, cast
+from typing import Any, Dict, Hashable, List, Optional, Protocol, Sequence, Tuple, cast
 
 import numpy as np
 import xarray as xr
@@ -16,7 +16,7 @@ from odc.geo.xr import xr_coords
 
 from ._dask import unpack_chunks
 from ._reader import nodata_mask, resolve_src_nodata
-from .types import RasterLoadParams, RasterSource, SomeReader
+from .types import MultiBandRasterSource, RasterLoadParams, RasterSource, SomeReader
 
 
 class MkArray(Protocol):
@@ -65,7 +65,7 @@ class DaskGraphBuilder:
     def __init__(
         self,
         cfg: Dict[str, RasterLoadParams],
-        items: List[Any],
+        srcs: Sequence[MultiBandRasterSource],
         tyx_bins: Dict[Tuple[int, int, int], List[int]],
         gbt: GeoboxTiles,
         env: Dict[str, Any],
@@ -73,12 +73,12 @@ class DaskGraphBuilder:
         time_chunks: int = 1,
     ) -> None:
         self.cfg = cfg
-        self.items = items
+        self.srcs = srcs
         self.tyx_bins = tyx_bins
         self.gbt = gbt
         self.env = env
         self.rdr = rdr
-        self._tk = tokenize(items, cfg, gbt, tyx_bins, env, time_chunks)
+        self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, time_chunks)
         self.chunk_shape = (time_chunks, *self.gbt.chunk_shape((0, 0)).yx)
 
     def __call__(
@@ -111,8 +111,8 @@ class DaskGraphBuilder:
         md_key = f"md-{name}-{tk}"
         shape_in_blocks = tuple(len(ch) for ch in chunks)
 
-        for idx, item in enumerate(self.items):
-            band = item.get(name, None)
+        for idx, src in enumerate(self.srcs):
+            band = src.get(name, None)
             if band is not None:
                 dsk[md_key, idx] = band
 

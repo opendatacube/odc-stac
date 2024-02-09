@@ -1,7 +1,7 @@
 """Metadata and data loading model classes."""
 
 from dataclasses import astuple, dataclass
-from typing import Any, ContextManager, Dict, Optional, Protocol, Tuple, Union
+from typing import Any, ContextManager, Dict, Mapping, Optional, Protocol, Tuple, Union
 
 import numpy as np
 from odc.geo.geobox import GeoBox
@@ -68,6 +68,10 @@ class RasterSource:
 
     def __dask_tokenize__(self):
         return (self.uri, self.band, self.subdataset)
+
+
+MultiBandRasterSource = Mapping[Union[str, Tuple[str, int]], RasterSource]
+"""Mapping from band name to RasterSource."""
 
 
 @dataclass
