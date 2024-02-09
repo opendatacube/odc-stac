@@ -48,7 +48,7 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
-from ._utils import with_default
+from .loader._utils import with_default
 from .loader.types import RasterBandMetadata, RasterSource
 from .model import (
     BandKey,

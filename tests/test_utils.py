@@ -1,4 +1,4 @@
-from odc.stac._utils import SizedIterable
+from odc.stac.loader._utils import SizedIterable
 
 
 def test_sized_iterator():
