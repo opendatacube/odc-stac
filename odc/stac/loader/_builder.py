@@ -141,7 +141,7 @@ class DaskGraphBuilder:
 
 
 def _dask_loader_tyx(
-    srcs: List[List[RasterSource]],
+    srcs: Sequence[Sequence[RasterSource]],
     gbt: GeoboxTiles,
     iyx: Tuple[int, int],
     rdr: SomeReader,
@@ -158,7 +158,7 @@ def _dask_loader_tyx(
 
 
 def fill_2d_slice(
-    srcs: List[RasterSource],
+    srcs: Sequence[RasterSource],
     dst_gbox: GeoBox,
     cfg: RasterLoadParams,
     rdr: SomeReader,
@@ -199,7 +199,7 @@ def fill_2d_slice(
 
 def mk_dataset(
     gbox: GeoBox,
-    time: List[datetime],
+    time: Sequence[datetime],
     bands: Dict[str, RasterLoadParams],
     alloc: Optional[MkArray] = None,
 ) -> xr.Dataset:
