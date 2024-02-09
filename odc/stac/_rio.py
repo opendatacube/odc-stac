@@ -7,7 +7,7 @@ rasterio helpers
 """
 import logging
 import threading
-from typing import Any, Dict, Optional, Tuple, Union, ContextManager
+from typing import Any, ContextManager, Dict, Optional, Tuple, Union
 
 import numpy as np
 import rasterio
@@ -21,7 +21,6 @@ from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
 from odc.geo.warp import resampling_s2rio
 from rasterio.session import AWSSession, Session
 
-from ._model import RasterLoadParams, RasterSource
 from ._reader import (
     nodata_mask,
     pick_overview,
@@ -30,6 +29,7 @@ from ._reader import (
     resolve_src_nodata,
     same_nodata,
 )
+from .model import RasterLoadParams, RasterSource
 
 log = logging.getLogger(__name__)
 

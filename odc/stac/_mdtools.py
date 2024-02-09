@@ -49,7 +49,7 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
-from ._model import (
+from .model import (
     BandKey,
     BandQuery,
     MDParseConfig,

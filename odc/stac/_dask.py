@@ -6,7 +6,7 @@ from typing import Any, Callable, Hashable, Iterator, MutableMapping, Optional, 
 
 from dask.base import tokenize
 
-from ._model import T
+from .model import T
 
 
 def tokenize_stream(
