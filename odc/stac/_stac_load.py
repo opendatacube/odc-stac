@@ -34,7 +34,6 @@ from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
-from ._utils import SizedIterable, pmap, with_default
 from .loader import (
     DaskGraphBuilder,
     LoadChunkTask,
@@ -43,6 +42,7 @@ from .loader import (
     mk_dataset,
 )
 from .loader._rio import RioReader
+from .loader._utils import SizedIterable, pmap, with_default
 from .loader.types import RasterBandMetadata, RasterLoadParams
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
