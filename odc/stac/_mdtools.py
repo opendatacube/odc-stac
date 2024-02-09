@@ -17,7 +17,6 @@ from typing import (
     Sequence,
     Set,
     Tuple,
-    TypeVar,
     Union,
 )
 
@@ -49,6 +48,7 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
+from ._utils import with_default
 from .loader.types import RasterBandMetadata, RasterSource
 from .model import (
     BandKey,
@@ -58,7 +58,6 @@ from .model import (
     RasterCollectionMetadata,
 )
 
-T = TypeVar("T")
 ConversionConfig = Dict[str, Any]
 
 EPSG4326 = CRS("EPSG:4326")
@@ -90,19 +89,6 @@ NON_IMAGE_RASTER_MEDIA_TYPES = {
     "application/x-zarr",
     "application/zarr",
 }
-
-
-def with_default(v: Optional[T], default_value: T) -> T:
-    """
-    Replace ``None`` with default value.
-
-    :param v: Value that might be None
-    :param default_value: Default value of the same type as v
-    :return: ``v`` unless it is ``None`` then return ``default_value`` instead
-    """
-    if v is None:
-        return default_value
-    return v
 
 
 def _band_metadata_raw(asset: pystac.asset.Asset) -> List[RasterBand]:
