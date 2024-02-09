@@ -9,14 +9,14 @@ from odc.geo.geobox import GeoBox
 from odc.geo.xr import xr_zeros
 
 from odc.stac import RasterLoadParams, RasterSource
-from odc.stac._reader import (
+from odc.stac.loader._reader import (
     pick_overview,
     resolve_dst_dtype,
     resolve_dst_nodata,
     resolve_src_nodata,
     same_nodata,
 )
-from odc.stac._rio import rio_read
+from odc.stac.loader._rio import rio_read
 from odc.stac.testing.fixtures import with_temp_tiff
 
 

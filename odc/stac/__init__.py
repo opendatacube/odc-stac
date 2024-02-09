@@ -9,8 +9,8 @@ from ._mdtools import (
     parse_item,
     parse_items,
 )
-from ._rio import configure_rio, configure_s3_access
 from ._stac_load import load
+from .loader._rio import configure_rio, configure_s3_access
 from .loader.types import RasterBandMetadata, RasterLoadParams, RasterSource
 from .model import RasterCollectionMetadata
 

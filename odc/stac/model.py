@@ -14,7 +14,6 @@ from typing import (
     Sequence,
     Set,
     Tuple,
-    TypeVar,
     Union,
 )
 
@@ -23,8 +22,6 @@ from odc.geo.geobox import GeoBox
 from odc.geo.types import Unset
 
 from .loader.types import RasterBandMetadata, RasterSource, norm_band_metadata
-
-T = TypeVar("T")
 
 BandKey = Tuple[str, int]
 """Asset Name, band index within an asset (1 based)."""
