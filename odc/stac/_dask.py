@@ -2,11 +2,20 @@
 Various Dask helpers.
 """
 
-from typing import Any, Callable, Hashable, Iterator, MutableMapping, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Hashable,
+    Iterator,
+    MutableMapping,
+    Optional,
+    Tuple,
+    TypeVar,
+)
 
 from dask.base import tokenize
 
-from .model import T
+T = TypeVar("T")
 
 
 def tokenize_stream(

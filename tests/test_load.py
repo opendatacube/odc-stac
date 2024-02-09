@@ -8,9 +8,9 @@ from dask.utils import ndeepmap
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtension
 
+from odc.stac import RasterLoadParams
 from odc.stac import load as stac_load
 from odc.stac._stac_load import _group_items, _resolve_load_cfg
-from odc.stac.model import RasterLoadParams
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 
 

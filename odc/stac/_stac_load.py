@@ -34,17 +34,12 @@ from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
-from ._model import (
-    BandQuery,
-    ParsedItem,
-    RasterBandMetadata,
-    RasterCollectionMetadata,
-    RasterLoadParams,
-)
 from ._reader import SomeReader
 from ._rio import RioReader
 from ._utils import SizedIterable, pmap
 from .loader import DaskGraphBuilder, LoadChunkTask, fill_2d_slice, mk_dataset
+from .loader.types import RasterBandMetadata, RasterLoadParams
+from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
 """Used to partition load when not using Dask."""

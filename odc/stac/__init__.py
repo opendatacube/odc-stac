@@ -11,12 +11,8 @@ from ._mdtools import (
 )
 from ._rio import configure_rio, configure_s3_access
 from ._stac_load import load
-from .model import (
-    RasterBandMetadata,
-    RasterCollectionMetadata,
-    RasterLoadParams,
-    RasterSource,
-)
+from .loader.types import RasterBandMetadata, RasterLoadParams, RasterSource
+from .model import RasterCollectionMetadata
 
 stac_load = load
 

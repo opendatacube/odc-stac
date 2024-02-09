@@ -4,7 +4,7 @@ import pytest
 from dask.base import tokenize
 from odc.geo.geobox import GeoBox
 
-from odc.stac._model import (
+from odc.stac import (
     ParsedItem,
     RasterBandMetadata,
     RasterCollectionMetadata,

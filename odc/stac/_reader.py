@@ -9,9 +9,10 @@ import math
 from typing import Any, ContextManager, Dict, List, Optional, Protocol, Tuple
 
 import numpy as np
+from odc.geo.geobox import GeoBox
 from odc.geo.roi import NormalizedROI
 
-from ._model import GeoBox, RasterLoadParams, RasterSource
+from .loader.types import RasterLoadParams, RasterSource
 
 
 class SomeReader(Protocol):
