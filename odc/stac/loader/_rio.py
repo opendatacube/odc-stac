@@ -29,7 +29,7 @@ from ._reader import (
     resolve_src_nodata,
     same_nodata,
 )
-from .loader.types import RasterLoadParams, RasterSource
+from .types import RasterLoadParams, RasterSource
 
 log = logging.getLogger(__name__)
 

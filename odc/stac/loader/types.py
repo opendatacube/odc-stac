@@ -1,9 +1,11 @@
 """Metadata and data loading model classes."""
 
 from dataclasses import astuple, dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, ContextManager, Dict, Optional, Protocol, Tuple, Union
 
+import numpy as np
 from odc.geo.geobox import GeoBox
+from odc.geo.roi import NormalizedROI
 
 
 @dataclass(eq=True, frozen=True)
@@ -131,6 +133,24 @@ class RasterLoadParams:
 
     def __dask_tokenize__(self):
         return astuple(self)
+
+
+class SomeReader(Protocol):
+    """
+    Protocol for readers.
+    """
+
+    def capture_env(self) -> Dict[str, Any]: ...
+
+    def restore_env(self, env: Dict[str, Any]) -> ContextManager[Any]: ...
+
+    def read(
+        self,
+        src: RasterSource,
+        cfg: RasterLoadParams,
+        dst_geobox: GeoBox,
+        dst: Optional[np.ndarray] = None,
+    ) -> Tuple[NormalizedROI, np.ndarray]: ...
 
 
 BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")

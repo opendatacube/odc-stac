@@ -14,9 +14,9 @@ from numpy.typing import DTypeLike
 from odc.geo.geobox import GeoBox, GeoboxTiles
 from odc.geo.xr import xr_coords
 
-from .._dask import unpack_chunks
-from .._reader import SomeReader, nodata_mask, resolve_src_nodata
-from .types import RasterLoadParams, RasterSource
+from ._dask import unpack_chunks
+from ._reader import nodata_mask, resolve_src_nodata
+from .types import RasterLoadParams, RasterSource, SomeReader
 
 
 class MkArray(Protocol):

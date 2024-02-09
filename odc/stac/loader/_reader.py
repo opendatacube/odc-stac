@@ -6,31 +6,11 @@ Utilities for reading pixels from raster files.
 """
 
 import math
-from typing import Any, ContextManager, Dict, List, Optional, Protocol, Tuple
+from typing import List, Optional
 
 import numpy as np
-from odc.geo.geobox import GeoBox
-from odc.geo.roi import NormalizedROI
 
-from .loader.types import RasterLoadParams, RasterSource
-
-
-class SomeReader(Protocol):
-    """
-    Protocol for readers.
-    """
-
-    def capture_env(self) -> Dict[str, Any]: ...
-
-    def restore_env(self, env: Dict[str, Any]) -> ContextManager[Any]: ...
-
-    def read(
-        self,
-        src: RasterSource,
-        cfg: RasterLoadParams,
-        dst_geobox: GeoBox,
-        dst: Optional[np.ndarray] = None,
-    ) -> Tuple[NormalizedROI, np.ndarray]: ...
+from .types import RasterLoadParams
 
 
 def resolve_src_nodata(

@@ -34,10 +34,15 @@ from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items, with_default
-from ._reader import SomeReader
-from ._rio import RioReader
 from ._utils import SizedIterable, pmap
-from .loader import DaskGraphBuilder, LoadChunkTask, fill_2d_slice, mk_dataset
+from .loader import (
+    DaskGraphBuilder,
+    LoadChunkTask,
+    SomeReader,
+    fill_2d_slice,
+    mk_dataset,
+)
+from .loader._rio import RioReader
 from .loader.types import RasterBandMetadata, RasterLoadParams
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
