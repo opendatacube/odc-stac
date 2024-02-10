@@ -2,6 +2,12 @@ name: Render Example Notebooks
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force re-rendering of notebooks'
+        required: false
+        default: 'false'
+        type: boolean
   push:
     paths:
       - "notebooks/*py"
@@ -81,7 +87,7 @@ jobs:
           key: docs-notebooks-${{ hashFiles('notebooks/*.py') }}
 
       - name: Get Conda Environment from Cache
-        if: steps.nb_cache.outputs.cache-hit != 'true'
+        if: steps.nb_cache.outputs.cache-hit != 'true' || github.event.inputs.force == 'true'
         uses: actions/cache@v4
         id: conda_cache
         with:
@@ -89,13 +95,13 @@ jobs:
           key: ${{ runner.os }}-binder-env-${{ hashFiles('binder/environment.yml') }}
 
       - name: Update PATH
-        if: steps.nb_cache.outputs.cache-hit != 'true'
+        if: steps.nb_cache.outputs.cache-hit != 'true' || github.event.inputs.force == 'true'
         shell: bash
         run: |
           echo "/tmp/binder_env/bin" >> $GITHUB_PATH
 
       - name: Run Notebooks
-        if: steps.nb_cache.outputs.cache-hit != 'true'
+        if: steps.nb_cache.outputs.cache-hit != 'true' || github.event.inputs.force == 'true'
         run: |
           nb_dir="${{ steps.cfg.outputs.nb-dir }}"
 
