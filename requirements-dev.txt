@@ -1,4 +1,6 @@
-black >= 22.1.0
+black
+dask
+distributed
 folium
 geopandas
 ipywidgets
@@ -10,11 +12,10 @@ nbsphinx
 sphinx
 sphinx_rtd_theme
 sphinx-autodoc-typehints
-stackstac >= 0.3.1
-odc-algo
-odc-ui
+stackstac
 planetary-computer
 pylint
+isort
 pytest
-pystac==1.4.0
-odc-geo==0.3.0
+pystac
+odc-geo
