@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: binder_cache
         with:
           path: /tmp/binder_env
@@ -60,7 +60,7 @@ jobs:
       - build-binder-env
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Config
         id: cfg
@@ -74,7 +74,7 @@ jobs:
           echo "nb-hash=${nb_hash}" >> $GITHUB_OUTPUT
           echo "nb-archive=odc-stac-notebooks-${nb_hash}.tar.gz" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: nb_cache
         with:
           path: ${{ steps.cfg.outputs.nb-dir }}
@@ -82,7 +82,7 @@ jobs:
 
       - name: Get Conda Environment from Cache
         if: steps.nb_cache.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda_cache
         with:
           path: /tmp/binder_env
@@ -121,7 +121,7 @@ jobs:
           tar tzf "${nb_archive}"
 
       - name: Upload results (artifact)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rendered-notebooks
           path: docs/notebooks
