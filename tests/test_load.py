@@ -10,7 +10,8 @@ from odc.geo.xr import ODCExtension
 
 from odc.stac import RasterLoadParams
 from odc.stac import load as stac_load
-from odc.stac._stac_load import _group_items, _resolve_load_cfg
+from odc.stac._stac_load import _group_items
+from odc.stac.loader import resolve_load_cfg
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 
 
@@ -209,7 +210,7 @@ def test_group_items():
 
 def test_resolve_load_cfg():
     rlp = RasterLoadParams
-    assert _resolve_load_cfg({}) == {}
+    assert resolve_load_cfg({}) == {}
 
     item = mk_parsed_item(
         [
@@ -224,11 +225,11 @@ def test_resolve_load_cfg():
 
     _bands = {n: b for (n, _), b in item.collection.bands.items()}
 
-    cfg = _resolve_load_cfg(_bands, resampling="average")
+    cfg = resolve_load_cfg(_bands, resampling="average")
     assert cfg["a"] == rlp("int8", -1, resampling="average")
     assert cfg["b"] == rlp("float64", None, resampling="average")
 
-    cfg = _resolve_load_cfg(
+    cfg = resolve_load_cfg(
         _bands,
         resampling={"*": "mode", "b": "sum"},
         nodata=-999,
@@ -237,7 +238,7 @@ def test_resolve_load_cfg():
     assert cfg["a"] == rlp("int64", -999, resampling="mode")
     assert cfg["b"] == rlp("int64", -999, resampling="sum")
 
-    cfg = _resolve_load_cfg(
+    cfg = resolve_load_cfg(
         _bands,
         dtype={"a": "float32"},
     )

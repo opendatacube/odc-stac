@@ -6,9 +6,12 @@ from ._builder import (
     DaskGraphBuilder,
     LoadChunkTask,
     MkArray,
+    direct_chunked_load,
     fill_2d_slice,
     mk_dataset,
 )
+from ._driver import reader_driver
+from ._reader import resolve_load_cfg
 from .types import RasterBandMetadata, RasterLoadParams, RasterSource, SomeReader
 
 __all__ = (
@@ -21,4 +24,7 @@ __all__ = (
     "mk_dataset",
     "MkArray",
     "fill_2d_slice",
+    "direct_chunked_load",
+    "reader_driver",
+    "resolve_load_cfg",
 )

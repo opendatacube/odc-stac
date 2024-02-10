@@ -36,14 +36,11 @@ from odc.geo.types import Unset
 from ._mdtools import ConversionConfig, output_geobox, parse_items
 from .loader import (
     DaskGraphBuilder,
-    LoadChunkTask,
-    SomeReader,
-    fill_2d_slice,
+    direct_chunked_load,
     mk_dataset,
+    reader_driver,
+    resolve_load_cfg,
 )
-from .loader._rio import RioReader
-from .loader._utils import SizedIterable, pmap, with_default
-from .loader.types import RasterBandMetadata, RasterLoadParams
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
@@ -52,11 +49,6 @@ DEFAULT_CHUNK_FOR_LOAD = 2048
 GroupbyCallback = Callable[[pystac.item.Item, ParsedItem, int], Any]
 
 Groupby = Union[str, GroupbyCallback]
-
-
-def _reader_driver(cfg: RasterLoadParams) -> SomeReader:
-    # pylint: disable=unused-argument
-    return RioReader()
 
 
 def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
@@ -387,7 +379,7 @@ def load(
     bands_to_load = collection.resolve_bands(bands)
     bands = list(bands_to_load)
 
-    load_cfg = _resolve_load_cfg(
+    load_cfg = resolve_load_cfg(
         bands_to_load,
         resampling,
         dtype=dtype,
@@ -456,103 +448,33 @@ def load(
         )
         return ds
 
-    rdr = _reader_driver(load_cfg[bands[0]])
-    _rdr_env = rdr.capture_env()
+    rdr = reader_driver(load_cfg)
+    rdr_env = rdr.capture_env()
     if chunks is not None:
         _loader = DaskGraphBuilder(
             load_cfg,
             _parsed,
             tyx_bins,
             gbt,
-            _rdr_env,
+            rdr_env,
             rdr,
             time_chunks=chunk_shape[0],
         )
         return _with_debug_info(mk_dataset(gbox, tss, load_cfg, _loader))
 
-    def _task_stream(bands: List[str]) -> Iterator[LoadChunkTask]:
-        _shape: Tuple[int, int, int] = (len(_grouped_idx), *gbt.shape.yx)
-        for band_name in bands:
-            cfg = load_cfg[band_name]
-            for ti, yi, xi in np.ndindex(_shape):  # type: ignore
-                tyx_idx = (ti, yi, xi)
-                srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
-                yield LoadChunkTask(band_name, srcs, cfg, gbt, tyx_idx)
-
-    ds = mk_dataset(gbox, tss, load_cfg)
-    ny, nx = gbt.shape.yx
-    total_tasks = len(bands) * len(tss) * ny * nx
-    _tasks = []
-
-    def _do_one(task: LoadChunkTask) -> Tuple[str, int, int, int]:
-        if debug:
-            # print(f"{task.band}[{task.idx_tyx}]")
-            _tasks.append(task)
-
-        dst_slice = ds[task.band].data[task.dst_roi]
-        srcs = [
-            src
-            for src in (_parsed[idx].get(band, None) for idx, band in task.srcs)
-            if src is not None
-        ]
-        with rdr.restore_env(_rdr_env):
-            _ = fill_2d_slice(srcs, task.dst_gbox, task.cfg, rdr, dst_slice)
-        t, y, x = task.idx_tyx
-        return (task.band, t, y, x)
-
-    _work = pmap(_do_one, _task_stream(bands), pool)
-
-    if progress is not None:
-        _work = progress(SizedIterable(_work, total_tasks))
-
-    for _ in _work:
-        pass
-
-    return _with_debug_info(ds, tasks=_tasks)
-
-
-def _resolve_load_cfg(
-    bands: Dict[str, RasterBandMetadata],
-    resampling: Optional[Union[str, Dict[str, str]]] = None,
-    dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
-    use_overviews: bool = True,
-    nodata: Optional[float] = None,
-    fail_on_error: bool = True,
-) -> Dict[str, RasterLoadParams]:
-    def _dtype(name: str, band_dtype: Optional[str], fallback: str) -> str:
-        if dtype is None:
-            return with_default(band_dtype, fallback)
-        if isinstance(dtype, dict):
-            return str(
-                with_default(
-                    dtype.get(name, dtype.get("*", band_dtype)),
-                    fallback,
-                )
-            )
-        return str(dtype)
-
-    def _resampling(name: str, fallback: str) -> str:
-        if resampling is None:
-            return fallback
-        if isinstance(resampling, dict):
-            return resampling.get(name, resampling.get("*", fallback))
-        return resampling
-
-    def _fill_value(band: RasterBandMetadata) -> Optional[float]:
-        if nodata is not None:
-            return nodata
-        return band.nodata
-
-    def _resolve(name: str, band: RasterBandMetadata) -> RasterLoadParams:
-        return RasterLoadParams(
-            _dtype(name, band.data_type, "float32"),
-            fill_value=_fill_value(band),
-            use_overviews=use_overviews,
-            resampling=_resampling(name, "nearest"),
-            fail_on_error=fail_on_error,
+    return _with_debug_info(
+        direct_chunked_load(
+            load_cfg,
+            _parsed,
+            tyx_bins,
+            gbt,
+            tss,
+            rdr_env,
+            rdr,
+            pool=pool,
+            progress=progress,
         )
-
-    return {name: _resolve(name, band) for name, band in bands.items()}
+    )
 
 
 def _extract_timestamps(grouped: List[List[ParsedItem]]) -> List[datetime]:
