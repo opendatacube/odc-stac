@@ -66,8 +66,8 @@ Sample ``environment.yml`` is provided below.
    channels:
      - conda-forge
    dependencies:
-     - odc-geo >=0.1.3
-     - xarray >=0.20.1
+     - odc-geo
+     - xarray
      - numpy
      - dask
      - pandas
@@ -76,7 +76,7 @@ Sample ``environment.yml`` is provided below.
      - toolz
      - pystac
      - pystac-client
-     - pip =22
+     - pip
      - pip:
        - "git+https://github.com/opendatacube/odc-stac/"
 
