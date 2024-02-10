@@ -3,8 +3,20 @@
 from __future__ import annotations
 
 import dataclasses
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Any, Dict, Hashable, List, Optional, Protocol, Sequence, Tuple, cast
+from typing import (
+    Any,
+    Dict,
+    Hashable,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    cast,
+)
 
 import numpy as np
 import xarray as xr
@@ -16,6 +28,7 @@ from odc.geo.xr import xr_coords
 
 from ._dask import unpack_chunks
 from ._reader import nodata_mask, resolve_src_nodata
+from ._utils import SizedIterable, pmap
 from .types import MultiBandRasterSource, RasterLoadParams, RasterSource, SomeReader
 
 
@@ -226,3 +239,61 @@ def mk_dataset(
         return xx
 
     return xr.Dataset({name: _maker(name, band) for name, band in bands.items()})
+
+
+def direct_chunked_load(
+    load_cfg: Dict[str, RasterLoadParams],
+    srcs: Sequence[MultiBandRasterSource],
+    tyx_bins: Dict[Tuple[int, int, int], List[int]],
+    gbt: GeoboxTiles,
+    tss: Sequence[datetime],
+    env: Dict[str, Any],
+    rdr: SomeReader,
+    *,
+    pool: ThreadPoolExecutor | int | None = None,
+    progress: Optional[Any] = None,
+) -> xr.Dataset:
+    """
+    Load in chunks but without using Dask.
+    """
+    # pylint: disable=too-many-locals
+    assert len(tss) == len(srcs)
+    nt = len(tss)
+    nb = len(load_cfg)
+    bands = list(load_cfg)
+    gbox = gbt.base
+    assert isinstance(gbox, GeoBox)
+    ds = mk_dataset(gbox, tss, load_cfg)
+    ny, nx = gbt.shape.yx
+    total_tasks = nt * nb * ny * nx
+
+    def _task_stream(bands: List[str]) -> Iterator[LoadChunkTask]:
+        _shape: Tuple[int, int, int] = (nt, *gbt.shape.yx)
+        for band_name in bands:
+            cfg = load_cfg[band_name]
+            for ti, yi, xi in np.ndindex(_shape):  # type: ignore
+                tyx_idx = (ti, yi, xi)
+                _srcs = [(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])]
+                yield LoadChunkTask(band_name, _srcs, cfg, gbt, tyx_idx)
+
+    def _do_one(task: LoadChunkTask) -> Tuple[str, int, int, int]:
+        dst_slice = ds[task.band].data[task.dst_roi]
+        _srcs = [
+            src
+            for src in (srcs[idx].get(band, None) for idx, band in task.srcs)
+            if src is not None
+        ]
+        with rdr.restore_env(env):
+            _ = fill_2d_slice(_srcs, task.dst_gbox, task.cfg, rdr, dst_slice)
+        t, y, x = task.idx_tyx
+        return (task.band, t, y, x)
+
+    _work = pmap(_do_one, _task_stream(bands), pool)
+
+    if progress is not None:
+        _work = progress(SizedIterable(_work, total_tasks))
+
+    for _ in _work:
+        pass
+
+    return ds

@@ -5,12 +5,64 @@ Utilities for reading pixels from raster files.
 - read + reproject
 """
 
+from __future__ import annotations
+
 import math
-from typing import List, Optional
+from typing import Optional, Sequence
 
 import numpy as np
+from numpy.typing import DTypeLike
 
-from .types import RasterLoadParams
+from ._utils import with_default
+from .types import RasterBandMetadata, RasterLoadParams
+
+
+def resolve_load_cfg(
+    bands: dict[str, RasterBandMetadata],
+    resampling: str | dict[str, str] | None = None,
+    dtype: DTypeLike | dict[str, DTypeLike] | None = None,
+    use_overviews: bool = True,
+    nodata: float | None = None,
+    fail_on_error: bool = True,
+) -> dict[str, RasterLoadParams]:
+    """
+    Combine band metadata with user provided settings to produce load configuration.
+    """
+
+    def _dtype(name: str, band_dtype: str | None, fallback: str) -> str:
+        if dtype is None:
+            return with_default(band_dtype, fallback)
+        if isinstance(dtype, dict):
+            return str(
+                with_default(
+                    dtype.get(name, dtype.get("*", band_dtype)),
+                    fallback,
+                )
+            )
+        return str(dtype)
+
+    def _resampling(name: str, fallback: str) -> str:
+        if resampling is None:
+            return fallback
+        if isinstance(resampling, dict):
+            return resampling.get(name, resampling.get("*", fallback))
+        return resampling
+
+    def _fill_value(band: RasterBandMetadata) -> float | None:
+        if nodata is not None:
+            return nodata
+        return band.nodata
+
+    def _resolve(name: str, band: RasterBandMetadata) -> RasterLoadParams:
+        return RasterLoadParams(
+            _dtype(name, band.data_type, "float32"),
+            fill_value=_fill_value(band),
+            use_overviews=use_overviews,
+            resampling=_resampling(name, "nearest"),
+            fail_on_error=fail_on_error,
+        )
+
+    return {name: _resolve(name, band) for name, band in bands.items()}
 
 
 def resolve_src_nodata(
@@ -49,7 +101,7 @@ def resolve_dst_nodata(
     return None
 
 
-def pick_overview(read_shrink: int, overviews: List[int]) -> Optional[int]:
+def pick_overview(read_shrink: int, overviews: Sequence[int]) -> Optional[int]:
     if len(overviews) == 0 or read_shrink < overviews[0]:
         return None
 
