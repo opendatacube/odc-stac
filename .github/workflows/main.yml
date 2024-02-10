@@ -289,7 +289,7 @@ jobs:
         if: |
           github.repository == 'opendatacube/odc-stac'
 
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: false
           verbose: false
@@ -453,7 +453,7 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
       - name: Print Notice
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
         env:
           NETLIFY_URL: ${{ steps.netlify.outputs.deploy-url }}
