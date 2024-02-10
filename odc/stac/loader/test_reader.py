@@ -1,3 +1,4 @@
+# pylint: disable=missing-function-docstring, missing-module-docstring, too-many-statements
 from math import isnan
 
 import numpy as np
@@ -16,8 +17,9 @@ from odc.stac.loader._reader import (
     resolve_src_nodata,
     same_nodata,
 )
-from odc.stac.loader._rio import rio_read
-from odc.stac.testing.fixtures import with_temp_tiff
+
+from ._rio import rio_read
+from .testing.fixtures import with_temp_tiff
 
 
 def test_same_nodata():

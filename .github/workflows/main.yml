@@ -238,7 +238,7 @@ jobs:
 
       - name: Run tests
         shell: bash -l {0}
-        run: pytest tests
+        run: pytest tests odc
         env:
           DASK_TEMPORARY_DIRECTORY: /tmp/dask
 
@@ -278,6 +278,7 @@ jobs:
           --cov-report=html \
           --cov-report=xml:coverage.xml \
           --timeout=30 \
+          odc \
           tests
 
         env:

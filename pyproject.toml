@@ -9,7 +9,8 @@ allow_redefinition = true
 
 [tool.coverage.run]
 omit = [
-  "tests/*"
+  "tests/*",
+  "*/test_*"
 ]
 
 [tool.isort]
