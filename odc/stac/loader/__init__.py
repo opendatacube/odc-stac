@@ -9,6 +9,7 @@ from ._builder import (
     direct_chunked_load,
     fill_2d_slice,
     mk_dataset,
+    resolve_chunk_shape,
 )
 from ._driver import reader_driver
 from ._reader import resolve_load_cfg
@@ -27,4 +28,5 @@ __all__ = (
     "direct_chunked_load",
     "reader_driver",
     "resolve_load_cfg",
+    "resolve_chunk_shape",
 )

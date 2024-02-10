@@ -11,6 +11,7 @@ from typing import (
     Hashable,
     Iterator,
     List,
+    Literal,
     Optional,
     Protocol,
     Sequence,
@@ -21,6 +22,7 @@ from typing import (
 import numpy as np
 import xarray as xr
 from dask import array as da
+from dask.array.core import normalize_chunks
 from dask.base import quote, tokenize
 from numpy.typing import DTypeLike
 from odc.geo.geobox import GeoBox, GeoboxTiles
@@ -297,3 +299,25 @@ def direct_chunked_load(
         pass
 
     return ds
+
+
+def resolve_chunk_shape(
+    nt: int,
+    gbox: GeoBox,
+    chunks: Dict[str, int | Literal["auto"]],
+    dtype: Any,
+) -> Tuple[int, int, int]:
+    """
+    Compute chunk size for time, y and x dimensions.
+    """
+    tt = chunks.get("time", 1)
+    ty, tx = (
+        chunks.get(dim, chunks.get(fallback_dim, -1))
+        for dim, fallback_dim in zip(gbox.dimensions, ["y", "x"])
+    )
+    nt, ny, nx = (
+        ch[0]
+        for ch in normalize_chunks((tt, ty, tx), (nt, *gbox.shape.yx), dtype=dtype)
+    )
+
+    return nt, ny, nx

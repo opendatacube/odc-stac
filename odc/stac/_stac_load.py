@@ -26,7 +26,6 @@ import numpy as np
 import pystac
 import pystac.item
 import xarray as xr
-from dask.array.core import normalize_chunks
 from dask.utils import ndeepmap
 from numpy.typing import DTypeLike
 from odc.geo import CRS, MaybeCRS, SomeResolution
@@ -39,6 +38,7 @@ from .loader import (
     direct_chunked_load,
     mk_dataset,
     reader_driver,
+    resolve_chunk_shape,
     resolve_load_cfg,
 )
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
@@ -412,9 +412,9 @@ def load(
     tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
 
     if chunks is not None:
-        chunk_shape = _resolve_chunk_shape(len(tss), gbox, chunks, dtype)
+        chunk_shape = resolve_chunk_shape(len(tss), gbox, chunks, dtype)
     else:
-        chunk_shape = _resolve_chunk_shape(
+        chunk_shape = resolve_chunk_shape(
             len(tss),
             gbox,
             {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
@@ -586,19 +586,3 @@ def _tyx_bins(
                 _yx.setdefault(idx, []).append(item_idx)
 
         yield from (((t_idx, *idx), ii_item) for idx, ii_item in _yx.items())
-
-
-def _resolve_chunk_shape(
-    nt: int, gbox: GeoBox, chunks: Dict[str, int | Literal["auto"]], dtype: Any
-) -> Tuple[int, int, int]:
-    tt = chunks.get("time", 1)
-    ty, tx = (
-        chunks.get(dim, chunks.get(fallback_dim, -1))
-        for dim, fallback_dim in zip(gbox.dimensions, ["y", "x"])
-    )
-    nt, ny, nx = (
-        ch[0]
-        for ch in normalize_chunks((tt, ty, tx), (nt, *gbox.shape.yx), dtype=dtype)
-    )
-
-    return nt, ny, nx
