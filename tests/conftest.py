@@ -3,7 +3,6 @@ Test for SQS to DC tool
 """
 
 import json
-import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -13,21 +12,16 @@ import pystac
 import pystac.collection
 import pystac.item
 import pytest
-from datacube.utils import documents
-
-from odc.stac.eo3 import stac2ds
 
 TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
 PARTIAL_PROJ_STAC: str = "only_crs_proj.json"
 GA_LANDSAT_STAC: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.stac-item.json"
-GA_LANDSAT_ODC: str = "ga_ls8c_ard_3-1-0_088080_2020-05-25_final.odc-metadata.yaml"
 SENTINEL_STAC_COLLECTION: str = "sentinel-2-l2a.collection.json"
 SENTINEL_STAC: str = "S2A_28QCH_20200714_0_L2A.json"
 SENTINEL_STAC_MS: str = "S2B_MSIL2A_20190629T212529_R043_T06VVN_20201006T080531.json"
 SENTINEL_STAC_MS_RASTER_EXT: str = (
     "S2B_MSIL2A_20190629T212529_R043_T06VVN_20201006T080531_raster_ext.json"
 )
-SENTINEL_ODC: str = "S2A_28QCH_20200714_0_L2A.odc-metadata.json"
 USGS_LANDSAT_STAC_v1b: str = "LC08_L2SR_081119_20200101_20200823_02_T2.json"
 USGS_LANDSAT_STAC_v1: str = "LC08_L2SP_028030_20200114_20200824_02_T1_SR.json"
 USGS_LANDSAT_STAC_v1_1_1: str = "LE07_L2SP_044033_20210329_20210424_02_T1_SR.json"
@@ -86,33 +80,25 @@ def lidar_stac():
 
 
 @pytest.fixture
-def ga_landsat_odc():
-    metadata = yield from documents.load_documents(
-        TEST_DATA_FOLDER.joinpath(GA_LANDSAT_ODC)
-    )
-    return metadata
-
-
-@pytest.fixture
 def sentinel_stac():
     return pystac.item.Item.from_file(str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC)))
 
 
 @pytest.fixture
 def sentinel_stac_ms_json():
-    with TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS).open("r") as f:
+    with TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS).open("r", encoding="utf") as f:
         return json.load(f)
 
 
 @pytest.fixture
 def bench_site1():
-    with TEST_DATA_FOLDER.joinpath(BENCH_SITE1).open("r") as f:
+    with TEST_DATA_FOLDER.joinpath(BENCH_SITE1).open("r", encoding="utf") as f:
         return _strip_links(json.load(f))
 
 
 @pytest.fixture
 def bench_site2():
-    with TEST_DATA_FOLDER.joinpath(BENCH_SITE2).open("r") as f:
+    with TEST_DATA_FOLDER.joinpath(BENCH_SITE2).open("r", encoding="utf") as f:
         return _strip_links(json.load(f))
 
 
@@ -151,16 +137,9 @@ def sentinel_odc():
 def relative_href_only(ga_landsat_stac: pystac.item.Item):
     item = pystac.Item.from_dict(ga_landsat_stac.to_dict())
     item = item.make_asset_hrefs_relative()
+    assert isinstance(item, pystac.Item)
     item.remove_links("self")
     return item
-
-
-@pytest.fixture
-def s2_dataset(sentinel_stac_ms_with_raster_ext):
-    (ds,) = stac2ds(
-        [sentinel_stac_ms_with_raster_ext], cfg={"*": {"warnings": "ignore"}}
-    )
-    yield ds
 
 
 @pytest.fixture
