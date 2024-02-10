@@ -1,10 +1,16 @@
+# pylint: disable=unused-argument,unused-variable,missing-module-docstring,wrong-import-position,import-error
+# pylint: disable=redefined-outer-name
+
+import pytest
+
+_ = pytest.importorskip("datacube")
+
 import uuid
 
 import pystac
 import pystac.asset
 import pystac.collection
 import pystac.item
-import pytest
 from common import NO_WARN_CFG, STAC_CFG, mk_stac_item
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
