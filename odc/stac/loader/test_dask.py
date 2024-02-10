@@ -1,7 +1,8 @@
+# pylint: disable=missing-function-docstring, missing-module-docstring
 from dask.base import tokenize
 from odc.geo.geobox import CRS, GeoBox, GeoboxTiles
 
-from odc.stac.loader._dask import tokenize_stream
+from ._dask import tokenize_stream
 
 
 def test_tokenize_odc_geo():

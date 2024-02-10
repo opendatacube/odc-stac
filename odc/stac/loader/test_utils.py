@@ -1,4 +1,5 @@
-from odc.stac.loader._utils import SizedIterable
+# pylint: disable=missing-function-docstring, missing-module-docstring
+from ._utils import SizedIterable
 
 
 def test_sized_iterator():

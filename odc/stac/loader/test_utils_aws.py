@@ -2,13 +2,18 @@
 #
 # Copyright (c) 2015-2020 ODC Contributors
 # SPDX-License-Identifier: Apache-2.0
+
+# pylint: disable=unused-argument,unused-variable,missing-module-docstring,wrong-import-position,import-error
+# pylint: disable=redefined-outer-name
 import json
+import os
 from unittest import mock
 
 import pytest
 
 _ = pytest.importorskip("botocore")
-from odc.stac.loader._aws import (
+
+from ._aws import (
     _fetch_text,
     auto_find_region,
     ec2_current_region,
@@ -16,7 +21,19 @@ from odc.stac.loader._aws import (
     get_creds_with_retry,
     mk_boto_session,
 )
-from odc.stac.testing.fixtures import write_files
+from .testing.fixtures import write_files
+
+
+@pytest.fixture()
+def without_aws_env(monkeypatch):
+    for e in os.environ:
+        if e.startswith("AWS_"):
+            monkeypatch.delenv(e, raising=False)
+    yield
+
+
+def patch_aws(func, *args, **kw):
+    return mock.patch(__package__ + "._aws." + func, *args, **kw)
 
 
 def _json(**kw):
@@ -40,42 +57,36 @@ def test_ec2_current_region():
     ]
 
     for rv, expect in tests:
-        with mock.patch("odc.stac.loader._aws._fetch_text", return_value=rv):
+        with patch_aws("_fetch_text", return_value=rv):
             assert ec2_current_region() == expect
 
 
-@mock.patch("odc.stac.loader._aws.botocore_default_region", return_value=None)
+@patch_aws("botocore_default_region", return_value=None)
 def test_auto_find_region(*mocks):
-    with mock.patch("odc.stac.loader._aws._fetch_text", return_value=None):
+    with patch_aws("_fetch_text", return_value=None):
         with pytest.raises(ValueError):
             auto_find_region()
 
-    with mock.patch(
-        "odc.stac.loader._aws._fetch_text", return_value=_json(region="TT")
-    ):
+    with patch_aws("_fetch_text", return_value=_json(region="TT")):
         assert auto_find_region() == "TT"
 
 
-@mock.patch(
-    "odc.stac.loader._aws.botocore_default_region", return_value="tt-from-botocore"
-)
+@patch_aws("botocore_default_region", return_value="tt-from-botocore")
 def test_auto_find_region_2(*mocks):
     assert auto_find_region() == "tt-from-botocore"
 
 
 def test_fetch_text():
-    with mock.patch("odc.stac.loader._aws.urlopen", return_value=mock_urlopen("", 505)):
+    with patch_aws("urlopen", return_value=mock_urlopen("", 505)):
         assert _fetch_text("http://localhost:8817") is None
 
-    with mock.patch(
-        "odc.stac.loader._aws.urlopen", return_value=mock_urlopen("text", 200)
-    ):
+    with patch_aws("urlopen", return_value=mock_urlopen("text", 200)):
         assert _fetch_text("http://localhost:8817") == "text"
 
     def fake_urlopen(*args, **kw):
         raise IOError("Always broken")
 
-    with mock.patch("odc.stac.loader._aws.urlopen", fake_urlopen):
+    with patch_aws("urlopen", fake_urlopen):
         assert _fetch_text("http://localhost:8817") is None
 
 
@@ -139,16 +150,14 @@ aws_secret_access_key = fake-fake-fake
     assert aws["region_name"] == "us-west-1"
     assert aws["aws_unsigned"] is True
 
-    with mock.patch(
-        "odc.stac.loader._aws._fetch_text", return_value=_json(region="mordor")
-    ):
+    with patch_aws("_fetch_text", return_value=_json(region="mordor")):
         aws, creds = get_aws_settings(profile="no_region", aws_unsigned=True)
 
         assert aws["region_name"] == "mordor"
         assert aws["aws_unsigned"] is True
 
 
-@mock.patch("odc.stac.loader._aws.get_creds_with_retry", return_value=None)
+@patch_aws("get_creds_with_retry", return_value=None)
 def test_get_aws_settings_no_credentials(without_aws_env):
     # get_aws_settings should fail when credentials are not available
     with pytest.raises(ValueError, match="Couldn't get credentials"):

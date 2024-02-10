@@ -261,11 +261,3 @@ def gpd_iso3(gpd_natural_earth):
         return gg
 
     yield _get
-
-
-@pytest.fixture()
-def without_aws_env(monkeypatch):
-    for e in os.environ:
-        if e.startswith("AWS_"):
-            monkeypatch.delenv(e, raising=False)
-    yield
