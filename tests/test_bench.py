@@ -1,4 +1,11 @@
+# pylint: disable=wrong-import-order,wrong-import-position,
+# pylint: disable=redefined-outer-name,missing-function-docstring,missing-module-docstring
 import pytest
+
+distributed = pytest.importorskip("distributed")
+
+from unittest.mock import MagicMock
+
 import xarray
 from distributed import Client
 from odc.geo.xr import ODCExtension
@@ -19,6 +26,56 @@ CFG = {
 }
 
 
+@pytest.fixture
+def fake_dask_client(monkeypatch):
+    cc = MagicMock()
+    cc.scheduler_info.return_value = {
+        "type": "Scheduler",
+        "id": "Scheduler-80d943db-16f6-4476-a51a-64d57a287e9b",
+        "address": "inproc://10.10.10.10/1281505/1",
+        "services": {"dashboard": 8787},
+        "started": 1638320006.6135786,
+        "workers": {
+            "inproc://10.10.10.10/1281505/4": {
+                "type": "Worker",
+                "id": 0,
+                "host": "10.1.1.140",
+                "resources": {},
+                "local_directory": "/tmp/dask-worker-space/worker-uhq1b9bh",
+                "name": 0,
+                "nthreads": 2,
+                "memory_limit": 524288000,
+                "last_seen": 1638320007.2504623,
+                "services": {"dashboard": 38439},
+                "metrics": {
+                    "executing": 0,
+                    "in_memory": 0,
+                    "ready": 0,
+                    "in_flight": 0,
+                    "bandwidth": {"total": 100000000, "workers": {}, "types": {}},
+                    "spilled_nbytes": 0,
+                    "cpu": 0.0,
+                    "memory": 145129472,
+                    "time": 1638320007.2390554,
+                    "read_bytes": 0.0,
+                    "write_bytes": 0.0,
+                    "read_bytes_disk": 0.0,
+                    "write_bytes_disk": 0.0,
+                    "num_fds": 82,
+                },
+                "nanny": None,
+            }
+        },
+    }
+    cc.cancel.return_value = None
+    cc.restart.return_value = cc
+    cc.persist = lambda x: x
+    cc.compute = lambda x: x
+
+    monkeypatch.setattr(distributed, "wait", MagicMock())
+    yield cc
+
+
 @pytest.fixture(scope="module")
 def dask_client():
     client = Client(
@@ -37,6 +94,9 @@ def dask_client():
     del client
 
 
+@pytest.mark.skipif(
+    not pytest.importorskip("stackstac"), reason="stackstac not installed"
+)
 def test_load_from_json_stackstac(fake_dask_client, bench_site1, bench_site2):
     dask_client = fake_dask_client
     params = BenchLoadParams(
@@ -109,6 +169,7 @@ def test_bench_context(fake_dask_client, bench_site1, bench_site2):
     assert f"Data      : 1.3.{ny}.{nx}.uint16,  5.58 GiB" in header_txt
 
     run_txt = rr.render_timing_info((0, 0.1, 30))
+    assert isinstance(run_txt, str)
 
     pd_dict = rr.to_pandas_dict()
     assert pd_dict["resolution"] == rr.resolution

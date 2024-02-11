@@ -1,6 +1,4 @@
 black
-dask
-distributed
 folium
 geopandas
 ipywidgets
@@ -12,10 +10,7 @@ nbsphinx
 sphinx
 sphinx_rtd_theme
 sphinx-autodoc-typehints
-stackstac
 planetary-computer
 pylint
 isort
 pytest
-pystac
-odc-geo
