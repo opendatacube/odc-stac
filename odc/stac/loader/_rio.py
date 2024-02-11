@@ -252,6 +252,8 @@ def configure_rio(
 
 def _dump_rio_config():
     cfg = get_rio_env()
+    if not cfg:
+        return
     nw = max(len(k) for k in cfg)
     for k, v in cfg.items():
         print(f"{k:<{nw}} = {v}")
