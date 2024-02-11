@@ -4,14 +4,12 @@ Test for SQS to DC tool
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import distributed
-import geopandas as gpd
 import pystac
 import pystac.collection
 import pystac.item
 import pytest
+from odc.geo.data import country_geom
 
 TEST_DATA_FOLDER: Path = Path(__file__).parent.joinpath("data")
 PARTIAL_PROJ_STAC: str = "only_crs_proj.json"
@@ -170,56 +168,6 @@ def sample_geojson():
     }
 
 
-@pytest.fixture
-def fake_dask_client(monkeypatch):
-    cc = MagicMock()
-    cc.scheduler_info.return_value = {
-        "type": "Scheduler",
-        "id": "Scheduler-80d943db-16f6-4476-a51a-64d57a287e9b",
-        "address": "inproc://10.10.10.10/1281505/1",
-        "services": {"dashboard": 8787},
-        "started": 1638320006.6135786,
-        "workers": {
-            "inproc://10.10.10.10/1281505/4": {
-                "type": "Worker",
-                "id": 0,
-                "host": "10.1.1.140",
-                "resources": {},
-                "local_directory": "/tmp/dask-worker-space/worker-uhq1b9bh",
-                "name": 0,
-                "nthreads": 2,
-                "memory_limit": 524288000,
-                "last_seen": 1638320007.2504623,
-                "services": {"dashboard": 38439},
-                "metrics": {
-                    "executing": 0,
-                    "in_memory": 0,
-                    "ready": 0,
-                    "in_flight": 0,
-                    "bandwidth": {"total": 100000000, "workers": {}, "types": {}},
-                    "spilled_nbytes": 0,
-                    "cpu": 0.0,
-                    "memory": 145129472,
-                    "time": 1638320007.2390554,
-                    "read_bytes": 0.0,
-                    "write_bytes": 0.0,
-                    "read_bytes_disk": 0.0,
-                    "write_bytes_disk": 0.0,
-                    "num_fds": 82,
-                },
-                "nanny": None,
-            }
-        },
-    }
-    cc.cancel.return_value = None
-    cc.restart.return_value = cc
-    cc.persist = lambda x: x
-    cc.compute = lambda x: x
-
-    monkeypatch.setattr(distributed, "wait", MagicMock())
-    yield cc
-
-
 def _strip_links(gjson):
     for item in gjson["features"]:
         item["links"] = []
@@ -227,16 +175,8 @@ def _strip_links(gjson):
 
 
 @pytest.fixture()
-def gpd_natural_earth():
-    yield gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-
-
-@pytest.fixture()
-def gpd_iso3(gpd_natural_earth):
-    def _get(iso3, crs=None):
-        gg = gpd_natural_earth[gpd_natural_earth.iso_a3 == iso3]
-        if crs is not None:
-            gg = gg.to_crs(crs)
-        return gg
+def gpd_iso3():
+    def _get(iso3: str, crs=None):
+        return country_geom(iso3.upper(), crs=crs)
 
     yield _get
