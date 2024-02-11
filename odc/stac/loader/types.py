@@ -36,6 +36,17 @@ class RasterBandMetadata:
     def __dask_tokenize__(self):
         return astuple(self)
 
+    def _repr_json_(self) -> Dict[str, Any]:
+        """
+        Return a JSON serializable representation of the RasterBandMetadata object.
+        """
+        return {
+            "data_type": self.data_type,
+            "nodata": self.nodata,
+            "unit": self.unit,
+            "dims": self.dims,
+        }
+
 
 @dataclass(eq=True, frozen=True)
 class RasterSource:
@@ -68,6 +79,29 @@ class RasterSource:
 
     def __dask_tokenize__(self):
         return (self.uri, self.band, self.subdataset)
+
+    def _repr_json_(self) -> Dict[str, Any]:
+        """
+        Return a JSON serializable representation of the RasterSource object.
+        """
+        doc = {
+            "uri": self.uri,
+            "band": self.band,
+        }
+
+        if self.subdataset is not None:
+            doc["subdataset"] = self.subdataset
+
+        if self.meta is not None:
+            doc.update(self.meta._repr_json_())  # pylint: disable=protected-access
+
+        gbox = self.geobox
+        if gbox is not None:
+            doc["crs"] = str(gbox.crs)
+            doc["transform"] = [*gbox.transform][:6]
+            doc["shape"] = gbox.shape.yx
+
+        return doc
 
 
 MultiBandRasterSource = Mapping[Union[str, Tuple[str, int]], RasterSource]
@@ -137,6 +171,20 @@ class RasterLoadParams:
 
     def __dask_tokenize__(self):
         return astuple(self)
+
+    def _repr_json_(self) -> Dict[str, Any]:
+        """
+        Return a JSON serializable representation of the RasterLoadParams object.
+        """
+        return {
+            "dtype": self.dtype,
+            "fill_value": self.fill_value,
+            "src_nodata_fallback": self.src_nodata_fallback,
+            "src_nodata_override": self.src_nodata_override,
+            "use_overviews": self.use_overviews,
+            "resampling": self.resampling,
+            "fail_on_error": self.fail_on_error,
+        }
 
 
 class SomeReader(Protocol):
