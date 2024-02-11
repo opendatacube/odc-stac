@@ -87,7 +87,7 @@ class RioReader:
         dst_geobox: GeoBox,
         dst: Optional[np.ndarray] = None,
     ) -> Tuple[NormalizedROI, np.ndarray]:
-        return rio_read(src, cfg, dst_geobox, dst)
+        return rio_read(src, cfg, dst_geobox, dst=dst)
 
 
 class _GlobalRioConfig:

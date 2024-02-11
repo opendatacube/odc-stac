@@ -9,17 +9,16 @@ from numpy.testing import assert_array_equal
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import xr_zeros
 
-from odc.stac import RasterLoadParams, RasterSource
-from odc.stac.loader._reader import (
+from ._reader import (
     pick_overview,
     resolve_dst_dtype,
     resolve_dst_nodata,
     resolve_src_nodata,
     same_nodata,
 )
-
-from ._rio import rio_read
+from ._rio import RioReader, configure_rio, get_rio_env, rio_read
 from .testing.fixtures import with_temp_tiff
+from .types import RasterLoadParams, RasterSource
 
 
 def test_same_nodata():
@@ -69,6 +68,32 @@ def test_pick_overiew():
     assert pick_overview(20, [2, 4, 8]) == 2
 
 
+def test_rio_reader_env():
+    rdr = RioReader()
+
+    configure_rio(cloud_defaults=True, verbose=True)
+    env = rdr.capture_env()
+    assert isinstance(env, dict)
+    assert env["GDAL_DISABLE_READDIR_ON_OPEN"] == "EMPTY_DIR"
+    assert "GDAL_DATA" not in env
+
+    configure_rio(cloud_defaults=False, verbose=True)
+    env2 = rdr.capture_env()
+
+    with rdr.restore_env(env):
+        _env = get_rio_env(sanitize=False, no_session_keys=False)
+        assert isinstance(_env, dict)
+        assert _env["GDAL_DISABLE_READDIR_ON_OPEN"] == "EMPTY_DIR"
+
+    with rdr.restore_env(env2):
+        _env = get_rio_env(sanitize=False, no_session_keys=False)
+        assert isinstance(_env, dict)
+        assert "GDAL_DISABLE_READDIR_ON_OPEN" not in _env
+
+    # test no-op old args
+    configure_rio(client="", activate=True)
+
+
 def test_rio_read():
     gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(160, 320), tight=True)
 
@@ -88,6 +113,11 @@ def test_rio_read():
         assert gbox[roi] == gbox
         assert pix.shape == gbox.shape
         assert_array_equal(pix, xx.values)
+
+        # Going via RioReader should be the same
+        _roi, _pix = RioReader().read(src, cfg, gbox)
+        assert roi == _roi
+        assert (pix == _pix).all()
 
         # read part
         _gbox = gbox[non_zeros_roi]
