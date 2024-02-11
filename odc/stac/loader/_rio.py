@@ -480,12 +480,14 @@ def capture_rio_env() -> Dict[str, Any]:
     if _CFG._configured:
         env = {**_CFG._gdal_opts, "_aws": _CFG._aws}
     else:
-        env = get_rio_env(sanitize=False, no_session_keys=True)
+        env = {}
+
+    env.update(get_rio_env(sanitize=False, no_session_keys=True))
+    # don't want that copied across to workers who might be on different machine
+    env.pop("GDAL_DATA", None)
 
     if len(env) == 0:
         # not customized, supply defaults
         return {**GDAL_CLOUD_DEFAULTS}
 
-    # don't want that copied across to workers who might be on different machine
-    env.pop("GDAL_DATA", None)
     return env
