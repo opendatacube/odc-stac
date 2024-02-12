@@ -1,5 +1,7 @@
 """Metadata and data loading model classes."""
 
+from __future__ import annotations
+
 from dataclasses import astuple, dataclass
 from typing import Any, ContextManager, Dict, Mapping, Optional, Protocol, Tuple, Union
 
@@ -73,9 +75,14 @@ class RasterSource:
         """
         Copy with minimal data only.
 
-        Removes geobox and meta info as they are not needed for data loading.
+        Removes geobox, as it's not needed for data loading.
         """
-        return RasterSource(self.uri, self.band, self.subdataset)
+        return RasterSource(
+            self.uri,
+            band=self.band,
+            subdataset=self.subdataset,
+            geobox=None,
+            meta=self.meta,
 
     def __dask_tokenize__(self):
         return (self.uri, self.band, self.subdataset)
