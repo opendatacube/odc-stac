@@ -127,11 +127,6 @@ def sentinel_stac_collection():
 
 
 @pytest.fixture
-def sentinel_odc():
-    return pystac.item.Item.from_file(str(TEST_DATA_FOLDER.joinpath(SENTINEL_ODC)))
-
-
-@pytest.fixture
 def relative_href_only(ga_landsat_stac: pystac.item.Item):
     item = pystac.Item.from_dict(ga_landsat_stac.to_dict())
     item = item.make_asset_hrefs_relative()

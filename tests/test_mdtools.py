@@ -1,3 +1,7 @@
+# pylint: disable=redefined-outer-name,missing-module-docstring,missing-function-docstring,missing-class-docstring
+# pylint: disable=use-implicit-booleaness-not-comparison,protected-access,ungrouped-imports
+from __future__ import annotations
+
 import pystac
 import pystac.asset
 import pystac.collection
@@ -28,6 +32,7 @@ from odc.stac._mdtools import (
     parse_item,
     parse_items,
 )
+from odc.stac.loader.testing.fixtures import FakeMDPlugin
 from odc.stac.model import ParsedItem
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 
@@ -65,7 +70,7 @@ def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
 
     # test the case where there are different shapes for the same gsd
     # clashing grid names should be resolved
-    ProjectionExtension.ext(item.assets["B01"]).shape = (100, 200)
+    ProjectionExtension.ext(item.assets["B01"]).shape = (100, 200)  # type: ignore
     grids, b2g = compute_eo3_grids(data_bands)
     assert b2g["B01"] != b2g["B02"]
 
@@ -77,8 +82,9 @@ def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
     data_bands = {k: item.assets[k] for k in data_bands}
     grids, b2g = compute_eo3_grids(data_bands)
     assert b2g["B01"] != b2g["B02"]
-    assert grids[b2g["B01"]].crs is not None
-    assert grids[b2g["B01"]].crs.epsg == 3857
+    crs = grids[b2g["B01"]].crs
+    assert crs is not None
+    assert crs.epsg == 3857
 
 
 def test_asset_geobox(sentinel_stac: pystac.item.Item):
@@ -91,7 +97,7 @@ def test_asset_geobox(sentinel_stac: pystac.item.Item):
     # Tests non-affine transofrm ValueError
     item = item0.clone()
     asset = item.assets["B01"]
-    ProjectionExtension.ext(asset).transform[-1] = 2
+    ProjectionExtension.ext(asset).transform[-1] = 2  # type: ignore
     with pytest.raises(ValueError):
         asset_geobox(asset)
 
@@ -174,10 +180,10 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
 
     # check defaults were set
     for b in ["B01", "B02", "B03"]:
-        b = (b, 1)
-        assert md.bands[b].data_type == "uint16"
-        assert md.bands[b].nodata == 0
-        assert md.bands[b].unit == "1"
+        bk: tuple[str, int] = (b, 1)
+        assert md.bands[bk].data_type == "uint16"
+        assert md.bands[bk].nodata == 0
+        assert md.bands[bk].unit == "1"
 
     assert md.bands[("SCL", 1)].data_type == "uint8"
     assert md.bands[("visual", 1)].data_type == "uint8"
@@ -208,6 +214,44 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
     item.collection_id = None
     md = extract_collection_metadata(item, NO_WARN_CFG)
     assert md.name == "_"
+
+
+def test_parse_item_with_plugin():
+    item = pystac.item.Item.from_dict(
+        {
+            "type": "Feature",
+            "id": "some-item",
+            "collection": "c",
+            "properties": {"datetime": "2022-02-02T00:00:00Z"},
+            "geometry": None,
+            "links": [],
+            "assets": {
+                "AA": {
+                    "href": "http://example.com/items/b1.nc",
+                    "type": "application/x-netcdf",
+                    "roles": ["data"],
+                }
+            },
+            "stac_version": "1.0.0",
+            "stac_extensions": [""],
+        }
+    )
+    md_plugin = FakeMDPlugin(
+        [
+            RasterBandMetadata("uint8", 0, "1", dims=("y", "x", "b")),
+            RasterBandMetadata("float32"),
+        ],
+        ["b1", "b2"],
+        {"foo": "bar"},
+    )
+
+    pit = parse_item(item, md_plugin=md_plugin)
+    assert isinstance(pit, ParsedItem)
+    assert pit.collection["b1"].data_type == "uint8"
+    assert pit.collection["b1"].dims == ("y", "x", "b")
+    assert pit.collection["b2"].data_type == "float32"
+    assert pit["b1"].driver_data == {"foo": "bar"}
+    assert pit["b2"].driver_data == {"foo": "bar"}
 
 
 def test_noassets_case(no_bands_stac):
@@ -326,6 +370,9 @@ def test_auto_load_params(parsed_item_s2: ParsedItem):
     _gbox_10m = xx["B02"].geobox
     _gbox_20m = xx["B05"].geobox
     _gbox_60m = xx["B01"].geobox
+    assert _gbox_10m is not None
+    assert _gbox_20m is not None
+    assert _gbox_60m is not None
     _10m = _gbox_10m.resolution
     _20m = _gbox_20m.resolution
     _60m = _gbox_60m.resolution

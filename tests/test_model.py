@@ -182,12 +182,14 @@ def test_parsed_item(parsed_item_ab: ParsedItem):
     assert xx["b"].strip().uri == xx["b"].uri
     assert xx["b"].strip().band == xx["b"].band
     assert xx["b"].strip().subdataset == xx["b"].subdataset
+    assert xx["b"].strip().driver_data == xx["b"].driver_data
 
     assert xx.strip()["b"].geobox is None
     assert xx.strip()["b"].meta is xx["b"].meta
     assert xx.strip()["b"].uri == xx["b"].uri
     assert xx.strip()["b"].band == xx["b"].band
     assert xx.strip()["b"].subdataset == xx["b"].subdataset
+    assert xx.strip()["b"].driver_data == xx["b"].driver_data
 
 
 def test_tokenize(parsed_item_ab: ParsedItem):

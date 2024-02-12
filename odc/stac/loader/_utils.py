@@ -3,7 +3,7 @@ Generic tools with only standard lib dependencies.
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Iterable, Iterator, Optional, Sized, TypeVar, Union
+from typing import Callable, Iterable, Iterator, Sized, TypeVar, Union
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -25,19 +25,6 @@ class SizedIterable(Sized, Iterable[T]):
 
     def __iter__(self) -> Iterator[T]:
         yield from self._xx
-
-
-def with_default(v: Optional[T], default_value: T) -> T:
-    """
-    Replace ``None`` with default value.
-
-    :param v: Value that might be None
-    :param default_value: Default value of the same type as v
-    :return: ``v`` unless it is ``None`` then return ``default_value`` instead
-    """
-    if v is None:
-        return default_value
-    return v
 
 
 def pmap(
