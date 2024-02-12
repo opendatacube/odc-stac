@@ -41,6 +41,7 @@ from .loader import (
     resolve_chunk_shape,
     resolve_load_cfg,
 )
+from .loader.types import SomeReader
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
@@ -113,6 +114,8 @@ def load(
     stac_cfg: Optional[ConversionConfig] = None,
     patch_url: Optional[Callable[[str], str]] = None,
     preserve_original_order: bool = False,
+    # custom driver
+    driver: Optional[SomeReader] = None,
     **kw,
 ) -> xr.Dataset:
     """
@@ -348,8 +351,15 @@ def load(
     if groupby is None:
         groupby = "id"
 
+    if driver is not None:
+        rdr = driver
+        md_plugin = driver.md_parser
+    else:
+        rdr = None
+        md_plugin = None
+
     items = list(items)
-    _parsed = list(parse_items(items, cfg=stac_cfg))
+    _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_plugin))
 
     gbox = output_geobox(
         _parsed,
@@ -387,6 +397,8 @@ def load(
         nodata=kw.get("nodata", None),
         fail_on_error=fail_on_error,
     )
+    if rdr is None:
+        rdr = reader_driver(load_cfg)
 
     if dtype is None:
         _dtypes = sorted(
@@ -448,7 +460,6 @@ def load(
         )
         return ds
 
-    rdr = reader_driver(load_cfg)
     rdr_env = rdr.capture_env()
     if chunks is not None:
         _loader = DaskGraphBuilder(

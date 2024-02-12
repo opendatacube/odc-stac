@@ -13,8 +13,7 @@ from typing import Optional, Sequence
 import numpy as np
 from numpy.typing import DTypeLike
 
-from ._utils import with_default
-from .types import RasterBandMetadata, RasterLoadParams
+from .types import RasterBandMetadata, RasterLoadParams, with_default
 
 
 def resolve_load_cfg(

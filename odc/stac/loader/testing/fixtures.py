@@ -7,13 +7,15 @@ import os
 import pathlib
 import shutil
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections import abc
 from contextlib import contextmanager
-from typing import Generator
+from typing import Any, Generator, Sequence, Tuple
 
 import rasterio
 import xarray as xr
 from odc.geo.xr import ODCExtensionDa
+
+from ..types import RasterBandMetadata
 
 
 @contextmanager
@@ -57,14 +59,42 @@ def _write_files_to_dir(directory_path, file_dict):
     """
     for filename, contents in file_dict.items():
         path = os.path.join(directory_path, filename)
-        if isinstance(contents, Mapping):
+        if isinstance(contents, abc.Mapping):
             os.mkdir(path)
             _write_files_to_dir(path, contents)
         else:
             with open(path, "w", encoding="utf8") as f:
                 if isinstance(contents, str):
                     f.write(contents)
-                elif isinstance(contents, Sequence):
+                elif isinstance(contents, abc.Sequence):
                     f.writelines(contents)
                 else:
                     raise ValueError(f"Unexpected file contents: {type(contents)}")
+
+
+class FakeMDPlugin:
+    """
+    Fake metadata extraction plugin for testing.
+    """
+
+    def __init__(
+        self,
+        bands: Sequence[RasterBandMetadata],
+        aliases: Sequence[str],
+        driver_data,
+    ):
+        self._bands = tuple(bands)
+        self._aliases = tuple(aliases)
+        self._driver_data = driver_data
+
+    def aliases(self, md) -> Tuple[str, ...]:
+        assert md is not None
+        return self._aliases
+
+    def bands(self, md) -> Tuple[RasterBandMetadata, ...]:
+        assert md is not None
+        return self._bands
+
+    def driver_data(self, md) -> Any:
+        assert md is not None
+        return self._driver_data

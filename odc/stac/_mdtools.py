@@ -4,6 +4,9 @@ STAC -> EO3 utilities.
 Utilities for translating STAC Items to EO3 Datasets.
 """
 
+# pylint: disable=too-many-lines
+from __future__ import annotations
+
 import datetime
 from collections import Counter
 from copy import copy
@@ -48,8 +51,13 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
-from .loader._utils import with_default
-from .loader.types import RasterBandMetadata, RasterSource
+from .loader.types import (
+    MDParser,
+    RasterBandMetadata,
+    RasterSource,
+    norm_nodata,
+    with_default,
+)
 from .model import (
     BandKey,
     BandQuery,
@@ -119,17 +127,10 @@ def band_metadata(
     if len(bands) == 0:
         return [default]
 
-    def _norm_nodata(nodata) -> Union[float, None]:
-        if nodata is None:
-            return None
-        if isinstance(nodata, (int, float)):
-            return nodata
-        return float(nodata)
-
     return [
         RasterBandMetadata(
             with_default(band.data_type, default.data_type),
-            with_default(_norm_nodata(band.nodata), default.nodata),
+            with_default(norm_nodata(band.nodata), default.nodata),
             with_default(band.unit, default.unit),
         )
         for band in bands
@@ -398,8 +399,19 @@ def band2grid_from_gsd(assets: Dict[str, pystac.asset.Asset]) -> Dict[str, str]:
 
 
 def _extract_aliases(
-    asset_name: str, asset: pystac.asset.Asset, block_list: Set[str]
+    asset_name: str,
+    asset: pystac.asset.Asset,
+    block_list: Set[str],
+    md_plugin: MDParser | None = None,
 ) -> Iterator[Tuple[str, int, BandKey]]:
+    if md_plugin is not None:
+        aliases = md_plugin.aliases(asset)
+        num_bands = len(aliases)
+        for idx, name in enumerate(aliases):
+            if name not in block_list:
+                yield (name, num_bands, (asset_name, idx + 1))
+        return
+
     try:
         eo = EOExtension.ext(asset)
     except pystac.errors.ExtensionNotImplemented:
@@ -413,7 +425,9 @@ def _extract_aliases(
                 yield (alias, len(eo.bands), (asset_name, idx + 1))
 
 
-def alias_map_from_eo(item: pystac.item.Item) -> Dict[str, List[BandKey]]:
+def alias_map_from_eo(
+    item: pystac.item.Item, md_plugin: MDParser | None = None
+) -> Dict[str, List[BandKey]]:
     """
     Generate mapping ``common name -> canonical name``.
 
@@ -429,7 +443,9 @@ def alias_map_from_eo(item: pystac.item.Item) -> Dict[str, List[BandKey]]:
     asset_band_counts: Dict[str, int] = {}
     asset_names = set(item.assets)
     for asset_name, asset in item.assets.items():
-        for alias, count, bkey in _extract_aliases(asset_name, asset, asset_names):
+        for alias, count, bkey in _extract_aliases(
+            asset_name, asset, asset_names, md_plugin=md_plugin
+        ):
             aliases.setdefault(alias, []).append(bkey)
             asset_band_counts[asset_name] = count
 
@@ -461,7 +477,7 @@ def mk_sample_item(collection: pystac.collection.Collection) -> pystac.item.Item
     )
 
     for name, asset in item_assets.items():
-        _asset = dict(href="")
+        _asset = {"href": ""}
         _asset.update(asset.to_dict())
         item.add_asset(name, pystac.asset.Asset.from_dict(_asset))
 
@@ -486,10 +502,13 @@ class _CMDAssembler:
     Expect to see items of the same collection only.
     """
 
-    # pylint: disable=too-few-public-methods
+    # pylint: disable=too-few-public-methods,too-many-instance-attributes
 
     def __init__(
-        self, collection_id: str, cfg: Optional[ConversionConfig] = None
+        self,
+        collection_id: str,
+        cfg: Optional[ConversionConfig] = None,
+        md_plugin: MDParser | None = None,
     ) -> None:
         if cfg is None:
             cfg = {}
@@ -499,6 +518,7 @@ class _CMDAssembler:
         self.has_proj: Optional[bool] = None
         self.collection_id = collection_id
         self.md: Optional[RasterCollectionMetadata] = None
+        self.md_plugin = md_plugin
         self._asset_keeps: Dict[str, bool] = {}
         self._known_assets: Set[str] = set()
 
@@ -522,7 +542,12 @@ class _CMDAssembler:
         if bm is None:
             bm = c.band_defaults
 
-        return {(name, idx + 1): bm for idx, bm in enumerate(band_metadata(asset, bm))}
+        if self.md_plugin is not None:
+            bands = [b.with_defaults(bm) for b in self.md_plugin.bands(asset)]
+        else:
+            bands = band_metadata(asset, bm)
+
+        return {(name, idx + 1): bm for idx, bm in enumerate(bands)}
 
     def _bootstrap(self, item: pystac.item.Item):
         """Called on the very first item only."""
@@ -542,7 +567,7 @@ class _CMDAssembler:
         self._known_assets = set(self._asset_keeps)
 
         bands: Dict[BandKey, RasterBandMetadata] = {}
-        aliases = alias_map_from_eo(item)
+        aliases = alias_map_from_eo(item, self.md_plugin)
 
         # 1. If band in user config -- use that
         # 2. Use data from raster extension (with fallback to "*" config)
@@ -618,7 +643,9 @@ class _CMDAssembler:
 
 
 def extract_collection_metadata(
-    item: pystac.item.Item, cfg: Optional[ConversionConfig] = None
+    item: pystac.item.Item,
+    cfg: Optional[ConversionConfig] = None,
+    md_plugin: MDParser | None = None,
 ) -> RasterCollectionMetadata:
     """
     Use sample item to figure out raster bands within the collection.
@@ -633,7 +660,7 @@ def extract_collection_metadata(
     :return: :py:class:`~odc.stac._model.RasterCollectionMetadata`
     """
     collection_id = _collection_id(item)
-    proc = _CMDAssembler(collection_id, cfg)
+    proc = _CMDAssembler(collection_id, cfg, md_plugin)
     proc.update(item)
     assert proc.md is not None
     return proc.md
@@ -642,6 +669,7 @@ def extract_collection_metadata(
 def parse_item(
     item: pystac.item.Item,
     template: Union[RasterCollectionMetadata, ConversionConfig, None] = None,
+    md_plugin: MDParser | None = None,
 ) -> ParsedItem:
     """
     Extract raster band information relevant for data loading.
@@ -652,7 +680,7 @@ def parse_item(
     """
     # pylint: disable=too-many-locals
     if not isinstance(template, RasterCollectionMetadata):
-        template = extract_collection_metadata(item, template)
+        template = extract_collection_metadata(item, template, md_plugin)
 
     band2grid = template.band2grid
     has_proj = False if template.has_proj is False else has_proj_ext(item)
@@ -688,7 +716,17 @@ def parse_item(
                 f"Can not determine absolute path for band: {asset_name}"
             )  # pragma: no cover (https://github.com/stac-utils/pystac/issues/754)
 
-        bands[bk] = RasterSource(uri=uri, band=band_idx, geobox=geobox, meta=meta)
+        driver_data: Any = None
+        if md_plugin is not None:
+            driver_data = md_plugin.driver_data(asset)
+
+        bands[bk] = RasterSource(
+            uri=uri,
+            band=band_idx,
+            geobox=geobox,
+            meta=meta,
+            driver_data=driver_data,
+        )
 
     md = item.common_metadata
     return ParsedItem(
@@ -703,7 +741,9 @@ def parse_item(
 
 
 def parse_items(
-    items: Iterable[pystac.item.Item], cfg: Optional[ConversionConfig] = None
+    items: Iterable[pystac.item.Item],
+    cfg: Optional[ConversionConfig] = None,
+    md_plugin: MDParser | None = None,
 ) -> Iterator[ParsedItem]:
     """
     Parse sequence of STAC Items into internal representation.
@@ -716,11 +756,11 @@ def parse_items(
         collection_id = _collection_id(item)
         proc = proc_cache.get(collection_id, None)
         if proc is None:
-            proc = _CMDAssembler(collection_id, cfg)
+            proc = _CMDAssembler(collection_id, cfg, md_plugin=md_plugin)
             proc_cache[collection_id] = proc
 
         proc.update(item)
-        yield parse_item(item, proc.md)
+        yield parse_item(item, proc.md, md_plugin)
 
 
 def _most_common_gbox(
@@ -854,20 +894,20 @@ def output_geobox(
 
     params = {
         k
-        for k, v in dict(
-            x=x,
-            y=y,
-            lon=lon,
-            lat=lat,
-            crs=crs,
-            resolution=resolution,
-            align=align,
-            anchor=anchor,
-            like=like,
-            geopolygon=geopolygon,
-            bbox=bbox,
-            geobox=geobox,
-        ).items()
+        for k, v in {
+            "x": x,
+            "y": y,
+            "lon": lon,
+            "lat": lat,
+            "crs": crs,
+            "resolution": resolution,
+            "align": align,
+            "anchor": anchor,
+            "like": like,
+            "geopolygon": geopolygon,
+            "bbox": bbox,
+            "geobox": geobox,
+        }.items()
         if not (v is None or isinstance(v, Unset))
     }
 

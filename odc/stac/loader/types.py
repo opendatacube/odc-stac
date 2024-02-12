@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import astuple, dataclass
-from typing import Any, ContextManager, Dict, Mapping, Optional, Protocol, Tuple, Union
+from typing import (
+    Any,
+    ContextManager,
+    Dict,
+    Mapping,
+    Optional,
+    Protocol,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 import numpy as np
 from odc.geo.geobox import GeoBox
 from odc.geo.roi import NormalizedROI
+
+T = TypeVar("T")
 
 
 @dataclass(eq=True, frozen=True)
@@ -34,6 +46,19 @@ class RasterBandMetadata:
 
     dims: Optional[Tuple[str, ...]] = None
     """Dimension names for this band."""
+
+    def with_defaults(self, defaults: "RasterBandMetadata") -> "RasterBandMetadata":
+        """
+        Merge with another metadata object, using self as the primary source.
+
+        If a field is None in self, use the value from defaults.
+        """
+        return RasterBandMetadata(
+            data_type=with_default(self.data_type, defaults.data_type),
+            nodata=with_default(self.nodata, defaults.nodata),
+            unit=with_default(self.unit, defaults.unit),
+            dims=with_default(self.dims, defaults.dims),
+        )
 
     def __dask_tokenize__(self):
         return astuple(self)
@@ -71,6 +96,9 @@ class RasterSource:
     meta: Optional[RasterBandMetadata] = None
     """Expected raster dtype/nodata."""
 
+    driver_data: Any = None
+    """IO Driver specific extra data."""
+
     def strip(self) -> "RasterSource":
         """
         Copy with minimal data only.
@@ -83,6 +111,8 @@ class RasterSource:
             subdataset=self.subdataset,
             geobox=None,
             meta=self.meta,
+            driver_data=self.driver_data,
+        )
 
     def __dask_tokenize__(self):
         return (self.uri, self.band, self.subdataset)
@@ -194,6 +224,20 @@ class RasterLoadParams:
         }
 
 
+class MDParser(Protocol):
+    """
+    Protocol for metadata parsers.
+
+    - Compute bands from an asset
+    - Compute band aliases from an asset
+    - Extract driver specific data
+    """
+
+    def bands(self, md: Any) -> Tuple[RasterBandMetadata, ...]: ...
+    def aliases(self, md: Any) -> Tuple[str, ...]: ...
+    def driver_data(self, md: Any) -> Any: ...
+
+
 class SomeReader(Protocol):
     """
     Protocol for readers.
@@ -211,8 +255,31 @@ class SomeReader(Protocol):
         dst: Optional[np.ndarray] = None,
     ) -> Tuple[NormalizedROI, np.ndarray]: ...
 
+    md_parser: MDParser | None
+
 
 BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")
+
+
+def with_default(v: Optional[T], default_value: T) -> T:
+    """
+    Replace ``None`` with default value.
+
+    :param v: Value that might be None
+    :param default_value: Default value of the same type as v
+    :return: ``v`` unless it is ``None`` then return ``default_value`` instead
+    """
+    if v is None:
+        return default_value
+    return v
+
+
+def norm_nodata(nodata) -> Union[float, None]:
+    if nodata is None:
+        return None
+    if isinstance(nodata, (int, float)):
+        return nodata
+    return float(nodata)
 
 
 def norm_band_metadata(
@@ -223,6 +290,6 @@ def norm_band_metadata(
         return v
     return RasterBandMetadata(
         v.get("data_type", fallback.data_type),
-        v.get("nodata", fallback.nodata),
+        v.get("nodata", norm_nodata(fallback.nodata)),
         v.get("unit", fallback.unit),
     )
