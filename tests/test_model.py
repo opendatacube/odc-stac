@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name,missing-module-docstring,missing-function-docstring
 import datetime as dt
 
 import pytest
@@ -153,7 +154,9 @@ def test_parsed_item(parsed_item_ab: ParsedItem):
     xx = parsed_item_ab
     assert xx["AA"] is not None
     assert xx["b"] is not None
+    assert xx["AA"].meta is not None
     assert xx["AA"].meta.data_type == "uint8"
+    assert xx["b"].meta is not None
     assert xx["b"].meta.data_type == "uint16"
 
     assert xx.resolve_bands("AA")["AA"] == xx["a"]
@@ -175,13 +178,13 @@ def test_parsed_item(parsed_item_ab: ParsedItem):
         assert xx[k] is xx.resolve_bands(k)[k]
 
     assert xx["b"].strip().geobox is None
-    assert xx["b"].strip().meta is None
+    assert xx["b"].strip().meta is xx["b"].meta
     assert xx["b"].strip().uri == xx["b"].uri
     assert xx["b"].strip().band == xx["b"].band
     assert xx["b"].strip().subdataset == xx["b"].subdataset
 
     assert xx.strip()["b"].geobox is None
-    assert xx.strip()["b"].meta is None
+    assert xx.strip()["b"].meta is xx["b"].meta
     assert xx.strip()["b"].uri == xx["b"].uri
     assert xx.strip()["b"].band == xx["b"].band
     assert xx.strip()["b"].subdataset == xx["b"].subdataset
