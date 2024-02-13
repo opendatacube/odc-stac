@@ -405,7 +405,7 @@ def _extract_aliases(
     md_plugin: MDParser | None = None,
 ) -> Iterator[Tuple[str, int, BandKey]]:
     if md_plugin is not None:
-        aliases = md_plugin.aliases(asset)
+        aliases = md_plugin.aliases(asset, asset_name)
         num_bands = len(aliases)
         for idx, name in enumerate(aliases):
             if name not in block_list:
@@ -543,7 +543,7 @@ class _CMDAssembler:
             bm = c.band_defaults
 
         if self.md_plugin is not None:
-            bands = [b.with_defaults(bm) for b in self.md_plugin.bands(asset)]
+            bands = [b.with_defaults(bm) for b in self.md_plugin.bands(asset, name)]
         else:
             bands = band_metadata(asset, bm)
 
@@ -718,7 +718,7 @@ def parse_item(
 
         driver_data: Any = None
         if md_plugin is not None:
-            driver_data = md_plugin.driver_data(asset)
+            driver_data = md_plugin.driver_data(asset, asset_name, band_idx - 1)
 
         bands[bk] = RasterSource(
             uri=uri,

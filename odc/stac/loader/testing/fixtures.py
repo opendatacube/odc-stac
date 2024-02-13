@@ -2,6 +2,8 @@
 Test fixture construction utilities.
 """
 
+from __future__ import annotations
+
 import atexit
 import os
 import pathlib
@@ -79,22 +81,31 @@ class FakeMDPlugin:
 
     def __init__(
         self,
-        bands: Sequence[RasterBandMetadata],
-        aliases: Sequence[str],
+        bands: Sequence[RasterBandMetadata] | dict[str, Sequence[RasterBandMetadata]],
+        aliases: Sequence[str] | dict[str, Sequence[str]],
         driver_data,
     ):
-        self._bands = tuple(bands)
-        self._aliases = tuple(aliases)
+        self._bands = bands
+        self._aliases = aliases
         self._driver_data = driver_data
 
-    def aliases(self, md) -> Tuple[str, ...]:
+    def aliases(self, md, name: str) -> Tuple[str, ...]:
         assert md is not None
-        return self._aliases
+        if isinstance(self._aliases, dict):
+            return tuple(self._aliases.get(name, ()))
+        return tuple(self._aliases)
 
-    def bands(self, md) -> Tuple[RasterBandMetadata, ...]:
+    def bands(self, md, name: str) -> Tuple[RasterBandMetadata, ...]:
         assert md is not None
-        return self._bands
+        if isinstance(self._bands, dict):
+            return tuple(self._bands.get(name, ()))
+        return tuple(self._bands)
 
-    def driver_data(self, md) -> Any:
+    def driver_data(self, md, name: str, idx: int) -> Any:
         assert md is not None
+        if isinstance(self._driver_data, dict):
+            if name in self._driver_data:
+                return self._driver_data[name]
+            if (name, idx) in self._driver_data:
+                return self._driver_data[name, idx]
         return self._driver_data
