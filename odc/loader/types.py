@@ -255,7 +255,8 @@ class SomeReader(Protocol):
         dst: Optional[np.ndarray] = None,
     ) -> Tuple[NormalizedROI, np.ndarray]: ...
 
-    md_parser: MDParser | None
+    @property
+    def md_parser(self) -> MDParser | None: ...
 
 
 BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")

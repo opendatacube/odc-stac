@@ -29,7 +29,7 @@ from ._reader import (
     resolve_src_nodata,
     same_nodata,
 )
-from .types import RasterLoadParams, RasterSource
+from .types import MDParser, RasterLoadParams, RasterSource
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +88,10 @@ class RioReader:
         dst: Optional[np.ndarray] = None,
     ) -> Tuple[NormalizedROI, np.ndarray]:
         return rio_read(src, cfg, dst_geobox, dst=dst)
+
+    @property
+    def md_parser(self) -> Optional[MDParser]:
+        return None
 
 
 class _GlobalRioConfig:
