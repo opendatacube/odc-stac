@@ -161,7 +161,10 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         :raises: :py:class:`KeyError`
         """
         if isinstance(band, str):
-            band = self.band_key(band)
+            try:
+                band = self.band_key(band)
+            except ValueError:
+                raise KeyError(band) from None
         return self.bands[band]
 
     def __len__(self) -> int:
