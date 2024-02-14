@@ -278,8 +278,7 @@ jobs:
           --cov-report=html \
           --cov-report=xml:coverage.xml \
           --timeout=30 \
-          odc \
-          tests
+          tests odc
 
         env:
           AWS_DEFAULT_REGION: us-west-2
@@ -337,7 +336,7 @@ jobs:
         shell: bash
         run: |
           echo "Running Tests"
-          pytest --timeout=30 tests
+          pytest --timeout=30 tests odc
 
         env:
           AWS_DEFAULT_REGION: us-west-2

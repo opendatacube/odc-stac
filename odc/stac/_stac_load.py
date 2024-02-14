@@ -32,8 +32,7 @@ from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 
-from ._mdtools import ConversionConfig, output_geobox, parse_items
-from .loader import (
+from odc.loader import (
     DaskGraphBuilder,
     direct_chunked_load,
     mk_dataset,
@@ -41,7 +40,9 @@ from .loader import (
     resolve_chunk_shape,
     resolve_load_cfg,
 )
-from .loader.types import SomeReader
+from odc.loader.types import SomeReader
+
+from ._mdtools import ConversionConfig, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
 DEFAULT_CHUNK_FOR_LOAD = 2048

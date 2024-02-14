@@ -1,5 +1,5 @@
 # pylint: disable=redefined-outer-name,missing-module-docstring,missing-function-docstring,missing-class-docstring
-# pylint: disable=use-implicit-booleaness-not-comparison,protected-access,ungrouped-imports
+# pylint: disable=use-implicit-booleaness-not-comparison,protected-access
 from __future__ import annotations
 
 import pystac
@@ -15,6 +15,7 @@ from odc.geo.types import xy_
 from odc.geo.xr import xr_zeros
 from pystac.extensions.projection import ProjectionExtension
 
+from odc.loader.testing.fixtures import FakeMDPlugin
 from odc.stac._mdtools import (
     RasterBandMetadata,
     _auto_load_params,
@@ -32,7 +33,6 @@ from odc.stac._mdtools import (
     parse_item,
     parse_items,
 )
-from odc.stac.loader.testing.fixtures import FakeMDPlugin
 from odc.stac.model import ParsedItem
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 
