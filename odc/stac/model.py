@@ -4,34 +4,25 @@ import datetime as dt
 import math
 from copy import copy
 from dataclasses import astuple, dataclass, field, replace
-from typing import (
-    Any,
-    Dict,
-    Iterator,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Union,
-)
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Set, Tuple
 
 from odc.geo import CRS, Geometry, MaybeCRS
 from odc.geo.geobox import GeoBox
 from odc.geo.types import Unset
 
-from odc.loader.types import RasterBandMetadata, RasterSource, norm_band_metadata
-
-BandKey = Tuple[str, int]
-"""Asset Name, band index within an asset (1 based)."""
-
-BandQuery = Optional[Union[str, Sequence[str]]]
-"""One|All|Some bands"""
+from odc.loader.types import (
+    BandIdentifier,
+    BandKey,
+    BandQuery,
+    RasterBandMetadata,
+    RasterSource,
+    norm_band_metadata,
+    norm_key,
+)
 
 
 @dataclass(eq=True, frozen=True)
-class RasterCollectionMetadata(Mapping[Union[str, BandKey], RasterBandMetadata]):
+class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
     """
     Information about raster data in a collection.
 
@@ -163,7 +154,7 @@ class RasterCollectionMetadata(Mapping[Union[str, BandKey], RasterBandMetadata])
         """
         return self._norm_key(self.band_key(band))
 
-    def __getitem__(self, band: Union[str, BandKey]) -> RasterBandMetadata:
+    def __getitem__(self, band: BandIdentifier) -> RasterBandMetadata:
         """
         Query band taking care of aliases.
 
@@ -191,7 +182,7 @@ class RasterCollectionMetadata(Mapping[Union[str, BandKey], RasterBandMetadata])
 
 
 @dataclass(eq=True, frozen=True)
-class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
+class ParsedItem(Mapping[BandIdentifier, RasterSource]):
     """
     Captures essentials parts for data loading from a STAC Item.
 
@@ -312,7 +303,7 @@ class ParsedItem(Mapping[Union[BandKey, str], RasterSource]):
             for k, _actual in ((k, canon(k)) for k in bands)
         }
 
-    def __getitem__(self, band: Union[str, BandKey]) -> RasterSource:
+    def __getitem__(self, band: BandIdentifier) -> RasterSource:
         """
         Query band taking care of aliases.
 
@@ -456,17 +447,3 @@ def _convert_to_solar_time(utc: dt.datetime, longitude: float) -> dt.datetime:
     #    1/15 == 24/360 (hours per degree of longitude)
     offset_seconds = int(longitude / 15) * 3600
     return utc + dt.timedelta(seconds=offset_seconds)
-
-
-def norm_key(k: Union[str, BandKey]) -> BandKey:
-    """
-    ("band", i) -> ("band", i)
-    "band" -> ("band", 1)
-    "band.3" -> ("band", 3)
-    """
-    if isinstance(k, str):
-        parts = k.rsplit(".", 1)
-        if len(parts) == 2:
-            return parts[0], int(parts[1])
-        return (k, 1)
-    return k
