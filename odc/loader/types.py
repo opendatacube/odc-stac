@@ -10,6 +10,7 @@ from typing import (
     Mapping,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     TypeVar,
     Union,
@@ -20,6 +21,15 @@ from odc.geo.geobox import GeoBox
 from odc.geo.roi import NormalizedROI
 
 T = TypeVar("T")
+
+BandKey = Tuple[str, int]
+"""Asset Name, band index within an asset (1 based)."""
+
+BandIdentifier = Union[str, BandKey]
+"""Alias or canonical band identifier."""
+
+BandQuery = Optional[Union[str, Sequence[str]]]
+"""One|All|Some bands"""
 
 
 @dataclass(eq=True, frozen=True)
@@ -294,3 +304,17 @@ def norm_band_metadata(
         v.get("nodata", norm_nodata(fallback.nodata)),
         v.get("unit", fallback.unit),
     )
+
+
+def norm_key(k: BandIdentifier) -> BandKey:
+    """
+    ("band", i) -> ("band", i)
+    "band" -> ("band", 1)
+    "band.3" -> ("band", 3)
+    """
+    if isinstance(k, str):
+        parts = k.rsplit(".", 1)
+        if len(parts) == 2:
+            return parts[0], int(parts[1])
+        return (k, 1)
+    return k
