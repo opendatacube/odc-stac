@@ -130,6 +130,9 @@ def test_collection(collection_ab: RasterCollectionMetadata):
     with pytest.raises(ValueError):
         _ = xx.resolve_bands(["xxxxxxxx", "a"])
 
+    with pytest.raises(KeyError):
+        _ = xx["no-such-band"]
+
 
 def test_collection_allbands():
     xx = mk_parsed_item([b_("a.1"), b_("a.2"), b_("a.3")])
