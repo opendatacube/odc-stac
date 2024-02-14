@@ -51,13 +51,14 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
-from .loader.types import (
+from odc.loader.types import (
     MDParser,
     RasterBandMetadata,
     RasterSource,
     norm_nodata,
     with_default,
 )
+
 from .model import (
     BandKey,
     BandQuery,

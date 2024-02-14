@@ -27,4 +27,5 @@ disable = [
   "fixme",
   "wrong-import-order",
   "duplicate-code",
+  "ungrouped-imports",
 ]

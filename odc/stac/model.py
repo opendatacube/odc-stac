@@ -21,7 +21,7 @@ from odc.geo import CRS, Geometry, MaybeCRS
 from odc.geo.geobox import GeoBox
 from odc.geo.types import Unset
 
-from .loader.types import RasterBandMetadata, RasterSource, norm_band_metadata
+from odc.loader.types import RasterBandMetadata, RasterSource, norm_band_metadata
 
 BandKey = Tuple[str, int]
 """Asset Name, band index within an asset (1 based)."""

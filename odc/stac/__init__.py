@@ -1,6 +1,9 @@
 """STAC Item -> ODC Dataset[eo3]."""
 
 from ._version import __version__  # isort:skip  this has to be 1st import
+from odc.loader._rio import configure_rio, configure_s3_access
+from odc.loader.types import RasterBandMetadata, RasterLoadParams, RasterSource
+
 from ._mdtools import (
     ConversionConfig,
     ParsedItem,
@@ -10,8 +13,6 @@ from ._mdtools import (
     parse_items,
 )
 from ._stac_load import load
-from .loader._rio import configure_rio, configure_s3_access
-from .loader.types import RasterBandMetadata, RasterLoadParams, RasterSource
 from .model import RasterCollectionMetadata
 
 stac_load = load
