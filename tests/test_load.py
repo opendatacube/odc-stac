@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring,redefined-builtin
 from unittest.mock import MagicMock
 
 import pystac
@@ -18,8 +19,8 @@ from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     item = sentinel_stac_ms_with_raster_ext.clone()
 
-    params = dict(crs="EPSG:3857", resolution=100, align=0, chunks={})
-    xx = stac_load([item], "B02", **params)
+    params = {"crs": "EPSG:3857", "resolution": 100, "align": 0, "chunks": {}}
+    xx = stac_load([item], "B02", **params)  # type: ignore
 
     assert isinstance(xx.B02.odc, ODCExtension)
     assert xx.B02.shape[0] == 1
@@ -28,7 +29,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
     assert xx.time.dtype == "datetime64[ns]"
 
     # Test dc.load name for bands, and alias support
-    xx = stac_load([item], measurements=["red", "green"], **params)
+    xx = stac_load([item], measurements=["red", "green"], **params)  # type: ignore
 
     assert "red" in xx.data_vars
     assert "green" in xx.data_vars
@@ -40,7 +41,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
         [item],
         measurements=["red", "green"],
         patch_url=patch_url,
-        **params,
+        **params,  # type: ignore
     )
     assert isinstance(xx.odc, ODCExtension)
 
@@ -52,7 +53,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
         [item],
         patch_url=patch_url,
         stac_cfg={"*": {"warnings": "ignore"}},
-        **params,
+        **params,  # type: ignore
     )
     assert patch_url.call_count == len(zz.data_vars)
 
@@ -60,6 +61,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
         [item], ["nir"], like=xx, chunks={}, stac_cfg={"*": {"warnings": "ignore"}}
     )
     assert yy.odc.geobox == xx.odc.geobox
+    assert isinstance(xx.odc.geobox, GeoBox)
 
     yy = stac_load(
         [item],
