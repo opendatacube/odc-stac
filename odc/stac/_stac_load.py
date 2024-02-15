@@ -35,7 +35,6 @@ from odc.geo.types import Unset
 from odc.loader import (
     DaskGraphBuilder,
     direct_chunked_load,
-    mk_dataset,
     reader_driver,
     resolve_chunk_shape,
     resolve_load_cfg,
@@ -463,8 +462,9 @@ def load(
 
     rdr_env = rdr.capture_env()
     if chunks is not None:
-        _loader = DaskGraphBuilder(
+        dask_loader = DaskGraphBuilder(
             load_cfg,
+            collection.meta,
             _parsed,
             tyx_bins,
             gbt,
@@ -472,11 +472,12 @@ def load(
             rdr,
             time_chunks=chunk_shape[0],
         )
-        return _with_debug_info(mk_dataset(gbox, tss, load_cfg, _loader))
+        return _with_debug_info(dask_loader.build(gbox, tss, load_cfg))
 
     return _with_debug_info(
         direct_chunked_load(
             load_cfg,
+            collection.meta,
             _parsed,
             tyx_bins,
             gbt,

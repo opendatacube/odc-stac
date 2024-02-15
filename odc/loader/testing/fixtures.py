@@ -11,13 +11,22 @@ import shutil
 import tempfile
 from collections import abc
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Any, ContextManager, Dict, Generator, Optional, Tuple
 
+import numpy as np
 import rasterio
 import xarray as xr
+from odc.geo.geobox import GeoBox
+from odc.geo.roi import NormalizedROI
 from odc.geo.xr import ODCExtensionDa
 
-from ..types import BandKey, RasterGroupMetadata
+from ..types import (
+    BandKey,
+    MDParser,
+    RasterGroupMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
 
 
 @contextmanager
@@ -100,3 +109,86 @@ class FakeMDPlugin:
             if band_key in self._driver_data:
                 return self._driver_data[band_key]
         return self._driver_data
+
+
+class FakeReader:
+    """
+    Fake reader for testing.
+    """
+
+    class Context:
+        """
+        EMIT Context manager.
+        """
+
+        def __init__(self, parent: "FakeReader", env: dict[str, Any]) -> None:
+            self._parent = parent
+            self.env = env
+
+        def __enter__(self):
+            assert self._parent._ctx is None
+            self._parent._ctx = self
+
+        def __exit__(self, type, value, traceback):
+            # pylint: disable=unused-argument,redefined-builtin
+            self._parent._ctx = None
+
+    def __init__(
+        self,
+        group_md: RasterGroupMetadata,
+        *,
+        parser: MDParser | None = None,
+    ):
+        self._group_md = group_md
+        self._parser = parser or FakeMDPlugin(group_md, None)
+        self._ctx: FakeReader.Context | None = None
+
+    def capture_env(self) -> Dict[str, Any]:
+        return {}
+
+    def restore_env(self, env: Dict[str, Any]) -> ContextManager[Any]:
+        return self.Context(self, env)
+
+    def read(
+        self,
+        src: RasterSource,
+        cfg: RasterLoadParams,
+        dst_geobox: GeoBox,
+        dst: Optional[np.ndarray] = None,
+    ) -> Tuple[NormalizedROI, np.ndarray]:
+        assert self._ctx is not None
+        assert src.meta is not None
+        meta = src.meta
+        extra_dims = self._group_md.extra_dims or {
+            coord.dim: len(coord.values) for coord in self._group_md.extra_coords
+        }
+        postfix_dims: Tuple[int, ...] = ()
+        if meta.dims is not None:
+            assert set(meta.dims[2:]).issubset(extra_dims)
+            postfix_dims = tuple(extra_dims[d] for d in meta.dims[2:])
+
+        ny, nx = dst_geobox.shape.yx
+        yx_roi = (slice(0, ny), slice(0, nx))
+        shape = (ny, nx, *postfix_dims)
+
+        src_pix: np.ndarray | None = src.driver_data
+        if src_pix is None:
+            src_pix = np.ones(shape, dtype=cfg.dtype)
+        else:
+            assert src_pix.shape == shape
+
+        assert postfix_dims == src_pix.shape[2:]
+
+        if dst is None:
+            dst = np.zeros((ny, nx, *postfix_dims), dtype=cfg.dtype)
+            dst[:] = src_pix.astype(dst.dtype)
+            return yx_roi, dst
+
+        assert dst.shape == src_pix.shape
+        dst[:] = src_pix.astype(dst.dtype)
+
+        return yx_roi, dst[yx_roi]
+
+    @property
+    def md_parser(self) -> MDParser | None:
+        return self._parser

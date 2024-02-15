@@ -59,6 +59,7 @@ def resolve_load_cfg(
             use_overviews=use_overviews,
             resampling=_resampling(name, "nearest"),
             fail_on_error=fail_on_error,
+            dims=band.dims,
         )
 
     return {name: _resolve(name, band) for name, band in bands.items()}

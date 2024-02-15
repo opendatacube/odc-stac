@@ -871,7 +871,8 @@ def output_geobox(
 
     Exposed at top-level for debugging.
     """
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements,too-many-return-statements
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    # pylint: disable=too-many-return-statements,too-many-arguments
 
     # geobox, like --> GeoBox
     # lon,lat      --> geopolygon[epsg:4326]

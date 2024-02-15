@@ -93,14 +93,14 @@ class FixedCoord:
 
     name: str
     values: Sequence[Any]
-    dtype: Optional[str] = None
-    dim: Optional[str] = None
+    dtype: str = ""
+    dim: str = ""
     units: str = "1"
 
     def __post_init__(self):
-        if self.dtype is None:
-            self.dtype = np.array(self.values).dtype.name
-        if self.dim is None:
+        if not self.dtype:
+            self.dtype = np.array(self.values).dtype.str
+        if not self.dim:
             self.dim = self.name
 
     def _repr_json_(self) -> Dict[str, Any]:
@@ -245,6 +245,8 @@ class RasterLoadParams:
     Captures data loading configuration.
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     dtype: Optional[str] = None
     """Output dtype, default same as source."""
 
@@ -281,6 +283,9 @@ class RasterLoadParams:
     fail_on_error: bool = True
     """Quit on the first error or continue."""
 
+    dims: Optional[Tuple[str, ...]] = None
+    """Dimension names for this band."""
+
     @staticmethod
     def same_as(src: Union[RasterBandMetadata, RasterSource]) -> "RasterLoadParams":
         """Construct from source object."""
@@ -293,7 +298,7 @@ class RasterLoadParams:
         if dtype is None:
             dtype = "float32"
 
-        return RasterLoadParams(dtype=dtype, fill_value=meta.nodata)
+        return RasterLoadParams(dtype=dtype, fill_value=meta.nodata, dims=meta.dims)
 
     @property
     def nearest(self) -> bool:
@@ -315,6 +320,7 @@ class RasterLoadParams:
             "use_overviews": self.use_overviews,
             "resampling": self.resampling,
             "fail_on_error": self.fail_on_error,
+            "dims": self.dims,
         }
 
 
