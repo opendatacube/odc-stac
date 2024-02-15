@@ -5,13 +5,13 @@ import pytest
 from dask.base import tokenize
 from odc.geo.geobox import GeoBox
 
-from odc.stac import (
-    ParsedItem,
+from odc.loader.types import (
     RasterBandMetadata,
-    RasterCollectionMetadata,
+    RasterGroupMetadata,
     RasterLoadParams,
     RasterSource,
 )
+from odc.stac import ParsedItem, RasterCollectionMetadata
 from odc.stac.testing.stac import b_, mk_parsed_item
 
 
@@ -72,11 +72,13 @@ def test_solar_day():
 def collection_ab() -> RasterCollectionMetadata:
     return RasterCollectionMetadata(
         "ab",
-        {
-            ("a", 1): RasterBandMetadata("uint8"),
-            ("b", 1): RasterBandMetadata("uint16"),
-        },
-        {"A": [("a", 1)], "AA": [("a", 1)], "B": [("b", 1)]},
+        RasterGroupMetadata(
+            {
+                ("a", 1): RasterBandMetadata("uint8"),
+                ("b", 1): RasterBandMetadata("uint16"),
+            },
+            {"A": [("a", 1)], "AA": [("a", 1)], "B": [("b", 1)]},
+        ),
         has_proj=True,
         band2grid={},
     )

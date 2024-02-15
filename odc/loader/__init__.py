@@ -13,12 +13,29 @@ from ._builder import (
 )
 from ._driver import reader_driver
 from ._reader import resolve_load_cfg
-from .types import RasterBandMetadata, RasterLoadParams, RasterSource, SomeReader
+from .types import (
+    BandIdentifier,
+    BandKey,
+    BandQuery,
+    FixedCoord,
+    MultiBandRasterSource,
+    RasterBandMetadata,
+    RasterGroupMetadata,
+    RasterLoadParams,
+    RasterSource,
+    SomeReader,
+)
 
 __all__ = (
+    "BandIdentifier",
+    "BandKey",
+    "BandQuery",
     "RasterBandMetadata",
     "RasterLoadParams",
     "RasterSource",
+    "FixedCoord",
+    "MultiBandRasterSource",
+    "RasterGroupMetadata",
     "SomeReader",
     "LoadChunkTask",
     "DaskGraphBuilder",

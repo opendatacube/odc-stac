@@ -11,13 +11,13 @@ import shutil
 import tempfile
 from collections import abc
 from contextlib import contextmanager
-from typing import Any, Generator, Sequence, Tuple
+from typing import Any, Generator
 
 import rasterio
 import xarray as xr
 from odc.geo.xr import ODCExtensionDa
 
-from ..types import RasterBandMetadata
+from ..types import BandKey, RasterGroupMetadata
 
 
 @contextmanager
@@ -81,31 +81,22 @@ class FakeMDPlugin:
 
     def __init__(
         self,
-        bands: Sequence[RasterBandMetadata] | dict[str, Sequence[RasterBandMetadata]],
-        aliases: Sequence[str] | dict[str, Sequence[str]],
+        group_md: RasterGroupMetadata,
         driver_data,
     ):
-        self._bands = bands
-        self._aliases = aliases
+        self._group_md = group_md
         self._driver_data = driver_data
 
-    def aliases(self, md, name: str) -> Tuple[str, ...]:
+    def extract(self, md: Any) -> RasterGroupMetadata:
         assert md is not None
-        if isinstance(self._aliases, dict):
-            return tuple(self._aliases.get(name, ()))
-        return tuple(self._aliases)
+        return self._group_md
 
-    def bands(self, md, name: str) -> Tuple[RasterBandMetadata, ...]:
+    def driver_data(self, md, band_key: BandKey) -> Any:
         assert md is not None
-        if isinstance(self._bands, dict):
-            return tuple(self._bands.get(name, ()))
-        return tuple(self._bands)
-
-    def driver_data(self, md, name: str, idx: int) -> Any:
-        assert md is not None
+        name, _ = band_key
         if isinstance(self._driver_data, dict):
             if name in self._driver_data:
                 return self._driver_data[name]
-            if (name, idx) in self._driver_data:
-                return self._driver_data[name, idx]
+            if band_key in self._driver_data:
+                return self._driver_data[band_key]
         return self._driver_data

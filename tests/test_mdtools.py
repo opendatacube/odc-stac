@@ -16,8 +16,8 @@ from odc.geo.xr import xr_zeros
 from pystac.extensions.projection import ProjectionExtension
 
 from odc.loader.testing.fixtures import FakeMDPlugin
+from odc.loader.types import FixedCoord, RasterBandMetadata, RasterGroupMetadata
 from odc.stac._mdtools import (
-    RasterBandMetadata,
     _auto_load_params,
     _gbox_anchor,
     _most_common_gbox,
@@ -236,14 +236,16 @@ def test_parse_item_with_plugin():
             "stac_extensions": [""],
         }
     )
-    md_plugin = FakeMDPlugin(
-        [
-            RasterBandMetadata("uint8", 0, "1", dims=("y", "x", "b")),
-            RasterBandMetadata("float32"),
-        ],
-        ["b1", "b2"],
-        {"foo": "bar"},
+    group_md = RasterGroupMetadata(
+        bands={
+            ("AA", 1): RasterBandMetadata("uint8", 0, "1", dims=("y", "x", "b")),
+            ("AA", 2): RasterBandMetadata("float32"),
+        },
+        aliases={"b1": [("AA", 1)], "b2": [("AA", 2)]},
+        extra_dims={"b": 3},
+        extra_coords=[FixedCoord("b", ["r", "g", "b"])],
     )
+    md_plugin = FakeMDPlugin(group_md, {"foo": "bar"})
 
     pit = parse_item(item, md_plugin=md_plugin)
     assert isinstance(pit, ParsedItem)
