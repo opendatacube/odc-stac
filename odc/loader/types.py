@@ -151,7 +151,10 @@ class RasterSource:
         return doc
 
 
-MultiBandRasterSource = Mapping[Union[str, Tuple[str, int]], RasterSource]
+MultiBandRasterSource = Union[
+    Mapping[str, RasterSource],
+    Mapping[BandIdentifier, RasterSource],
+]
 """Mapping from band name to RasterSource."""
 
 
