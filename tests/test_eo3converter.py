@@ -1,5 +1,5 @@
 # pylint: disable=unused-argument,unused-variable,missing-module-docstring,wrong-import-position,import-error
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name,protected-access,import-outside-toplevel
 
 import pytest
 
@@ -38,7 +38,7 @@ def test_infer_product_collection(
     assert product.canonical_measurement("blue") == "B02"
 
     # check band2grid
-    md: RasterCollectionMetadata = product._md
+    md: RasterCollectionMetadata = product._md  # type: ignore
     b2g = md.band2grid
     assert b2g["B02"] == "default"
     assert b2g["B01"] == "g60"
@@ -82,7 +82,7 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
     assert product.canonical_measurement("rededge2") == "B06"
     assert product.canonical_measurement("rededge3") == "B07"
 
-    assert set(product._md.band2grid) == set(product.measurements)
+    assert set(product._md.band2grid) == set(product.measurements)  # type: ignore
 
     _stac = dicttoolz.dissoc(sentinel_stac_ms.to_dict(), "collection")
     item_no_collection = pystac.item.Item.from_dict(_stac)
@@ -106,7 +106,7 @@ def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.
     assert product.canonical_measurement("red") == "B04"
     assert product.canonical_measurement("green") == "B03"
     assert product.canonical_measurement("blue") == "B02"
-    assert set(product._md.band2grid) | set(["visual_2", "visual_3"]) == set(
+    assert set(product._md.band2grid) | set(["visual_2", "visual_3"]) == set(  # type: ignore
         product.measurements
     )
 
