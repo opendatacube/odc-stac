@@ -12,14 +12,15 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
-from .._mdtools import _group_geoboxes
-from ..model import (
-    ParsedItem,
+from odc.loader.types import (
     RasterBandMetadata,
-    RasterCollectionMetadata,
+    RasterGroupMetadata,
     RasterSource,
     norm_key,
 )
+
+from .._mdtools import _group_geoboxes
+from ..model import ParsedItem, RasterCollectionMetadata
 
 # pylint: disable=redefined-builtin,too-many-arguments
 
@@ -92,8 +93,10 @@ def mk_parsed_item(
 
     collection = RasterCollectionMetadata(
         collection,
-        dicttoolz.valmap(lambda b: b.meta, bands),
-        aliases={},
+        RasterGroupMetadata(
+            dicttoolz.valmap(lambda b: b.meta, bands),
+            aliases={},
+        ),
         has_proj=(geobox is not None),
         band2grid=band2grid,
     )

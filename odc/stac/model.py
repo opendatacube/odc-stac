@@ -15,6 +15,7 @@ from odc.loader.types import (
     BandKey,
     BandQuery,
     RasterBandMetadata,
+    RasterGroupMetadata,
     RasterSource,
     norm_band_metadata,
     norm_key,
@@ -34,18 +35,9 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
     name: str
     """Collection name."""
 
-    bands: Dict[BandKey, RasterBandMetadata]
+    meta: RasterGroupMetadata
     """
-    Bands are assets that contain raster data.
-
-    This controls which assets are extracted from STAC.
-    """
-
-    aliases: Dict[str, List[BandKey]]
-    """
-    Alias map ``alias -> [(asset, idx),...]``.
-
-    Used to rename bands at load time.
+    Band, aliases and extra dimensions metadata.
     """
 
     has_proj: bool
@@ -79,7 +71,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
           Mapping from canonical name to a list of defined aliases.
         """
         out: Dict[BandKey, List[str]] = {}
-        for alias, canon_names in self.aliases.items():
+        for alias, canon_names in self.meta.aliases.items():
             if unique:
                 canon_names = canon_names[:1]
 
@@ -91,11 +83,11 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         asset, idx = k
 
         # if single band asset it's just asset name
-        if idx == 1 and (asset, 2) not in self.bands:
+        if idx == 1 and (asset, 2) not in self.meta.bands:
             return asset
 
         # if any alias references this key as first choice return that
-        for alias, (_k, *_) in self.aliases.items():
+        for alias, (_k, *_) in self.meta.aliases.items():
             if _k == k:
                 return alias
 
@@ -104,7 +96,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
 
     @property
     def all_bands(self) -> List[str]:
-        return [self._norm_key(k) for k in self.bands]
+        return [self._norm_key(k) for k in self.meta.bands]
 
     def normalize_band_query(self, bands: BandQuery = None) -> List[str]:
         if isinstance(bands, str):
@@ -119,7 +111,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         """
         bands = self.normalize_band_query(bands)
         return {
-            band: self.bands[k]
+            band: self.meta.bands[k]
             for band, k in ((band, self.band_key(band)) for band in bands)
         }
 
@@ -129,10 +121,10 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
 
         ``(asset name: str,  band index: int 1..)``
         """
-        if (band, 1) in self.bands:
+        if (band, 1) in self.meta.bands:
             return (band, 1)
 
-        candidates = self.aliases.get(band, [])
+        candidates = self.meta.aliases.get(band, [])
         n = len(candidates)
         if n == 1:
             return candidates[0]
@@ -165,19 +157,27 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
                 band = self.band_key(band)
             except ValueError:
                 raise KeyError(band) from None
-        return self.bands[band]
+        return self.meta.bands[band]
+
+    @property
+    def bands(self) -> Dict[BandKey, RasterBandMetadata]:
+        return self.meta.bands
+
+    @property
+    def aliases(self) -> Dict[str, List[BandKey]]:
+        return self.meta.aliases
 
     def __len__(self) -> int:
-        return len(self.bands)
+        return len(self.meta.bands)
 
     def __iter__(self) -> Iterator[BandKey]:
-        yield from self.bands
+        yield from self.meta.bands
 
     def __contains__(self, __o: object) -> bool:
         if isinstance(__o, tuple):
-            return __o in self.bands
+            return __o in self.meta.bands
         if isinstance(__o, str):
-            return __o in self.aliases or norm_key(__o) in self.bands
+            return __o in self.meta.aliases or norm_key(__o) in self.meta.bands
         return False
 
     def __dask_tokenize__(self):

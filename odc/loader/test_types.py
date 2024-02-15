@@ -4,7 +4,13 @@ import json
 import pytest
 from odc.geo.geobox import GeoBox
 
-from .types import RasterBandMetadata, RasterLoadParams, RasterSource
+from .types import (
+    FixedCoord,
+    RasterBandMetadata,
+    RasterGroupMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
 
 gbox_4326 = GeoBox.from_bbox((103, -44, 169, -11), 4326, shape=200)
 gbox_3857 = gbox_4326.to_crs(3857)
@@ -19,6 +25,16 @@ gbox_3857 = gbox_4326.to_crs(3857)
         RasterSource("x", meta=RasterBandMetadata("float32", -9999)),
         RasterSource("x", geobox=gbox_4326, meta=RasterBandMetadata("float32", -9999)),
         RasterSource("x", geobox=gbox_3857, meta=RasterBandMetadata("float32", -9999)),
+        RasterGroupMetadata({}),
+        RasterGroupMetadata(
+            bands={("x", 1): RasterBandMetadata("float32", -9999)},
+            aliases={"X": [("x", 1)]},
+            extra_dims={"b": 3},
+            extra_coords=[
+                FixedCoord("b", ["a", "b", "c"]),
+                FixedCoord("B", [1, 2, 3], dtype="int32", dim="b"),
+            ],
+        ),
     ],
 )
 def test_repr_json_smoke(xx):

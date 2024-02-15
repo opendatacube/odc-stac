@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import astuple, dataclass
+from dataclasses import astuple, dataclass, field
 from typing import (
     Any,
     ContextManager,
@@ -82,6 +82,87 @@ class RasterBandMetadata:
             "nodata": self.nodata,
             "unit": self.unit,
             "dims": self.dims,
+        }
+
+
+@dataclass(eq=True)
+class FixedCoord:
+    """
+    Encodes extra coordinate info.
+    """
+
+    name: str
+    values: Sequence[Any]
+    dtype: Optional[str] = None
+    dim: Optional[str] = None
+    units: str = "1"
+
+    def __post_init__(self):
+        if self.dtype is None:
+            self.dtype = np.array(self.values).dtype.name
+        if self.dim is None:
+            self.dim = self.name
+
+    def _repr_json_(self) -> Dict[str, Any]:
+        """
+        Return a JSON serializable representation of the FixedCoord object.
+        """
+        return {
+            "name": self.name,
+            "values": list(self.values),
+            "dim": self.dim,
+            "dtype": self.dtype,
+            "units": self.units,
+        }
+
+
+@dataclass(eq=True, frozen=True)
+class RasterGroupMetadata:
+    """
+    STAC Collection/Datacube Product abstraction.
+    """
+
+    bands: Dict[BandKey, RasterBandMetadata]
+    """
+    Bands are assets that contain raster data.
+
+    This controls which assets are extracted from STAC.
+    """
+
+    aliases: dict[str, list[BandKey]] = field(default_factory=dict)
+    """
+    Alias map ``alias -> [(asset, idx),...]``.
+
+    Used to rename bands at load time.
+    """
+
+    extra_dims: dict[str, int] = field(default_factory=dict)
+    """
+    Expected extra dimensions other than time and spatial.
+
+    Must be same size across items/datasets.
+    """
+
+    extra_coords: Sequence[FixedCoord] = ()
+    """
+    Coordinates for extra dimensions.
+
+    Must be same values across items/datasets.
+    """
+
+    def _repr_json_(self) -> Dict[str, Any]:
+        """
+        Return a JSON serializable representation of the RasterGroupMetadata object.
+        """
+        # pylint: disable=protected-access
+        return {
+            "bands": {
+                f"{name}.{idx}": v._repr_json_()
+                for (name, idx), v in self.bands.items()
+            },
+            "aliases": self.aliases,
+            "extra_dims": self.extra_dims,
+            "extra_coords": [c._repr_json_() for c in self.extra_coords],
         }
 
 
@@ -241,14 +322,14 @@ class MDParser(Protocol):
     """
     Protocol for metadata parsers.
 
-    - Compute bands from an asset
-    - Compute band aliases from an asset
+    - Parse group level metadata
+      - data bands andn their expected type
+      - extra dimensions and coordinates
     - Extract driver specific data
     """
 
-    def bands(self, md: Any, name: str) -> Tuple[RasterBandMetadata, ...]: ...
-    def aliases(self, md: Any, name: str) -> Tuple[str, ...]: ...
-    def driver_data(self, md: Any, name: str, idx: int) -> Any: ...
+    def extract(self, md: Any) -> RasterGroupMetadata: ...
+    def driver_data(self, md: Any, band_key: BandKey) -> Any: ...
 
 
 class SomeReader(Protocol):

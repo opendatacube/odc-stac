@@ -92,7 +92,7 @@ def _to_product(md: RasterCollectionMetadata) -> DatasetType:
         "metadata": {"product": {"name": md.name}},
         "measurements": [
             make_band(band_key, band, band_aliases)
-            for band_key, band in md.bands.items()
+            for band_key, band in md.meta.bands.items()
         ],
     }
     return DatasetType(_eo3, doc)
