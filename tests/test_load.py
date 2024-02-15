@@ -217,7 +217,7 @@ def test_resolve_load_cfg():
     item = mk_parsed_item(
         [
             b_("a", dtype="int8", nodata=-1),
-            b_("b", dtype="float64"),
+            b_("b", dtype="float64", dims=("y", "x", "b")),
         ]
     )
 
@@ -229,7 +229,7 @@ def test_resolve_load_cfg():
 
     cfg = resolve_load_cfg(_bands, resampling="average")
     assert cfg["a"] == rlp("int8", -1, resampling="average")
-    assert cfg["b"] == rlp("float64", None, resampling="average")
+    assert cfg["b"] == rlp("float64", None, resampling="average", dims=("y", "x", "b"))
 
     cfg = resolve_load_cfg(
         _bands,
@@ -238,11 +238,11 @@ def test_resolve_load_cfg():
         dtype="int64",
     )
     assert cfg["a"] == rlp("int64", -999, resampling="mode")
-    assert cfg["b"] == rlp("int64", -999, resampling="sum")
+    assert cfg["b"] == rlp("int64", -999, resampling="sum", dims=("y", "x", "b"))
 
     cfg = resolve_load_cfg(
         _bands,
         dtype={"a": "float32"},
     )
     assert cfg["a"] == rlp("float32", -1)
-    assert cfg["b"] == rlp("float64", None)
+    assert cfg["b"] == rlp("float64", None, dims=_bands["b"].dims)

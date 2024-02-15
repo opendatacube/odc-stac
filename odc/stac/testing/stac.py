@@ -47,6 +47,7 @@ def b_(
     dtype="int16",
     nodata=None,
     unit="1",
+    dims=None,
     uri=None,
     bidx=1,
     prefix="http://example.com/items/",
@@ -55,7 +56,7 @@ def b_(
     name, _ = band_key
     if uri is None:
         uri = f"{prefix}{name}.tif"
-    meta = RasterBandMetadata(dtype, nodata, unit)
+    meta = RasterBandMetadata(dtype, nodata, unit, dims=dims)
     return (band_key, RasterSource(uri, bidx, geobox=geobox, meta=meta))
 
 
