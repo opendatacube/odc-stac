@@ -338,22 +338,37 @@ class MDParser(Protocol):
     def driver_data(self, md: Any, band_key: BandKey) -> Any: ...
 
 
-class SomeReader(Protocol):
+class RasterReader(Protocol):
     """
-    Protocol for readers.
+    Protocol for raster readers.
     """
 
-    def capture_env(self) -> Dict[str, Any]: ...
-
-    def restore_env(self, env: Dict[str, Any]) -> ContextManager[Any]: ...
+    # pylint: disable=too-few-public-methods
 
     def read(
         self,
-        src: RasterSource,
         cfg: RasterLoadParams,
         dst_geobox: GeoBox,
         dst: Optional[np.ndarray] = None,
     ) -> Tuple[NormalizedROI, np.ndarray]: ...
+
+
+class ReaderDriver(Protocol):
+    """
+    Protocol for reader drivers.
+    """
+
+    def new_load(self, chunks: None | Dict[str, int] = None) -> Any: ...
+
+    def finalise_load(self, load_state: Any) -> Any: ...
+
+    def capture_env(self) -> Dict[str, Any]: ...
+
+    def restore_env(
+        self, env: Dict[str, Any], load_state: Any
+    ) -> ContextManager[Any]: ...
+
+    def open(self, src: RasterSource, ctx: Any) -> RasterReader: ...
 
     @property
     def md_parser(self) -> MDParser | None: ...

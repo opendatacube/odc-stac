@@ -11,7 +11,7 @@ import shutil
 import tempfile
 from collections import abc
 from contextlib import contextmanager
-from typing import Any, ContextManager, Dict, Generator, Optional, Tuple
+from typing import Any, Dict, Generator, Iterator, Optional, Tuple
 
 import numpy as np
 import rasterio
@@ -27,6 +27,8 @@ from ..types import (
     RasterLoadParams,
     RasterSource,
 )
+
+# pylint: disable=too-few-public-methods
 
 
 @contextmanager
@@ -116,52 +118,41 @@ class FakeReader:
     Fake reader for testing.
     """
 
-    class Context:
+    class LoadState:
         """
-        EMIT Context manager.
+        Shared state for all readers for a given load.
         """
 
-        def __init__(self, parent: "FakeReader", env: dict[str, Any]) -> None:
-            self._parent = parent
+        def __init__(
+            self, group_md: RasterGroupMetadata, env: dict[str, Any], is_dask: bool
+        ) -> None:
+            self.group_md = group_md
             self.env = env
+            self.is_dask = is_dask
 
-        def __enter__(self):
-            assert self._parent._ctx is None
-            self._parent._ctx = self
+        def with_env(self, env: dict[str, Any]) -> "FakeReader.LoadState":
+            return FakeReader.LoadState(self.group_md, env, self.is_dask)
 
-        def __exit__(self, type, value, traceback):
-            # pylint: disable=unused-argument,redefined-builtin
-            self._parent._ctx = None
+    def __init__(self, src: RasterSource, load_state: "FakeReader.LoadState"):
+        self._src = src
+        self._load_state = load_state
 
-    def __init__(
-        self,
-        group_md: RasterGroupMetadata,
-        *,
-        parser: MDParser | None = None,
-    ):
-        self._group_md = group_md
-        self._parser = parser or FakeMDPlugin(group_md, None)
-        self._ctx: FakeReader.Context | None = None
-
-    def capture_env(self) -> Dict[str, Any]:
-        return {}
-
-    def restore_env(self, env: Dict[str, Any]) -> ContextManager[Any]:
-        return self.Context(self, env)
+    def _extra_dims(self) -> Dict[str, int]:
+        md = self._load_state.group_md
+        return md.extra_dims or {
+            coord.dim: len(coord.values) for coord in md.extra_coords
+        }
 
     def read(
         self,
-        src: RasterSource,
         cfg: RasterLoadParams,
         dst_geobox: GeoBox,
         dst: Optional[np.ndarray] = None,
     ) -> Tuple[NormalizedROI, np.ndarray]:
-        assert self._ctx is not None
-        assert src.meta is not None
-        meta = src.meta
-        extra_dims = self._group_md.extra_dims or {
-            coord.dim: len(coord.values) for coord in self._group_md.extra_coords
-        }
+        meta = self._src.meta
+        assert meta is not None
+
+        extra_dims = self._extra_dims()
         postfix_dims: Tuple[int, ...] = ()
         if meta.dims is not None:
             assert set(meta.dims[2:]).issubset(extra_dims)
@@ -171,7 +162,7 @@ class FakeReader:
         yx_roi = (slice(0, ny), slice(0, nx))
         shape = (ny, nx, *postfix_dims)
 
-        src_pix: np.ndarray | None = src.driver_data
+        src_pix: np.ndarray | None = self._src.driver_data
         if src_pix is None:
             src_pix = np.ones(shape, dtype=cfg.dtype)
         else:
@@ -188,6 +179,41 @@ class FakeReader:
         dst[:] = src_pix.astype(dst.dtype)
 
         return yx_roi, dst[yx_roi]
+
+
+class FakeReaderDriver:
+    """
+    Fake reader for testing.
+    """
+
+    def __init__(
+        self,
+        group_md: RasterGroupMetadata,
+        *,
+        parser: MDParser | None = None,
+    ):
+        self._group_md = group_md
+        self._parser = parser or FakeMDPlugin(group_md, None)
+
+    def new_load(self, chunks: None | Dict[str, int] = None) -> FakeReader.LoadState:
+        return FakeReader.LoadState(self._group_md, {}, chunks is not None)
+
+    def finalise_load(self, load_state: Any) -> Any:
+        assert "findalised" not in load_state
+        load_state["finalised"] = True
+        return load_state
+
+    def capture_env(self) -> Dict[str, Any]:
+        return {}
+
+    @contextmanager
+    def restore_env(
+        self, env: Dict[str, Any], load_state: FakeReader.LoadState
+    ) -> Iterator[FakeReader.LoadState]:
+        yield load_state.with_env(env)
+
+    def open(self, src: RasterSource, ctx: FakeReader.LoadState) -> FakeReader:
+        return FakeReader(src, ctx)
 
     @property
     def md_parser(self) -> MDParser | None:

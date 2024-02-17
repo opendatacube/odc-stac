@@ -38,7 +38,7 @@ from .types import (
     RasterGroupMetadata,
     RasterLoadParams,
     RasterSource,
-    SomeReader,
+    ReaderDriver,
 )
 
 
@@ -94,7 +94,7 @@ class DaskGraphBuilder:
         tyx_bins: Dict[Tuple[int, int, int], List[int]],
         gbt: GeoboxTiles,
         env: Dict[str, Any],
-        rdr: SomeReader,
+        rdr: ReaderDriver,
         time_chunks: int = 1,
     ) -> None:
         self.cfg = cfg
@@ -106,6 +106,7 @@ class DaskGraphBuilder:
         self.rdr = rdr
         self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, time_chunks)
         self.chunk_shape = (time_chunks, *self.gbt.chunk_shape((0, 0)).yx)
+        self._load_state = rdr.new_load(dict(zip(["time", "y", "x"], self.chunk_shape)))
 
     def build(
         self,
@@ -182,6 +183,7 @@ class DaskGraphBuilder:
                 self.rdr,
                 cfg_dask_key,
                 self.env,
+                self._load_state,
             )
 
         return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
@@ -192,16 +194,17 @@ def _dask_loader_tyx(
     gbt: GeoboxTiles,
     iyx: Tuple[int, int],
     postfix_dims: Tuple[int, ...],
-    rdr: SomeReader,
+    rdr: ReaderDriver,
     cfg: RasterLoadParams,
     env: Dict[str, Any],
+    load_state: Any,
 ):
     assert cfg.dtype is not None
     gbox = cast(GeoBox, gbt[iyx])
     chunk = np.empty((len(srcs), *gbox.shape.yx, *postfix_dims), dtype=cfg.dtype)
-    with rdr.restore_env(env):
+    with rdr.restore_env(env, load_state) as ctx:
         for ti, ti_srcs in enumerate(srcs):
-            fill_2d_slice(ti_srcs, gbox, cfg, rdr, chunk[ti])
+            fill_2d_slice(ti_srcs, gbox, cfg, rdr, chunk[ti], ctx=ctx)
         return chunk
 
 
@@ -209,8 +212,10 @@ def fill_2d_slice(
     srcs: Sequence[RasterSource],
     dst_gbox: GeoBox,
     cfg: RasterLoadParams,
-    rdr: SomeReader,
+    rdr: ReaderDriver,
     dst: Any,
+    *,
+    ctx: Any = None,
 ) -> Any:
     # TODO: support masks not just nodata based fusing
     #
@@ -234,13 +239,13 @@ def fill_2d_slice(
         return dst
 
     src, *rest = srcs
-    yx_roi, pix = rdr.read(src, cfg, dst_gbox, dst=dst)
+    yx_roi, pix = rdr.open(src, ctx).read(cfg, dst_gbox, dst=dst)
     assert len(yx_roi) == 2
     assert pix.ndim == dst.ndim
 
     for src in rest:
         # first valid pixel takes precedence over others
-        yx_roi, pix = rdr.read(src, cfg, dst_gbox)
+        yx_roi, pix = rdr.open(src, ctx).read(cfg, dst_gbox)
         assert len(yx_roi) == 2
         assert pix.ndim == dst.ndim
 
@@ -338,7 +343,7 @@ def direct_chunked_load(
     gbt: GeoboxTiles,
     tss: Sequence[datetime],
     env: Dict[str, Any],
-    rdr: SomeReader,
+    rdr: ReaderDriver,
     *,
     pool: ThreadPoolExecutor | int | None = None,
     progress: Optional[Any] = None,
@@ -362,6 +367,7 @@ def direct_chunked_load(
     )
     ny, nx = gbt.shape.yx
     total_tasks = nt * nb * ny * nx
+    load_state = rdr.new_load()
 
     def _task_stream(bands: List[str]) -> Iterator[LoadChunkTask]:
         _shape: Tuple[int, int, int] = (nt, *gbt.shape.yx)
@@ -379,13 +385,14 @@ def direct_chunked_load(
             for src in (srcs[idx].get(band, None) for idx, band in task.srcs)
             if src is not None
         ]
-        with rdr.restore_env(env):
+        with rdr.restore_env(env, load_state) as ctx:
             _ = fill_2d_slice(
                 _srcs,
                 task.dst_gbox,
                 task.cfg,
                 rdr=rdr,
                 dst=dst_slice,
+                ctx=ctx,
             )
         t, y, x = task.idx_tyx
         return (task.band, t, y, x)
@@ -398,6 +405,7 @@ def direct_chunked_load(
     for _ in _work:
         pass
 
+    rdr.finalise_load(load_state)
     return ds
 
 

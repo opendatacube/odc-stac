@@ -39,7 +39,7 @@ from odc.loader import (
     resolve_chunk_shape,
     resolve_load_cfg,
 )
-from odc.loader.types import SomeReader
+from odc.loader.types import ReaderDriver
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
@@ -115,7 +115,7 @@ def load(
     patch_url: Optional[Callable[[str], str]] = None,
     preserve_original_order: bool = False,
     # custom driver
-    driver: Optional[SomeReader] = None,
+    driver: Optional[ReaderDriver] = None,
     **kw,
 ) -> xr.Dataset:
     """

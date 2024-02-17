@@ -13,7 +13,7 @@ import xarray as xr
 from odc.geo.geobox import GeoBox, GeoboxTiles
 
 from ._builder import DaskGraphBuilder, mk_dataset
-from .testing.fixtures import FakeMDPlugin, FakeReader
+from .testing.fixtures import FakeMDPlugin, FakeReaderDriver
 from .types import (
     FixedCoord,
     RasterBandMetadata,
@@ -131,7 +131,7 @@ def test_dask_builder(
         extra_coords=extra_coords or [],
     )
 
-    rdr = FakeReader(rgm, parser=FakeMDPlugin(rgm, None))
+    rdr = FakeReaderDriver(rgm, parser=FakeMDPlugin(rgm, None))
     rdr_env = rdr.capture_env()
 
     template = RasterGroupMetadata(
