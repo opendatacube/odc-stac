@@ -23,7 +23,7 @@ from .types import (
     RasterGroupMetadata,
     RasterLoadParams,
     RasterSource,
-    SomeReader,
+    ReaderDriver,
 )
 
 __all__ = (
@@ -36,7 +36,7 @@ __all__ = (
     "FixedCoord",
     "MultiBandRasterSource",
     "RasterGroupMetadata",
-    "SomeReader",
+    "ReaderDriver",
     "LoadChunkTask",
     "DaskGraphBuilder",
     "mk_dataset",

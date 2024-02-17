@@ -5,9 +5,12 @@
 """
 rasterio helpers
 """
+from __future__ import annotations
+
 import logging
 import threading
-from typing import Any, ContextManager, Dict, Optional, Tuple, Union
+from contextlib import contextmanager
+from typing import Any, Dict, Iterator, Optional, Tuple, Union
 
 import numpy as np
 import rasterio
@@ -68,26 +71,67 @@ GDAL_CLOUD_DEFAULTS = {
     "GDAL_HTTP_RETRY_DELAY": "0.5",
 }
 
+# pylint: disable=too-few-public-methods
+
 
 class RioReader:
     """
-    Protocol for readers.
+    Reader part of RIO driver.
     """
 
-    def capture_env(self) -> Dict[str, Any]:
-        return capture_rio_env()
+    class LoaderState:
+        """
+        Shared across all Readers for single ``.load``.
 
-    def restore_env(self, env: Dict[str, Any]) -> ContextManager[Any]:
-        return rio_env(**env)
+        TODO: open file handle cache goes here
+        """
+
+        def __init__(self, is_dask: bool) -> None:
+            self.is_dask = is_dask
+
+        def finalise(self) -> None:
+            pass
+
+    def __init__(self, src: RasterSource, ctx: "RioReader.LoaderState") -> None:
+        self._src = src
+        self._ctx = ctx
 
     def read(
         self,
-        src: RasterSource,
         cfg: RasterLoadParams,
         dst_geobox: GeoBox,
         dst: Optional[np.ndarray] = None,
     ) -> Tuple[NormalizedROI, np.ndarray]:
-        return rio_read(src, cfg, dst_geobox, dst=dst)
+        return rio_read(self._src, cfg, dst_geobox, dst=dst)
+
+
+class RioDriver:
+    """
+    Protocol for readers.
+    """
+
+    def new_load(self, chunks: None | Dict[str, int] = None) -> RioReader.LoaderState:
+        return RioReader.LoaderState(chunks is not None)
+
+    def finalise_load(self, load_state: RioReader.LoaderState) -> Any:
+        return load_state.finalise()
+
+    def capture_env(self) -> Dict[str, Any]:
+        return capture_rio_env()
+
+    @contextmanager
+    def restore_env(
+        self, env: Dict[str, Any], load_state: RioReader.LoaderState
+    ) -> Iterator[RioReader.LoaderState]:
+        with rio_env(**env):
+            yield load_state
+
+    def open(
+        self,
+        src: RasterSource,
+        ctx: RioReader.LoaderState,
+    ) -> RioReader:
+        return RioReader(src, ctx)
 
     @property
     def md_parser(self) -> Optional[MDParser]:
