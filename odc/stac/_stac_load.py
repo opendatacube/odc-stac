@@ -22,7 +22,6 @@ from typing import (
     cast,
 )
 
-import numpy as np
 import pystac
 import pystac.item
 import xarray as xr
@@ -33,8 +32,7 @@ from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
 
 from odc.loader import (
-    DaskGraphBuilder,
-    direct_chunked_load,
+    chunked_load,
     reader_driver,
     resolve_chunk_shape,
     resolve_load_cfg,
@@ -400,14 +398,6 @@ def load(
     if rdr is None:
         rdr = reader_driver(load_cfg)
 
-    if dtype is None:
-        _dtypes = sorted(
-            set(cfg.dtype for cfg in load_cfg.values() if cfg.dtype is not None),
-            key=lambda x: np.dtype(x).itemsize,
-            reverse=True,
-        )
-        dtype = "uint16" if len(_dtypes) == 0 else _dtypes[0]
-
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
@@ -424,14 +414,9 @@ def load(
     tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
 
     if chunks is not None:
-        chunk_shape = resolve_chunk_shape(len(tss), gbox, chunks, dtype)
+        chunk_shape = resolve_chunk_shape(len(tss), gbox, chunks, dtype, cfg=load_cfg)
     else:
-        chunk_shape = resolve_chunk_shape(
-            len(tss),
-            gbox,
-            {dim: DEFAULT_CHUNK_FOR_LOAD for dim in gbox.dimensions},
-            dtype,
-        )
+        chunk_shape = (1, DEFAULT_CHUNK_FOR_LOAD, DEFAULT_CHUNK_FOR_LOAD)
 
     # Spatio-temporal binning
     assert isinstance(gbox.crs, CRS)
@@ -461,21 +446,8 @@ def load(
         return ds
 
     rdr_env = rdr.capture_env()
-    if chunks is not None:
-        dask_loader = DaskGraphBuilder(
-            load_cfg,
-            collection.meta,
-            _parsed,
-            tyx_bins,
-            gbt,
-            rdr_env,
-            rdr,
-            time_chunks=chunk_shape[0],
-        )
-        return _with_debug_info(dask_loader.build(gbox, tss, load_cfg))
-
     return _with_debug_info(
-        direct_chunked_load(
+        chunked_load(
             load_cfg,
             collection.meta,
             _parsed,
@@ -484,6 +456,7 @@ def load(
             tss,
             rdr_env,
             rdr,
+            chunks=chunks,
             pool=pool,
             progress=progress,
         )

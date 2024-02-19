@@ -26,7 +26,7 @@ from dask import array as da
 from dask.array.core import normalize_chunks
 from dask.base import quote, tokenize
 from numpy.typing import DTypeLike
-from odc.geo.geobox import GeoBox, GeoboxTiles
+from odc.geo.geobox import GeoBox, GeoBoxBase, GeoboxTiles
 from odc.geo.xr import xr_coords
 
 from ._dask import unpack_chunks
@@ -335,6 +335,82 @@ def mk_dataset(
     return xr.Dataset({name: _maker(name, band) for name, band in bands.items()})
 
 
+def chunked_load(
+    load_cfg: Dict[str, RasterLoadParams],
+    template: RasterGroupMetadata,
+    srcs: Sequence[MultiBandRasterSource],
+    tyx_bins: Dict[Tuple[int, int, int], List[int]],
+    gbt: GeoboxTiles,
+    tss: Sequence[datetime],
+    env: Dict[str, Any],
+    rdr: ReaderDriver,
+    *,
+    chunks: Dict[str, int | Literal["auto"]] | None = None,
+    pool: ThreadPoolExecutor | int | None = None,
+    progress: Optional[Any] = None,
+) -> xr.Dataset:
+    """
+    Route to either direct or dask chunked load.
+    """
+    # pylint: disable=too-many-arguments
+    if chunks is None:
+        return direct_chunked_load(
+            load_cfg,
+            template,
+            srcs,
+            tyx_bins,
+            gbt,
+            tss,
+            env,
+            rdr,
+            pool=pool,
+            progress=progress,
+        )
+    return dask_chunked_load(
+        load_cfg,
+        template,
+        srcs,
+        tyx_bins,
+        gbt,
+        tss,
+        env,
+        rdr,
+        chunks=chunks,
+    )
+
+
+def dask_chunked_load(
+    load_cfg: Dict[str, RasterLoadParams],
+    template: RasterGroupMetadata,
+    srcs: Sequence[MultiBandRasterSource],
+    tyx_bins: Dict[Tuple[int, int, int], List[int]],
+    gbt: GeoboxTiles,
+    tss: Sequence[datetime],
+    env: Dict[str, Any],
+    rdr: ReaderDriver,
+    *,
+    chunks: Dict[str, int | Literal["auto"]] | None = None,
+) -> xr.Dataset:
+    """Builds Dask graph for data loading."""
+    if chunks is None:
+        chunks = {}
+
+    gbox = gbt.base
+    chunk_shape = resolve_chunk_shape(len(tss), gbox, chunks)
+    dask_loader = DaskGraphBuilder(
+        load_cfg,
+        template,
+        srcs,
+        tyx_bins,
+        gbt,
+        env,
+        rdr,
+        time_chunks=chunk_shape[0],
+    )
+    assert isinstance(gbox, GeoBox)
+    return dask_loader.build(gbox, tss, load_cfg)
+
+
 def direct_chunked_load(
     load_cfg: Dict[str, RasterLoadParams],
     template: RasterGroupMetadata,
@@ -411,13 +487,25 @@ def direct_chunked_load(
 
 def resolve_chunk_shape(
     nt: int,
-    gbox: GeoBox,
+    gbox: GeoBoxBase,
     chunks: Dict[str, int | Literal["auto"]],
-    dtype: Any,
+    dtype: Any | None = None,
+    cfg: Mapping[str, RasterLoadParams] | None = None,
 ) -> Tuple[int, int, int]:
     """
     Compute chunk size for time, y and x dimensions.
     """
+    if cfg is None:
+        cfg = {}
+
+    if dtype is None:
+        _dtypes = sorted(
+            set(cfg.dtype for cfg in cfg.values() if cfg.dtype is not None),
+            key=lambda x: np.dtype(x).itemsize,
+            reverse=True,
+        )
+        dtype = "uint16" if len(_dtypes) == 0 else _dtypes[0]
+
     tt = chunks.get("time", 1)
     ty, tx = (
         chunks.get(dim, chunks.get(fallback_dim, -1))
