@@ -129,6 +129,7 @@ class FakeReader:
             self.group_md = group_md
             self.env = env
             self.is_dask = is_dask
+            self.finalised = False
 
         def with_env(self, env: dict[str, Any]) -> "FakeReader.LoadState":
             return FakeReader.LoadState(self.group_md, env, self.is_dask)
@@ -198,9 +199,9 @@ class FakeReaderDriver:
     def new_load(self, chunks: None | Dict[str, int] = None) -> FakeReader.LoadState:
         return FakeReader.LoadState(self._group_md, {}, chunks is not None)
 
-    def finalise_load(self, load_state: Any) -> Any:
-        assert "findalised" not in load_state
-        load_state["finalised"] = True
+    def finalise_load(self, load_state: FakeReader.LoadState) -> Any:
+        assert load_state.finalised is False
+        load_state.finalised = True
         return load_state
 
     def capture_env(self) -> Dict[str, Any]:

@@ -12,6 +12,7 @@ import pytest
 import xarray as xr
 from odc.geo.geobox import GeoBox, GeoboxTiles
 
+from . import chunked_load
 from ._builder import DaskGraphBuilder, mk_dataset
 from .testing.fixtures import FakeMDPlugin, FakeReaderDriver
 from .types import (
@@ -22,13 +23,19 @@ from .types import (
     RasterSource,
 )
 
-time = [datetime(2020, 1, 1)]
+tss = [datetime(2020, 1, 1)]
 gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(160, 320), tight=True)
 gbt = GeoboxTiles(gbox, (80, 80))
-shape = (len(time), *gbox.shape.yx)
+shape = (len(tss), *gbox.shape.yx)
 dims = ("time", *gbox.dimensions)
-tyx_bins = {(0, *idx): [0] for idx in np.ndindex(gbt.shape.yx)}
 _rlp = RasterLoadParams
+
+
+def _full_tyx_bins(
+    tiles: GeoboxTiles, nsrcs=1, nt=1
+) -> Dict[tuple[int, int, int], list[int]]:
+    return {idx: list(range(nsrcs)) for idx in np.ndindex((nt, *tiles.shape.yx))}  # type: ignore
+
 
 rlp_fixtures = [
     [
@@ -105,7 +112,7 @@ def test_mk_dataset(
     assert gbox.crs == "EPSG:4326"
     xx = mk_dataset(
         gbox,
-        time,
+        tss,
         bands=bands,
         extra_coords=extra_coords,
         extra_dims=extra_dims,
@@ -144,6 +151,7 @@ def test_dask_builder(
         k: RasterSource("file:///tmp/a.tif", meta=b) for k, b in _bands.items()
     }
     srcs = [src_mapper, src_mapper, src_mapper]
+    tyx_bins = _full_tyx_bins(gbt, nsrcs=len(srcs), nt=len(tss))
 
     builder = DaskGraphBuilder(
         bands,
@@ -156,8 +164,16 @@ def test_dask_builder(
         time_chunks=1,
     )
 
-    xx = builder.build(gbox, time, bands)
+    xx = builder.build(gbox, tss, bands)
     check_xx(xx, bands, extra_coords, extra_dims, expect)
 
     (yy,) = dask.compute(xx, scheduler="synchronous")
     check_xx(yy, bands, extra_coords, extra_dims, expect)
+
+    xx_direct = chunked_load(bands, template, srcs, tyx_bins, gbt, tss, rdr_env, rdr)
+    check_xx(xx_direct, bands, extra_coords, extra_dims, expect)
+
+    xx_dasked = chunked_load(
+        bands, template, srcs, tyx_bins, gbt, tss, rdr_env, rdr, chunks={}
+    )
+    check_xx(xx_dasked, bands, extra_coords, extra_dims, expect)

@@ -428,7 +428,6 @@ def direct_chunked_load(
     Load in chunks but without using Dask.
     """
     # pylint: disable=too-many-locals
-    assert len(tss) == len(srcs)
     nt = len(tss)
     nb = len(load_cfg)
     bands = list(load_cfg)
