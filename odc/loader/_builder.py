@@ -37,6 +37,7 @@ from .types import (
     MultiBandRasterSource,
     RasterGroupMetadata,
     RasterLoadParams,
+    RasterReader,
     RasterSource,
     ReaderDriver,
 )
@@ -154,13 +155,19 @@ class DaskGraphBuilder:
         }
         tk = self._tk
         band_key = f"{name}-{tk}"
-        md_key = f"md-{name}-{tk}"
+        src_key = f"open-{name}-{tk}"
         shape_in_blocks = tuple(len(ch) for ch in chunks)
 
         for src_idx, src in enumerate(self.srcs):
             band = src.get(name, None)
             if band is not None:
-                dsk[md_key, src_idx] = band
+                dsk[src_key, src_idx] = (
+                    _dask_open_reader,
+                    band,
+                    self.rdr,
+                    self.env,
+                    self._load_state,
+                )
 
         for block_idx in np.ndindex(shape_in_blocks):
             ti, yi, xi = block_idx[0], block_idx[ydim], block_idx[ydim + 1]
@@ -168,9 +175,9 @@ class DaskGraphBuilder:
             for _ti in tchunk_range[ti]:
                 srcs.append(
                     [
-                        (md_key, src_idx)
+                        (src_key, src_idx)
                         for src_idx in self.tyx_bins.get((_ti, yi, xi), [])
-                        if (md_key, src_idx) in dsk
+                        if (src_key, src_idx) in dsk
                     ]
                 )
 
@@ -180,8 +187,8 @@ class DaskGraphBuilder:
                 gbt_dask_key,
                 quote((yi, xi)),
                 quote(post_fix_dims),
-                self.rdr,
                 cfg_dask_key,
+                self.rdr,
                 self.env,
                 self._load_state,
             )
@@ -189,33 +196,40 @@ class DaskGraphBuilder:
         return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
 
 
+def _dask_open_reader(
+    src: RasterSource,
+    rdr: ReaderDriver,
+    env: Dict[str, Any],
+    load_state: Any,
+) -> RasterReader:
+    with rdr.restore_env(env, load_state) as ctx:
+        return rdr.open(src, ctx)
+
+
 def _dask_loader_tyx(
-    srcs: Sequence[Sequence[RasterSource]],
+    srcs: Sequence[Sequence[RasterReader]],
     gbt: GeoboxTiles,
     iyx: Tuple[int, int],
     postfix_dims: Tuple[int, ...],
-    rdr: ReaderDriver,
     cfg: RasterLoadParams,
+    rdr: ReaderDriver,
     env: Dict[str, Any],
     load_state: Any,
 ):
     assert cfg.dtype is not None
     gbox = cast(GeoBox, gbt[iyx])
     chunk = np.empty((len(srcs), *gbox.shape.yx, *postfix_dims), dtype=cfg.dtype)
-    with rdr.restore_env(env, load_state) as ctx:
+    with rdr.restore_env(env, load_state):
         for ti, ti_srcs in enumerate(srcs):
-            fill_2d_slice(ti_srcs, gbox, cfg, rdr, chunk[ti], ctx=ctx)
+            _fill_nd_slice(ti_srcs, gbox, cfg, chunk[ti])
         return chunk
 
 
-def fill_2d_slice(
-    srcs: Sequence[RasterSource],
+def _fill_nd_slice(
+    srcs: Sequence[RasterReader],
     dst_gbox: GeoBox,
     cfg: RasterLoadParams,
-    rdr: ReaderDriver,
     dst: Any,
-    *,
-    ctx: Any = None,
 ) -> Any:
     # TODO: support masks not just nodata based fusing
     #
@@ -239,13 +253,13 @@ def fill_2d_slice(
         return dst
 
     src, *rest = srcs
-    yx_roi, pix = rdr.open(src, ctx).read(cfg, dst_gbox, dst=dst)
+    yx_roi, pix = src.read(cfg, dst_gbox, dst=dst)
     assert len(yx_roi) == 2
     assert pix.ndim == dst.ndim
 
     for src in rest:
         # first valid pixel takes precedence over others
-        yx_roi, pix = rdr.open(src, ctx).read(cfg, dst_gbox)
+        yx_roi, pix = src.read(cfg, dst_gbox)
         assert len(yx_roi) == 2
         assert pix.ndim == dst.ndim
 
@@ -461,13 +475,12 @@ def direct_chunked_load(
             if src is not None
         ]
         with rdr.restore_env(env, load_state) as ctx:
-            _ = fill_2d_slice(
-                _srcs,
+            loaders = [rdr.open(src, ctx) for src in _srcs]
+            _ = _fill_nd_slice(
+                loaders,
                 task.dst_gbox,
                 task.cfg,
-                rdr=rdr,
                 dst=dst_slice,
-                ctx=ctx,
             )
         t, y, x = task.idx_tyx
         return (task.band, t, y, x)
