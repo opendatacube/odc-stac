@@ -374,6 +374,17 @@ class ReaderDriver(Protocol):
     def md_parser(self) -> MDParser | None: ...
 
 
+ReaderDriverSpec = Union[str, ReaderDriver]
+
+
+def is_reader_driver(x: Any) -> bool:
+    """
+    Check if x is a ReaderDriver.
+    """
+    expected_attributes = [x for x in dir(ReaderDriver) if not x.startswith("_")]
+    return all(hasattr(x, a) for a in expected_attributes)
+
+
 BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")
 
 

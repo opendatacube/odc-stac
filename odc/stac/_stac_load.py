@@ -37,7 +37,7 @@ from odc.loader import (
     resolve_chunk_shape,
     resolve_load_cfg,
 )
-from odc.loader.types import ReaderDriver
+from odc.loader.types import ReaderDriverSpec
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
@@ -113,7 +113,7 @@ def load(
     patch_url: Optional[Callable[[str], str]] = None,
     preserve_original_order: bool = False,
     # custom driver
-    driver: Optional[ReaderDriver] = None,
+    driver: Optional[ReaderDriverSpec] = None,
     **kw,
 ) -> xr.Dataset:
     """
@@ -349,12 +349,8 @@ def load(
     if groupby is None:
         groupby = "id"
 
-    if driver is not None:
-        rdr = driver
-        md_plugin = driver.md_parser
-    else:
-        rdr = None
-        md_plugin = None
+    rdr = reader_driver(driver)
+    md_plugin = rdr.md_parser
 
     items = list(items)
     _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_plugin))
@@ -395,9 +391,6 @@ def load(
         nodata=kw.get("nodata", None),
         fail_on_error=fail_on_error,
     )
-    if rdr is None:
-        rdr = reader_driver(load_cfg)
-
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 

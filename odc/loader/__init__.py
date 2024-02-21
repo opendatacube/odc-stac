@@ -3,7 +3,7 @@ Tools for constructing xarray objects from parsed metadata.
 """
 
 from ._builder import chunked_load, resolve_chunk_shape
-from ._driver import reader_driver
+from ._driver import reader_driver, register_driver, unregister_driver
 from ._reader import resolve_load_cfg
 from .types import (
     BandIdentifier,
@@ -30,6 +30,8 @@ __all__ = (
     "RasterGroupMetadata",
     "ReaderDriver",
     "chunked_load",
+    "register_driver",
+    "unregister_driver",
     "reader_driver",
     "resolve_load_cfg",
     "resolve_chunk_shape",
