@@ -1,4 +1,4 @@
-# pylint: disable=missing-function-docstring,missing-module-docstring,too-many-statements
+# pylint: disable=missing-function-docstring,missing-module-docstring,too-many-statements,too-many-locals
 from __future__ import annotations
 
 from datetime import datetime
