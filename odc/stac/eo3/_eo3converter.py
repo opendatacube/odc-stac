@@ -213,7 +213,7 @@ def _to_dataset(
         crs = EPSG4326
 
     if asset_url is None:
-        asset_url = [""]
+        asset_url = ""
 
     ds_doc = {
         "id": str(ds_uuid),
