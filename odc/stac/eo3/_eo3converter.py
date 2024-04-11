@@ -5,7 +5,6 @@ Utilities for translating STAC Items to EO3 Datasets.
 """
 
 import dataclasses
-import itertools
 import uuid
 from functools import singledispatch
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
@@ -166,7 +165,6 @@ def _to_dataset(
     properties: Dict[str, Any],
     ds_uuid: uuid.UUID,
     product: DatasetType,
-    asset_url: Optional[str] = None,
 ) -> Dataset:
     # pylint: disable=too-many-locals
 
@@ -212,9 +210,6 @@ def _to_dataset(
     if crs is None:
         crs = EPSG4326
 
-    if asset_url is None:
-        asset_url = ""
-
     ds_doc = {
         "id": str(ds_uuid),
         "$schema": "https://schemas.opendatacube.org/dataset",
@@ -227,14 +222,11 @@ def _to_dataset(
         "lineage": {},
     }
 
-    return Dataset(product, prep_eo3(ds_doc), uris=[asset_url])
+    return Dataset(product, prep_eo3(ds_doc), uris=[item.href])
 
 
 def _item_to_ds(
-    item: pystac.item.Item,
-    product: DatasetType,
-    cfg: Optional[ConversionConfig] = None,
-    asset_url: Optional[str] = None,
+    item: pystac.item.Item, product: DatasetType, cfg: Optional[ConversionConfig] = None
 ) -> Dataset:
     """
     Construct Dataset object from STAC Item and previously constructed Product.
@@ -252,14 +244,13 @@ def _item_to_ds(
     )
     _item = parse_item(item, md)
 
-    return _to_dataset(_item, item.properties, ds_uuid, product, asset_url)
+    return _to_dataset(_item, item.properties, ds_uuid, product)
 
 
 def stac2ds(
     items: Iterable[pystac.item.Item],
     cfg: Optional[ConversionConfig] = None,
     product_cache: Optional[Dict[str, DatasetType]] = None,
-    asset_urls: Optional[Iterable[str]] = None,
 ) -> Iterator[Dataset]:
     """
     STAC :class:`~pystac.item.Item` to :class:`~datacube.model.Dataset` stream converter.
@@ -321,12 +312,7 @@ def stac2ds(
 
     """
     products: Dict[str, DatasetType] = {} if product_cache is None else product_cache
-    if asset_urls is None:
-        asset_urls = []
-
-    items_with_urls = itertools.zip_longest(items, asset_urls)
-
-    for item, url in items_with_urls:
+    for item in items:
         collection_id = _collection_id(item)
         product = products.get(collection_id)
 
@@ -335,7 +321,7 @@ def stac2ds(
             product = infer_dc_product(item, cfg)
             products[collection_id] = product
 
-        yield _item_to_ds(item, product, cfg, url)
+        yield _item_to_ds(item, product, cfg)
 
 
 @infer_dc_product.register(pystac.collection.Collection)
