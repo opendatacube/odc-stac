@@ -211,7 +211,7 @@ def _to_dataset(
 
     if crs is None:
         crs = EPSG4326
-        
+
     if asset_url is None:
         asset_url = [""]
 
@@ -231,7 +231,9 @@ def _to_dataset(
 
 
 def _item_to_ds(
-    item: pystac.item.Item, product: DatasetType, cfg: Optional[ConversionConfig] = None,
+    item: pystac.item.Item,
+    product: DatasetType,
+    cfg: Optional[ConversionConfig] = None,
     asset_url: Optional[str] = None,
 ) -> Dataset:
     """
@@ -321,9 +323,9 @@ def stac2ds(
     products: Dict[str, DatasetType] = {} if product_cache is None else product_cache
     if asset_urls is None:
         asset_urls = []
-        
+
     items_with_urls = itertools.zip_longest(items, asset_urls)
-        
+
     for item, url in items_with_urls:
         collection_id = _collection_id(item)
         product = products.get(collection_id)
