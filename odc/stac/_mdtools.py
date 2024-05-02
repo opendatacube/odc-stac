@@ -962,10 +962,8 @@ def output_geobox(
         if resolution is None or crs is None:
             return None
 
-    if anchor is None and align is not None:
-        anchor = _align2anchor(align, resolution)
-    else:
-        anchor = _anchor
+    if anchor is None:
+        anchor = _anchor if align is None else _align2anchor(align, resolution)
 
     if geopolygon is not None:
         assert isinstance(geopolygon, Geometry)
