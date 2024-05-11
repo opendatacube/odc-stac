@@ -101,6 +101,17 @@ def resolve_dst_nodata(
     return None
 
 
+def resolve_dst_fill_value(
+    dst_dtype: np.dtype,
+    cfg: RasterLoadParams,
+    src_nodata: Optional[float] = None,
+) -> float:
+    nodata = resolve_dst_nodata(dst_dtype, cfg, src_nodata)
+    if nodata is None:
+        return dst_dtype.type(0)
+    return nodata
+
+
 def pick_overview(read_shrink: int, overviews: Sequence[int]) -> Optional[int]:
     if len(overviews) == 0 or read_shrink < overviews[0]:
         return None

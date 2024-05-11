@@ -23,14 +23,17 @@ from typing import (
 import numpy as np
 import xarray as xr
 from dask import array as da
+from dask import is_dask_collection
 from dask.array.core import normalize_chunks
 from dask.base import quote, tokenize
+from dask.highlevelgraph import HighLevelGraph
+from dask.typing import Key
 from numpy.typing import DTypeLike
 from odc.geo.geobox import GeoBox, GeoBoxBase, GeoboxTiles
 from odc.geo.xr import xr_coords
 
 from ._dask import unpack_chunks
-from ._reader import nodata_mask, resolve_src_nodata
+from ._reader import nodata_mask, resolve_dst_fill_value, resolve_src_nodata
 from ._utils import SizedIterable, pmap
 from .types import (
     FixedCoord,
@@ -146,10 +149,16 @@ class DaskGraphBuilder:
             range(last - n, last) for last, n in zip(np.cumsum(chunks[0]), chunks[0])
         ]
 
+        deps: list[Any] = []
+        load_state = self._load_state
+        if is_dask_collection(load_state):
+            deps.append(load_state)
+            load_state = load_state.key
+
         cfg_dask_key = f"cfg-{tokenize(cfg)}"
         gbt_dask_key = f"grid-{tokenize(self.gbt)}"
 
-        dsk: Dict[Hashable, Any] = {
+        dsk: Dict[Key, Any] = {
             cfg_dask_key: cfg,
             gbt_dask_key: self.gbt,
         }
@@ -166,7 +175,7 @@ class DaskGraphBuilder:
                     band,
                     self.rdr,
                     self.env,
-                    self._load_state,
+                    load_state,
                 )
 
         for block_idx in np.ndindex(shape_in_blocks):
@@ -190,8 +199,10 @@ class DaskGraphBuilder:
                 cfg_dask_key,
                 self.rdr,
                 self.env,
-                self._load_state,
+                load_state,
             )
+
+        dsk = HighLevelGraph.from_collections(band_key, dsk, dependencies=deps)
 
         return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
 
@@ -242,11 +253,7 @@ def _fill_nd_slice(
     postfix_roi = (slice(None),) * len(dst.shape[2:])
 
     nodata = resolve_src_nodata(cfg.fill_value, cfg)
-
-    if nodata is None:
-        fill_value = float("nan") if dst.dtype.kind == "f" else 0
-    else:
-        fill_value = nodata
+    fill_value = resolve_dst_fill_value(dst.dtype, cfg, nodata)
 
     np.copyto(dst, fill_value)
     if len(srcs) == 0:
