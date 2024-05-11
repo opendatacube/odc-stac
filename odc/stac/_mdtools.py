@@ -42,7 +42,6 @@ from odc.geo import (
     xy_,
 )
 from odc.geo.geobox import AnchorEnum, GeoBox, GeoboxAnchor
-from odc.geo.math import maybe_zero, snap_scale, split_float
 from odc.geo.types import Unset
 from odc.geo.xr import ODCExtension
 from pystac.extensions.eo import EOExtension
@@ -253,21 +252,6 @@ def mk_1x1_geobox(g: Geometry) -> GeoBox:
     #   0,0 -> X_min, Y_max
     #   1,1 -> X_max, Y_min
     return GeoBox((1, 1), Affine((x2 - x1), 0, x1, 0, (y1 - y2), y2), g.crs)
-
-
-def _gbox_anchor(gbox: GeoBox, tol: float = 1e-3) -> GeoboxAnchor:
-    def _anchor(px: float, tol: float) -> float:
-        _, x = split_float(px)  # x in (-0.5, +0.5)
-        x = (1 + x) if x < 0 else x  # x in [0, 1)
-        x = snap_scale(maybe_zero(x, tol), tol)
-        return 0 if x >= 1 else x
-
-    anchor = tuple(_anchor(px, tol) for px in (~gbox.transform) * (0, 0))
-    if anchor == (0, 0):
-        return AnchorEnum.EDGE
-    if anchor == (0.5, 0.5):
-        return AnchorEnum.CENTER
-    return xy_(anchor)
 
 
 def asset_geobox(asset: pystac.asset.Asset) -> GeoBox:
@@ -762,10 +746,10 @@ def _most_common_gbox(
     _gboxes = set(gboxes)
     if len(_gboxes) == 1:
         g = _gboxes.pop()
-        return (g.crs, g.resolution, _gbox_anchor(g), g)
+        return (g.crs, g.resolution, g.anchor, g)
 
     # Most common shared CRS, Resolution, Anchor
-    gg = [(g.crs, g.resolution, _gbox_anchor(g)) for g in gboxes]
+    gg = [(g.crs, g.resolution, g.anchor) for g in gboxes]
     hist = Counter(gg)
     (best, n), *_ = hist.most_common(1)
     if n / len(gg) > thresh:

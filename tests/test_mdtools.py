@@ -19,7 +19,6 @@ from odc.loader.testing.fixtures import FakeMDPlugin
 from odc.loader.types import FixedCoord, RasterBandMetadata, RasterGroupMetadata
 from odc.stac._mdtools import (
     _auto_load_params,
-    _gbox_anchor,
     _most_common_gbox,
     _normalize_geometry,
     asset_geobox,
@@ -633,20 +632,6 @@ def test_usgs_v1_1_1_aliases(usgs_landsat_stac_v1_1_1: pystac.Item) -> None:
         "B5": [("swir16", 1)],
         "B7": [("swir22", 1)],
     }
-
-
-@pytest.mark.parametrize(
-    "gbox",
-    [
-        GeoBox.from_bbox((0, 0, 100, 200), resolution=10, crs=3857),
-        GeoBox.from_bbox((-10, 0, 100, 200), resolution=10, crs=3857),
-    ],
-)
-def test_gbox_anchor(gbox: GeoBox):
-    assert _gbox_anchor(gbox) == AnchorEnum.EDGE
-    assert _gbox_anchor(gbox.translate_pix(-1e-5, 1e-5)) == AnchorEnum.EDGE
-    assert _gbox_anchor(gbox.translate_pix(0.5, 0.5)) == AnchorEnum.CENTER
-    assert _gbox_anchor(gbox.translate_pix(-1 / 4, -1 / 8)) == xy_(1 / 4, 1 / 8)
 
 
 def test_most_common_gbox():
