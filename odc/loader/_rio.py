@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import threading
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, Optional, Union
 
 import numpy as np
 import rasterio
@@ -20,7 +20,7 @@ import rasterio.warp
 from odc.geo.converters import rio_geobox
 from odc.geo.geobox import GeoBox
 from odc.geo.overlap import ReprojectInfo, compute_reproject_roi
-from odc.geo.roi import NormalizedROI, roi_is_empty, roi_shape, w_
+from odc.geo.roi import roi_is_empty, roi_shape, w_
 from odc.geo.warp import resampling_s2rio
 from rasterio.session import AWSSession, Session
 
@@ -32,7 +32,7 @@ from ._reader import (
     resolve_src_nodata,
     same_nodata,
 )
-from .types import MDParser, RasterLoadParams, RasterSource
+from .types import MDParser, RasterLoadParams, RasterSource, ReaderSubsetSelection
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +86,8 @@ class RioReader:
         TODO: open file handle cache goes here
         """
 
-        def __init__(self, is_dask: bool) -> None:
+        def __init__(self, geobox: GeoBox, is_dask: bool) -> None:
+            self.geobox = geobox
             self.is_dask = is_dask
 
         def finalise(self) -> None:
@@ -100,9 +101,11 @@ class RioReader:
         self,
         cfg: RasterLoadParams,
         dst_geobox: GeoBox,
+        *,
         dst: Optional[np.ndarray] = None,
-    ) -> Tuple[NormalizedROI, np.ndarray]:
-        return rio_read(self._src, cfg, dst_geobox, dst=dst)
+        selection: Optional[ReaderSubsetSelection] = None,
+    ) -> tuple[tuple[slice, slice], np.ndarray]:
+        return rio_read(self._src, cfg, dst_geobox, dst=dst, selection=selection)
 
 
 class RioDriver:
@@ -110,8 +113,13 @@ class RioDriver:
     Protocol for readers.
     """
 
-    def new_load(self, chunks: None | Dict[str, int] = None) -> RioReader.LoaderState:
-        return RioReader.LoaderState(chunks is not None)
+    def new_load(
+        self,
+        geobox: GeoBox,
+        *,
+        chunks: None | Dict[str, int] = None,
+    ) -> RioReader.LoaderState:
+        return RioReader.LoaderState(geobox, is_dask=chunks is not None)
 
     def finalise_load(self, load_state: RioReader.LoaderState) -> Any:
         return load_state.finalise()
@@ -373,7 +381,7 @@ def _do_read(
     dst_geobox: GeoBox,
     rr: ReprojectInfo,
     dst: Optional[np.ndarray] = None,
-) -> Tuple[NormalizedROI, np.ndarray]:
+) -> tuple[tuple[slice, slice], np.ndarray]:
     resampling = resampling_s2rio(cfg.resampling)
     rdr = src.ds
 
@@ -387,15 +395,16 @@ def _do_read(
     src_nodata0 = rdr.nodatavals[src.bidx - 1]
     src_nodata = resolve_src_nodata(src_nodata0, cfg)
     dst_nodata = resolve_dst_nodata(_dst.dtype, cfg, src_nodata)
+    roi_dst: tuple[slice, slice] = rr.roi_dst  # type: ignore
 
-    if roi_is_empty(rr.roi_dst):
-        return (rr.roi_dst, _dst)
+    if roi_is_empty(roi_dst):
+        return (roi_dst, _dst)
 
     if roi_is_empty(rr.roi_src):
         # no overlap case
         if dst_nodata is not None:
             np.copyto(_dst, dst_nodata)
-        return (rr.roi_dst, _dst)
+        return (roi_dst, _dst)
 
     if rr.paste_ok and rr.read_shrink == 1:
         rdr.read(src.bidx, out=_dst, window=w_[rr.roi_src])
@@ -418,7 +427,7 @@ def _do_read(
             resampling=resampling,
         )
 
-    return (rr.roi_dst, _dst)
+    return (roi_dst, _dst)
 
 
 def rio_read(
@@ -426,7 +435,8 @@ def rio_read(
     cfg: RasterLoadParams,
     dst_geobox: GeoBox,
     dst: Optional[np.ndarray] = None,
-) -> Tuple[NormalizedROI, np.ndarray]:
+    selection: Optional[ReaderSubsetSelection] = None,
+) -> tuple[tuple[slice, slice], np.ndarray]:
     """
     Internal read method.
 
@@ -450,7 +460,7 @@ def rio_read(
     """
 
     try:
-        return _rio_read(src, cfg, dst_geobox, dst)
+        return _rio_read(src, cfg, dst_geobox, dst, selection=selection)
     except (
         rasterio.errors.RasterioIOError,
         rasterio.errors.RasterBlockError,
@@ -491,10 +501,12 @@ def _rio_read(
     cfg: RasterLoadParams,
     dst_geobox: GeoBox,
     dst: Optional[np.ndarray] = None,
-) -> Tuple[NormalizedROI, np.ndarray]:
+    selection: Optional[ReaderSubsetSelection] = None,
+) -> tuple[tuple[slice, slice], np.ndarray]:
     # if resampling is `nearest` then ignore sub-pixel translation when deciding
     # whether we can just paste source into destination
     ttol = 0.9 if cfg.nearest else 0.05
+    assert selection is None, "Band selection not implemented in rio_read"
 
     with rasterio.open(src.uri, "r", sharing=False) as rdr:
         assert isinstance(rdr, rasterio.DatasetReader)

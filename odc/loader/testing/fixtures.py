@@ -11,13 +11,12 @@ import shutil
 import tempfile
 from collections import abc
 from contextlib import contextmanager
-from typing import Any, Dict, Generator, Iterator, Optional, Tuple
+from typing import Any, Dict, Generator, Iterator, Optional
 
 import numpy as np
 import rasterio
 import xarray as xr
 from odc.geo.geobox import GeoBox
-from odc.geo.roi import NormalizedROI
 from odc.geo.xr import ODCExtensionDa
 
 from ..types import (
@@ -26,6 +25,7 @@ from ..types import (
     RasterGroupMetadata,
     RasterLoadParams,
     RasterSource,
+    ReaderSubsetSelection,
 )
 
 # pylint: disable=too-few-public-methods
@@ -124,15 +124,20 @@ class FakeReader:
         """
 
         def __init__(
-            self, group_md: RasterGroupMetadata, env: dict[str, Any], is_dask: bool
+            self,
+            geobox: GeoBox,
+            group_md: RasterGroupMetadata,
+            env: dict[str, Any],
+            is_dask: bool,
         ) -> None:
+            self.geobox = geobox
             self.group_md = group_md
             self.env = env
             self.is_dask = is_dask
             self.finalised = False
 
         def with_env(self, env: dict[str, Any]) -> "FakeReader.LoadState":
-            return FakeReader.LoadState(self.group_md, env, self.is_dask)
+            return FakeReader.LoadState(self.geobox, self.group_md, env, self.is_dask)
 
     def __init__(self, src: RasterSource, load_state: "FakeReader.LoadState"):
         self._src = src
@@ -146,14 +151,18 @@ class FakeReader:
         self,
         cfg: RasterLoadParams,
         dst_geobox: GeoBox,
+        *,
         dst: Optional[np.ndarray] = None,
-    ) -> Tuple[NormalizedROI, np.ndarray]:
+        selection: Optional[ReaderSubsetSelection] = None,
+    ) -> tuple[tuple[slice, slice], np.ndarray]:
         meta = self._src.meta
         assert meta is not None
+        # TODO: handle selection
+        assert selection is None
 
         extra_dims = self._extra_dims()
-        prefix_dims: Tuple[int, ...] = ()
-        postfix_dims: Tuple[int, ...] = ()
+        prefix_dims: tuple[int, ...] = ()
+        postfix_dims: tuple[int, ...] = ()
         ydim = cfg.ydim
 
         if len(cfg.dims) > 2:
@@ -198,8 +207,13 @@ class FakeReaderDriver:
         self._group_md = group_md
         self._parser = parser or FakeMDPlugin(group_md, None)
 
-    def new_load(self, chunks: None | Dict[str, int] = None) -> FakeReader.LoadState:
-        return FakeReader.LoadState(self._group_md, {}, chunks is not None)
+    def new_load(
+        self,
+        geobox: GeoBox,
+        *,
+        chunks: None | Dict[str, int] = None,
+    ) -> FakeReader.LoadState:
+        return FakeReader.LoadState(geobox, self._group_md, {}, chunks is not None)
 
     def finalise_load(self, load_state: FakeReader.LoadState) -> Any:
         assert load_state.finalised is False

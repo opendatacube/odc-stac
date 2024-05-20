@@ -69,8 +69,9 @@ def test_pick_overiew():
 
 
 def test_rio_reader_env():
+    gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(160, 320), tight=True)
     rdr = RioDriver()
-    load_state = rdr.new_load()
+    load_state = rdr.new_load(gbox)
 
     configure_rio(cloud_defaults=True, verbose=True)
     env = rdr.capture_env()
@@ -119,7 +120,7 @@ def test_rio_read():
 
         # Going via RioReader should be the same
         rdr_driver = RioDriver()
-        load_state = rdr_driver.new_load()
+        load_state = rdr_driver.new_load(gbox)
         with rdr_driver.restore_env(rdr_driver.capture_env(), load_state) as ctx:
             rdr = rdr_driver.open(src, ctx)
             _roi, _pix = rdr.read(cfg, gbox)

@@ -125,6 +125,9 @@ class DaskGraphBuilder:
         rdr: ReaderDriver,
         time_chunks: int = 1,
     ) -> None:
+        gbox = gbt.base
+        assert isinstance(gbox, GeoBox)
+
         self.cfg = cfg
         self.template = template
         self.srcs = srcs
@@ -134,7 +137,9 @@ class DaskGraphBuilder:
         self.rdr = rdr
         self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, time_chunks)
         self.chunk_tyx = (time_chunks, *self.gbt.chunk_shape((0, 0)).yx)
-        self._load_state = rdr.new_load(dict(zip(["time", "y", "x"], self.chunk_tyx)))
+        self._load_state = rdr.new_load(
+            gbox, chunks=dict(zip(["time", "y", "x"], self.chunk_tyx))
+        )
 
     def build(
         self,
@@ -546,7 +551,7 @@ def direct_chunked_load(
     )
     ny, nx = gbt.shape.yx
     total_tasks = nt * nb * ny * nx
-    load_state = rdr.new_load()
+    load_state = rdr.new_load(gbox)
 
     def _do_one(task: LoadChunkTask) -> Tuple[str, int, int, int]:
         dst_slice = ds[task.band].data[task.dst_roi]

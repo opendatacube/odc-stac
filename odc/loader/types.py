@@ -18,7 +18,6 @@ from typing import (
 
 import numpy as np
 from odc.geo.geobox import GeoBox
-from odc.geo.roi import NormalizedROI
 
 T = TypeVar("T")
 
@@ -30,6 +29,8 @@ BandIdentifier = Union[str, BandKey]
 
 BandQuery = Optional[Union[str, Sequence[str]]]
 """One|All|Some bands"""
+
+ReaderSubsetSelection = Any
 
 
 @dataclass(eq=True, frozen=True)
@@ -346,7 +347,7 @@ class MDParser(Protocol):
     Protocol for metadata parsers.
 
     - Parse group level metadata
-      - data bands andn their expected type
+      - data bands and their expected type
       - extra dimensions and coordinates
     - Extract driver specific data
     """
@@ -366,8 +367,10 @@ class RasterReader(Protocol):
         self,
         cfg: RasterLoadParams,
         dst_geobox: GeoBox,
+        *,
         dst: Optional[np.ndarray] = None,
-    ) -> Tuple[NormalizedROI, np.ndarray]: ...
+        selection: Optional[ReaderSubsetSelection] = None,
+    ) -> tuple[tuple[slice, slice], np.ndarray]: ...
 
 
 class ReaderDriver(Protocol):
@@ -375,14 +378,19 @@ class ReaderDriver(Protocol):
     Protocol for reader drivers.
     """
 
-    def new_load(self, chunks: None | Dict[str, int] = None) -> Any: ...
+    def new_load(
+        self,
+        geobox: GeoBox,
+        *,
+        chunks: None | Dict[str, int] = None,
+    ) -> Any: ...
 
     def finalise_load(self, load_state: Any) -> Any: ...
 
-    def capture_env(self) -> Dict[str, Any]: ...
+    def capture_env(self) -> dict[str, Any]: ...
 
     def restore_env(
-        self, env: Dict[str, Any], load_state: Any
+        self, env: dict[str, Any], load_state: Any
     ) -> ContextManager[Any]: ...
 
     def open(self, src: RasterSource, ctx: Any) -> RasterReader: ...
