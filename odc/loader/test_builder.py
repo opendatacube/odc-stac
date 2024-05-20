@@ -60,6 +60,13 @@ rlp_fixtures = [
         {"a": _sn(dims=(*dims, "W"), shape=(*shape, 4))},
     ],
     [
+        # B,Y,X dims only
+        {"a": _rlp("uint8", dims=("W", "y", "x"))},
+        None,
+        {"W": 4},
+        {"a": _sn(dims=(dims[0], "W", *dims[1:]), shape=(shape[0], 4, *shape[1:]))},
+    ],
+    [
         # Y,X,B coords and dims
         {"a": _rlp("uint16", dims=("y", "x", "W"))},
         [FixedCoord("W", ["r", "g", "b", "a"])],
@@ -110,12 +117,19 @@ def test_mk_dataset(
     expect: Mapping[str, _sn],
 ):
     assert gbox.crs == "EPSG:4326"
+    template = RasterGroupMetadata(
+        {
+            (k, 1): RasterBandMetadata(b.dtype, b.fill_value, dims=b.dims)
+            for k, b in bands.items()
+        },
+        extra_dims={} if extra_dims is None else {**extra_dims},
+        extra_coords=extra_coords or (),
+    )
     xx = mk_dataset(
         gbox,
         tss,
         bands=bands,
-        extra_coords=extra_coords,
-        extra_dims=extra_dims,
+        template=template,
     )
     check_xx(xx, bands, extra_coords, extra_dims, expect)
 

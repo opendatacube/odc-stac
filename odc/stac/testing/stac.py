@@ -47,7 +47,7 @@ def b_(
     dtype="int16",
     nodata=None,
     unit="1",
-    dims=None,
+    dims=(),
     uri=None,
     bidx=1,
     prefix="http://example.com/items/",

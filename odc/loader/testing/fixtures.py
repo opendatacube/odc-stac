@@ -140,9 +140,7 @@ class FakeReader:
 
     def _extra_dims(self) -> Dict[str, int]:
         md = self._load_state.group_md
-        return md.extra_dims or {
-            coord.dim: len(coord.values) for coord in md.extra_coords
-        }
+        return md.extra_dims_full()
 
     def read(
         self,
@@ -154,14 +152,18 @@ class FakeReader:
         assert meta is not None
 
         extra_dims = self._extra_dims()
+        prefix_dims: Tuple[int, ...] = ()
         postfix_dims: Tuple[int, ...] = ()
-        if meta.dims is not None:
-            assert set(meta.dims[2:]).issubset(extra_dims)
-            postfix_dims = tuple(extra_dims[d] for d in meta.dims[2:])
+        ydim = cfg.ydim
+
+        if len(cfg.dims) > 2:
+            assert set(meta.dims[:ydim] + meta.dims[ydim + 2 :]).issubset(extra_dims)
+            prefix_dims = tuple(extra_dims[d] for d in meta.dims[:ydim])
+            postfix_dims = tuple(extra_dims[d] for d in meta.dims[ydim + 2 :])
 
         ny, nx = dst_geobox.shape.yx
         yx_roi = (slice(0, ny), slice(0, nx))
-        shape = (ny, nx, *postfix_dims)
+        shape = (*prefix_dims, ny, nx, *postfix_dims)
 
         src_pix: np.ndarray | None = self._src.driver_data
         if src_pix is None:
@@ -169,10 +171,10 @@ class FakeReader:
         else:
             assert src_pix.shape == shape
 
-        assert postfix_dims == src_pix.shape[2:]
+        assert postfix_dims == src_pix.shape[ydim + 2 :]
 
         if dst is None:
-            dst = np.zeros((ny, nx, *postfix_dims), dtype=cfg.dtype)
+            dst = np.zeros((*prefix_dims, ny, nx, *postfix_dims), dtype=cfg.dtype)
             dst[:] = src_pix.astype(dst.dtype)
             return yx_roi, dst
 

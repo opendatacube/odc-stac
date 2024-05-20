@@ -54,8 +54,11 @@ class RasterBandMetadata:
     unit: str = "1"
     """Units of the pixel data."""
 
-    dims: Optional[Tuple[str, ...]] = None
-    """Dimension names for this band."""
+    dims: Tuple[str, ...] = ()
+    """Dimension names for this band.
+
+    e.g. ("y", "x", "wavelength")
+    """
 
     def with_defaults(self, defaults: "RasterBandMetadata") -> "RasterBandMetadata":
         """
@@ -67,7 +70,7 @@ class RasterBandMetadata:
             data_type=with_default(self.data_type, defaults.data_type),
             nodata=with_default(self.nodata, defaults.nodata),
             unit=with_default(self.unit, defaults.unit),
-            dims=with_default(self.dims, defaults.dims),
+            dims=self.dims or defaults.dims,
         )
 
     def __dask_tokenize__(self):
@@ -164,6 +167,14 @@ class RasterGroupMetadata:
             "extra_dims": self.extra_dims,
             "extra_coords": [c._repr_json_() for c in self.extra_coords],
         }
+
+    def extra_dims_full(self) -> Dict[str, int]:
+        dims = {**self.extra_dims}
+        for coord in self.extra_coords:
+            if coord.dim not in dims:
+                dims[coord.dim] = len(coord.values)
+
+        return dims
 
 
 @dataclass(eq=True, frozen=True)
@@ -283,8 +294,14 @@ class RasterLoadParams:
     fail_on_error: bool = True
     """Quit on the first error or continue."""
 
-    dims: Optional[Tuple[str, ...]] = None
+    dims: Tuple[str, ...] = ()
     """Dimension names for this band."""
+
+    @property
+    def ydim(self) -> int:
+        if self.dims:
+            return self.dims.index("y")
+        return 0
 
     @staticmethod
     def same_as(src: Union[RasterBandMetadata, RasterSource]) -> "RasterLoadParams":
