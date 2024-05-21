@@ -208,9 +208,9 @@ class DaskGraphBuilder:
 
         for block_idx in np.ndindex(shape_in_blocks):
             ti, yi, xi = block_idx[0], block_idx[ydim], block_idx[ydim + 1]
-            srcs = []
+            srcs_keys: list[list[tuple[str, int]]] = []
             for _ti in tchunk_range[ti]:
-                srcs.append(
+                srcs_keys.append(
                     [
                         (src_key, src_idx)
                         for src_idx in self.tyx_bins.get((_ti, yi, xi), [])
@@ -220,7 +220,7 @@ class DaskGraphBuilder:
 
             dsk[(band_key, *block_idx)] = (
                 _dask_loader_tyx,
-                srcs,
+                srcs_keys,
                 gbt_dask_key,
                 quote((yi, xi)),
                 quote(prefix_dims),
