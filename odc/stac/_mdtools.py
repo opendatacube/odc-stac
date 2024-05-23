@@ -132,7 +132,7 @@ def band_metadata(
         RasterBandMetadata(
             with_default(band.data_type, default.data_type),
             with_default(norm_nodata(band.nodata), default.nodata),
-            with_default(band.unit, default.unit),
+            with_default(band.unit, default.units),
         )
         for band in bands
     ]

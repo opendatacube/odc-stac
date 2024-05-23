@@ -52,7 +52,7 @@ class RasterBandMetadata:
     nodata: Optional[float] = None
     """Nodata marker/fill_value."""
 
-    unit: str = "1"
+    units: str = "1"
     """Units of the pixel data."""
 
     dims: Tuple[str, ...] = ()
@@ -70,8 +70,8 @@ class RasterBandMetadata:
         return RasterBandMetadata(
             data_type=with_default(self.data_type, defaults.data_type),
             nodata=with_default(self.nodata, defaults.nodata),
-            unit=with_default(self.unit, defaults.unit),
-            dims=self.dims or defaults.dims,
+            units=with_default(self.units, defaults.units, "1"),
+            dims=with_default(self.dims, defaults.dims, ()),
         )
 
     def __dask_tokenize__(self):
@@ -84,9 +84,22 @@ class RasterBandMetadata:
         return {
             "data_type": self.data_type,
             "nodata": self.nodata,
-            "unit": self.unit,
+            "units": self.units,
             "dims": self.dims,
         }
+
+    def unit(self) -> str:
+        """
+        Alias for units.
+        """
+        return self.units
+
+    @property
+    def dtype(self) -> str | None:
+        """
+        Alias for data_type.
+        """
+        return self.data_type
 
 
 @dataclass(eq=True)
@@ -442,10 +455,12 @@ def norm_band_metadata(
 ) -> RasterBandMetadata:
     if isinstance(v, RasterBandMetadata):
         return v
+    # in STAC it's "unit" not "units", so check both
+    units = v.get("units", v.get("unit", fallback.units))
     return RasterBandMetadata(
         v.get("data_type", fallback.data_type),
         v.get("nodata", norm_nodata(fallback.nodata)),
-        v.get("unit", fallback.unit),
+        units,
     )
 
 

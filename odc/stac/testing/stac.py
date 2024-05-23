@@ -160,7 +160,7 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
         return RasterBand.create(
             data_type=meta.data_type,  # type: ignore
             nodata=meta.nodata,
-            unit=meta.unit,
+            unit=meta.units,
         )
 
     for asset_name, bands in item.assets().items():

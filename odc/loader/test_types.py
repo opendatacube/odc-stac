@@ -67,3 +67,11 @@ def test_with_default():
     assert with_default(A, B) is A
     assert with_default(A, B, A) is B
     assert with_default((), B, (), {}) is B
+
+
+def test_raster_band():
+    assert RasterBandMetadata("float32", -9999).nodata == -9999
+    assert RasterBandMetadata().units == "1"
+    assert RasterBandMetadata().unit == "1"
+    assert RasterBandMetadata("float32").data_type == "float32"
+    assert RasterBandMetadata("float32").dtype == "float32"

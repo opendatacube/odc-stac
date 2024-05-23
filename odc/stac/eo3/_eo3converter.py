@@ -76,7 +76,7 @@ def _to_product(md: RasterCollectionMetadata) -> DatasetType:
             "name": name,
             "dtype": band.data_type,
             "nodata": band.nodata,
-            "units": band.unit,
+            "units": band.units,
         }
         if aliases is not None:
             doc["aliases"] = aliases

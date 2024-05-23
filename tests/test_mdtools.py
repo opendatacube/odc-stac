@@ -11,7 +11,6 @@ import pytest
 from common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
 from odc.geo import geom
 from odc.geo.geobox import AnchorEnum, GeoBox, geobox_union_conservative
-from odc.geo.types import xy_
 from odc.geo.xr import xr_zeros
 from pystac.extensions.projection import ProjectionExtension
 
@@ -138,7 +137,7 @@ def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     bm = band_metadata(asset, RasterBandMetadata("uint16", 0, "1"))
     assert bm == [
         RasterBandMetadata("uint8", 0, "1"),
-        RasterBandMetadata(data_type="uint16", nodata=-10, unit="1"),
+        RasterBandMetadata(data_type="uint16", nodata=-10, units="1"),
     ]
 
 
@@ -182,7 +181,7 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
         bk: tuple[str, int] = (b, 1)
         assert md.bands[bk].data_type == "uint16"
         assert md.bands[bk].nodata == 0
-        assert md.bands[bk].unit == "1"
+        assert md.bands[bk].units == "1"
 
     assert md.bands[("SCL", 1)].data_type == "uint8"
     assert md.bands[("visual", 1)].data_type == "uint8"
@@ -199,7 +198,7 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
     for band in md.bands.values():
         assert band.data_type == "float32"
         assert band.nodata is None
-        assert band.unit == "1"
+        assert band.units == "1"
 
     # Test that multiple CRSs per item work
     item = pystac.Item.from_dict(item0.to_dict())
