@@ -413,7 +413,7 @@ def is_reader_driver(x: Any) -> bool:
 BAND_DEFAULTS = RasterBandMetadata("float32", None, "1")
 
 
-def with_default(v: Optional[T], default_value: T) -> T:
+def with_default(v: Optional[T], default_value: T, *other_defaults) -> T:
     """
     Replace ``None`` with default value.
 
@@ -422,6 +422,8 @@ def with_default(v: Optional[T], default_value: T) -> T:
     :return: ``v`` unless it is ``None`` then return ``default_value`` instead
     """
     if v is None:
+        return default_value
+    if v in other_defaults:
         return default_value
     return v
 

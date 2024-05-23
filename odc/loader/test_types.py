@@ -10,6 +10,7 @@ from .types import (
     RasterGroupMetadata,
     RasterLoadParams,
     RasterSource,
+    with_default,
 )
 
 gbox_4326 = GeoBox.from_bbox((103, -44, 169, -11), 4326, shape=200)
@@ -57,3 +58,12 @@ def test_repr_json_smoke(xx):
         assert "nodata" in dd
         assert dd["data_type"] == meta.data_type
         assert dd["nodata"] == meta.nodata
+
+
+def test_with_default():
+    A = object()
+    B = "B"
+    assert with_default(None, A) is A
+    assert with_default(A, B) is A
+    assert with_default(A, B, A) is B
+    assert with_default((), B, (), {}) is B
