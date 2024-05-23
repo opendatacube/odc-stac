@@ -75,3 +75,6 @@ def test_raster_band():
     assert RasterBandMetadata().unit == "1"
     assert RasterBandMetadata("float32").data_type == "float32"
     assert RasterBandMetadata("float32").dtype == "float32"
+    assert RasterBandMetadata(dims=("y", "x", "B")).ydim == 0
+    assert RasterBandMetadata(dims=("B", "y", "x")).ydim == 1
+    assert RasterBandMetadata(dims=("B", "y", "x")).extra_dims == ("B",)

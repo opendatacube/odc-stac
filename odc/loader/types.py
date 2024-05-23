@@ -88,6 +88,19 @@ class RasterBandMetadata:
             "dims": self.dims,
         }
 
+    @property
+    def extra_dims(self) -> tuple[str, ...]:
+        """
+        Non-spatial dimension names.
+        """
+        return _extra_dims(self.dims)
+
+    @property
+    def ydim(self) -> int:
+        """Index of y dimension, typically 0."""
+        return _ydim(self.dims)
+
+    @property
     def unit(self) -> str:
         """
         Alias for units.
@@ -313,9 +326,15 @@ class RasterLoadParams:
 
     @property
     def ydim(self) -> int:
-        if self.dims:
-            return self.dims.index("y")
-        return 0
+        """Index of y dimension, typically 0."""
+        return _ydim(self.dims)
+
+    @property
+    def extra_dims(self) -> tuple[str, ...]:
+        """
+        Non-spatial dimension names.
+        """
+        return _extra_dims(self.dims)
 
     @staticmethod
     def same_as(src: Union[RasterBandMetadata, RasterSource]) -> "RasterLoadParams":
@@ -476,3 +495,16 @@ def norm_key(k: BandIdentifier) -> BandKey:
             return parts[0], int(parts[1])
         return (k, 1)
     return k
+
+
+def _ydim(dims: Tuple[str, ...]) -> int:
+    if dims:
+        return dims.index("y")
+    return 0
+
+
+def _extra_dims(dims: tuple[str, ...]) -> tuple[str, ...]:
+    if not dims:
+        return ()
+    ydim = _ydim(dims)
+    return dims[:ydim] + dims[ydim + 2 :]
