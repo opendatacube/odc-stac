@@ -1,9 +1,13 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring,too-many-statements,too-many-locals
+from __future__ import annotations
+
 from math import isnan
+from typing import Any
 
 import numpy as np
 import pytest
 import rasterio
+import xarray as xr
 from numpy import ma
 from numpy.testing import assert_array_equal
 from odc.geo.geobox import GeoBox
@@ -11,6 +15,7 @@ from odc.geo.xr import xr_zeros
 
 from ._reader import (
     pick_overview,
+    resolve_band_query,
     resolve_dst_dtype,
     resolve_dst_nodata,
     resolve_src_nodata,
@@ -18,7 +23,7 @@ from ._reader import (
 )
 from ._rio import RioDriver, configure_rio, get_rio_env, rio_read
 from .testing.fixtures import with_temp_tiff
-from .types import RasterLoadParams, RasterSource
+from .types import RasterBandMetadata, RasterLoadParams, RasterSource
 
 
 def test_same_nodata():
@@ -66,6 +71,32 @@ def test_pick_overiew():
     assert pick_overview(7, [2, 4, 8]) == 1
     assert pick_overview(8, [2, 4, 8]) == 2
     assert pick_overview(20, [2, 4, 8]) == 2
+
+
+@pytest.mark.parametrize(
+    "n, dims, band, selection, expect",
+    [
+        (3, (), 1, None, 1),
+        (3, (), 3, None, 3),
+        (3, ("b", "y", "x"), 3, None, [3]),
+        (3, ("b", "y", "x"), 1, None, [1]),
+        (3, ("b", "y", "x"), 0, None, [1, 2, 3]),
+        (4, ("b", "y", "x"), 0, np.s_[:2], [1, 2]),
+        (4, ("b", "y", "x"), 0, (slice(1, 4),), [2, 3, 4]),
+        (4, ("b", "y", "x"), 0, [1, 3], [1, 3]),
+        (2, ("b", "y", "x"), 0, 1, [2]),
+        (5, ("b", "y", "x"), 0, -1, [5]),
+    ],
+)
+def test_resolve_band_query(
+    n: int,
+    dims: tuple[str, ...],
+    band: int,
+    selection: Any,
+    expect: Any,
+):
+    src = RasterSource("", band=band, meta=RasterBandMetadata(dims=dims))
+    assert resolve_band_query(src, n, selection) == expect
 
 
 def test_rio_reader_env():
@@ -225,6 +256,46 @@ def test_reader_ovr():
         roi, pix = rio_read(src, cfg, _gbox)
         assert pix.shape == _gbox[roi].shape
         assert _gbox[roi] == _gbox
+
+
+@pytest.mark.parametrize("resamlpling", ["nearest", "bilinear", "cubic"])
+def test_rio_read_rgb(resamlpling):
+    gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(512, 512), tight=True)
+
+    non_zeros_roi = np.s_[30:47, 190:210]
+
+    xx = xr_zeros(gbox, dtype="uint8")
+    xx.values[non_zeros_roi] = 255
+    xx = xx.expand_dims("band", 2)
+    xx = xr.concat([xx, xx, xx], "band").assign_coords(band=["r", "g", "b"])
+
+    assert xx.odc.geobox == gbox
+
+    cfg = RasterLoadParams(
+        dtype="uint8",
+        dims=("band", "y", "x"),
+        resampling=resamlpling,
+    )
+    gbox2 = gbox.zoom_to(237)
+
+    # whole image from 1/2 overview
+    with with_temp_tiff(xx, compress=None, overview_levels=[2, 4]) as uri:
+        src = RasterSource(uri, band=0)
+        for gb in [gbox, gbox2]:
+            roi, pix = rio_read(src, cfg, gb)
+            assert len(roi) == 2
+            assert pix.ndim == 3
+            assert pix.shape == (3, *gb.shape)
+
+            # again but with dst=
+            _, pix2 = rio_read(src, cfg, gb, dst=pix)
+            assert pix2.shape == pix.shape
+
+            # again but with selection
+            roi, pix = rio_read(src, cfg, gb, selection=np.s_[:2])
+            assert len(roi) == 2
+            assert pix.ndim == 3
+            assert pix.shape == (2, *gb.shape)
 
 
 def test_reader_unhappy_paths():

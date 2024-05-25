@@ -8,12 +8,18 @@ Utilities for reading pixels from raster files.
 from __future__ import annotations
 
 import math
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 from numpy.typing import DTypeLike
 
-from .types import RasterBandMetadata, RasterLoadParams, with_default
+from .types import (
+    RasterBandMetadata,
+    RasterLoadParams,
+    RasterSource,
+    ReaderSubsetSelection,
+    with_default,
+)
 
 
 def resolve_load_cfg(
@@ -110,6 +116,40 @@ def resolve_dst_fill_value(
     if nodata is None:
         return dst_dtype.type(0)
     return nodata
+
+
+def _selection_to_bands(selection: Any, n: int) -> list[int]:
+    if isinstance(selection, list):
+        return selection
+
+    bidx = np.arange(1, n + 1)
+    if isinstance(selection, int):
+        return [int(bidx[selection])]
+    return bidx[selection].tolist()
+
+
+def resolve_band_query(
+    src: RasterSource,
+    n: int,
+    selection: ReaderSubsetSelection | None = None,
+) -> int | list[int]:
+    if src.band > n:
+        raise ValueError(
+            f"Requested band {src.band} from {src.uri} with only {n} bands"
+        )
+
+    if src.band == 0:
+        if selection:
+            return _selection_to_bands(selection, n)
+        return list(range(1, n + 1))
+
+    meta = src.meta
+    if meta is None:
+        return src.band
+    if meta.extra_dims:
+        return [src.band]
+
+    return src.band
 
 
 def pick_overview(read_shrink: int, overviews: Sequence[int]) -> Optional[int]:

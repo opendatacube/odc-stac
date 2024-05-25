@@ -27,6 +27,7 @@ from rasterio.session import AWSSession, Session
 from ._reader import (
     nodata_mask,
     pick_overview,
+    resolve_band_query,
     resolve_dst_dtype,
     resolve_dst_nodata,
     resolve_src_nodata,
@@ -384,18 +385,27 @@ def _do_read(
 ) -> tuple[tuple[slice, slice], np.ndarray]:
     resampling = resampling_s2rio(cfg.resampling)
     rdr = src.ds
+    roi_dst: tuple[slice, slice] = rr.roi_dst  # type: ignore
+    ndim = 2
+    prefix: tuple[int, ...] = ()
+
+    if isinstance(src.bidx, int):
+        src_nodata0 = rdr.nodatavals[src.bidx - 1]
+    else:
+        ndim = 3
+        prefix = (len(src.bidx),)
+        (src_nodata0,) = (rdr.nodatavals[b - 1] for b in src.bidx[:1])
 
     if dst is not None:
-        _dst = dst[rr.roi_dst]  # type: ignore
+        # Assumes Y,X or B,Y,X order
+        assert dst.ndim == ndim
+        _dst = dst[(...,) + roi_dst]  # type: ignore
     else:
-        _dst = np.ndarray(
-            roi_shape(rr.roi_dst), dtype=resolve_dst_dtype(src.dtype, cfg)
-        )
+        shape = prefix + roi_shape(rr.roi_dst)
+        _dst = np.ndarray(shape, dtype=resolve_dst_dtype(src.dtype, cfg))
 
-    src_nodata0 = rdr.nodatavals[src.bidx - 1]
     src_nodata = resolve_src_nodata(src_nodata0, cfg)
     dst_nodata = resolve_dst_nodata(_dst.dtype, cfg, src_nodata)
-    roi_dst: tuple[slice, slice] = rr.roi_dst  # type: ignore
 
     if roi_is_empty(roi_dst):
         return (roi_dst, _dst)
@@ -460,6 +470,7 @@ def rio_read(
     """
 
     try:
+        # TODO: deal with Y,X,B order on output
         return _rio_read(src, cfg, dst_geobox, dst, selection=selection)
     except (
         rasterio.errors.RasterioIOError,
@@ -506,25 +517,21 @@ def _rio_read(
     # if resampling is `nearest` then ignore sub-pixel translation when deciding
     # whether we can just paste source into destination
     ttol = 0.9 if cfg.nearest else 0.05
-    assert selection is None, "Band selection not implemented in rio_read"
 
     with rasterio.open(src.uri, "r", sharing=False) as rdr:
         assert isinstance(rdr, rasterio.DatasetReader)
         ovr_idx: Optional[int] = None
 
-        if src.band > rdr.count:
-            raise ValueError(f"No band {src.band} in '{src.uri}'")
-
+        bidx = resolve_band_query(src, rdr.count, selection=selection)
         rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
 
         if cfg.use_overviews and rr.read_shrink > 1:
-            ovr_idx = pick_overview(rr.read_shrink, rdr.overviews(src.band))
+            first_band = bidx if isinstance(bidx, int) else bidx[0]
+            ovr_idx = pick_overview(rr.read_shrink, rdr.overviews(first_band))
 
         if ovr_idx is None:
             with rio_env(VSI_CACHE=False):
-                return _do_read(
-                    rasterio.band(rdr, src.band), cfg, dst_geobox, rr, dst=dst
-                )
+                return _do_read(rasterio.band(rdr, bidx), cfg, dst_geobox, rr, dst=dst)
 
         # read from overview
         with rasterio.open(
@@ -533,7 +540,7 @@ def _rio_read(
             rr = _reproject_info_from_rio(rdr, dst_geobox, ttol=ttol)
             with rio_env(VSI_CACHE=False):
                 return _do_read(
-                    rasterio.band(rdr_ovr, src.band), cfg, dst_geobox, rr, dst=dst
+                    rasterio.band(rdr_ovr, bidx), cfg, dst_geobox, rr, dst=dst
                 )
 
 
