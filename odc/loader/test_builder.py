@@ -13,7 +13,7 @@ import xarray as xr
 from odc.geo.geobox import GeoBox, GeoboxTiles
 
 from . import chunked_load
-from ._builder import DaskGraphBuilder, mk_dataset
+from ._builder import DaskGraphBuilder, mk_dataset, resolve_chunk_shape
 from .testing.fixtures import FakeMDPlugin, FakeReaderDriver
 from .types import (
     FixedCoord,
@@ -37,6 +37,7 @@ def _full_tyx_bins(
     return {idx: list(range(nsrcs)) for idx in np.ndindex((nt, *tiles.shape.yx))}  # type: ignore
 
 
+# bands,extra_coords,extra_dims,expect
 rlp_fixtures = [
     [
         # Y,X only
@@ -175,7 +176,7 @@ def test_dask_builder(
         gbt=gbt,
         env=rdr_env,
         rdr=rdr,
-        time_chunks=1,
+        chunks={"time": 1},
     )
 
     xx = builder.build(gbox, tss, bands)
@@ -191,3 +192,29 @@ def test_dask_builder(
         bands, template, srcs, tyx_bins, gbt, tss, rdr_env, rdr, chunks={}
     )
     check_xx(xx_dasked, bands, extra_coords, extra_dims, expect)
+
+
+def test_resolve_chunk_shape():
+    # pylint: disable=redefined-outer-name
+    nt = 7
+    gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(33, 77), tight=True)
+    yx_shape = gbox.shape.yx
+    assert resolve_chunk_shape(nt, gbox, {}) == (1, *yx_shape)
+    assert resolve_chunk_shape(nt, gbox, {"time": 3}) == (3, *yx_shape)
+    assert resolve_chunk_shape(nt, gbox, {"y": 10, "x": 20}) == (1, 10, 20)
+
+    # extra chunks without extra_dims should be ignored
+    assert resolve_chunk_shape(nt, gbox, {"y": 10, "x": 20, "b": 3}) == (1, 10, 20)
+
+    # extra_dims and chunking
+    assert resolve_chunk_shape(
+        nt, gbox, {"y": 10, "x": 20, "b": 3}, extra_dims={"b": 100}
+    ) == (1, 10, 20, 3)
+
+    # extra_dims but no chunking
+    assert resolve_chunk_shape(
+        nt,
+        gbox,
+        {"y": 10, "x": 20},
+        extra_dims={"b": 100},
+    ) == (1, 10, 20, 100)

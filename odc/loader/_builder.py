@@ -123,7 +123,7 @@ class DaskGraphBuilder:
         gbt: GeoboxTiles,
         env: Dict[str, Any],
         rdr: ReaderDriver,
-        time_chunks: int = 1,
+        chunks: dict[str, int],
     ) -> None:
         gbox = gbt.base
         assert isinstance(gbox, GeoBox)
@@ -135,8 +135,8 @@ class DaskGraphBuilder:
         self.gbt = gbt
         self.env = env
         self.rdr = rdr
-        self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, time_chunks)
-        self.chunk_tyx = (time_chunks, *self.gbt.chunk_shape((0, 0)).yx)
+        self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, chunks)
+        self.chunk_tyx = (chunks.get("time", 1), *self.gbt.chunk_shape((0, 0)).yx)
         self._load_state = rdr.new_load(
             gbox, chunks=dict(zip(["time", "y", "x"], self.chunk_tyx))
         )
@@ -166,7 +166,7 @@ class DaskGraphBuilder:
         assert isinstance(name, str)
         cfg = self.cfg[name]
         assert dtype == cfg.dtype
-        ydim = cfg.ydim + 1
+        ydim = cfg.ydim + 1  # +1 for time dimension
         postfix_dims = shape[ydim + 2 :]
         prefix_dims = shape[1:ydim]
 
@@ -456,7 +456,14 @@ def dask_chunked_load(
         chunks = {}
 
     gbox = gbt.base
-    chunk_shape = resolve_chunk_shape(len(tss), gbox, chunks)
+    extra_dims = template.extra_dims_full()
+    chunk_shape = resolve_chunk_shape(
+        len(tss),
+        gbox,
+        chunks,
+        extra_dims=extra_dims,
+    )
+    chunks_normalized = dict(zip(["time", "y", "x", *extra_dims], chunk_shape))
     dask_loader = DaskGraphBuilder(
         load_cfg,
         template,
@@ -465,7 +472,7 @@ def dask_chunked_load(
         gbt,
         env,
         rdr,
-        time_chunks=chunk_shape[0],
+        chunks=chunks_normalized,
     )
     assert isinstance(gbox, GeoBox)
     return dask_loader.build(gbox, tss, load_cfg)
@@ -477,7 +484,7 @@ def load_tasks(
     gbt: GeoboxTiles,
     *,
     nt: Optional[int] = None,
-    time_chunks: int = 1,
+    chunks: dict[str, int] | None = None,
     extra_dims: Mapping[str, int] | None = None,
 ) -> Iterator[LoadChunkTask]:
     """
@@ -492,6 +499,10 @@ def load_tasks(
 
     if extra_dims is None:
         extra_dims = {}
+    if chunks is None:
+        chunks = {}
+
+    time_chunks = chunks.get("time", 1)
 
     shape_in_chunks: Tuple[int, int, int] = (
         (nt + time_chunks - 1) // time_chunks,
@@ -597,7 +608,8 @@ def resolve_chunk_shape(
     chunks: Dict[str, int | Literal["auto"]],
     dtype: Any | None = None,
     cfg: Mapping[str, RasterLoadParams] | None = None,
-) -> Tuple[int, int, int]:
+    extra_dims: Mapping[str, int] | None = None,
+) -> Tuple[int, ...]:
     """
     Compute chunk size for time, y and x dimensions.
     """
@@ -617,9 +629,19 @@ def resolve_chunk_shape(
         chunks.get(dim, chunks.get(fallback_dim, -1))
         for dim, fallback_dim in zip(gbox.dimensions, ["y", "x"])
     )
-    nt, ny, nx = (
-        ch[0]
-        for ch in normalize_chunks((tt, ty, tx), (nt, *gbox.shape.yx), dtype=dtype)
-    )
+    postfix_shape: tuple[int, ...] = ()
+    postfix_chunks: tuple[int, ...] = ()
 
-    return nt, ny, nx
+    if extra_dims:
+        postfix_shape, postfix_chunks = zip(
+            *[(sz, chunks.get(dim, -1)) for dim, sz in extra_dims.items()]
+        )
+
+    return tuple(
+        int(ch[0])
+        for ch in normalize_chunks(
+            (tt, ty, tx, *postfix_chunks),
+            (nt, *gbox.shape.yx, *postfix_shape),
+            dtype=dtype,
+        )
+    )
