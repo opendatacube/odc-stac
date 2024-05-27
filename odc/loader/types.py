@@ -469,17 +469,22 @@ def norm_nodata(nodata) -> Union[float, None]:
 
 
 def norm_band_metadata(
-    v: Union[RasterBandMetadata, Dict[str, Any]],
+    v: Union[RasterBandMetadata, Mapping[str, Any]],
     fallback: RasterBandMetadata = BAND_DEFAULTS,
 ) -> RasterBandMetadata:
     if isinstance(v, RasterBandMetadata):
         return v
     # in STAC it's "unit" not "units", so check both
     units = v.get("units", v.get("unit", fallback.units))
+
+    # non-STAC addition
+    dims = v.get("dims", v.get("dims", fallback.dims))
+
     return RasterBandMetadata(
         v.get("data_type", fallback.data_type),
         v.get("nodata", norm_nodata(fallback.nodata)),
         units,
+        tuple(dims),
     )
 
 
