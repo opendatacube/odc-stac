@@ -259,7 +259,8 @@ def test_reader_ovr():
 
 
 @pytest.mark.parametrize("resamlpling", ["nearest", "bilinear", "cubic"])
-def test_rio_read_rgb(resamlpling):
+@pytest.mark.parametrize("dims", [("y", "x", "band"), ("band", "y", "x")])
+def test_rio_read_rgb(resamlpling, dims):
     gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(512, 512), tight=True)
 
     non_zeros_roi = np.s_[30:47, 190:210]
@@ -273,19 +274,27 @@ def test_rio_read_rgb(resamlpling):
 
     cfg = RasterLoadParams(
         dtype="uint8",
-        dims=("band", "y", "x"),
+        dims=dims,
         resampling=resamlpling,
     )
     gbox2 = gbox.zoom_to(237)
 
     # whole image from 1/2 overview
     with with_temp_tiff(xx, compress=None, overview_levels=[2, 4]) as uri:
-        src = RasterSource(uri, band=0)
+        src = RasterSource(
+            uri,
+            band=0,
+            meta=RasterBandMetadata(cfg.dtype, dims=cfg.dims),
+        )
         for gb in [gbox, gbox2]:
+            expect_shape = (3, *gb.shape) if src.ydim == 1 else (*gb.shape, 3)
+            expect_shape_2 = (2, *gb.shape) if src.ydim == 1 else (*gb.shape, 2)
+
             roi, pix = rio_read(src, cfg, gb)
+
             assert len(roi) == 2
             assert pix.ndim == 3
-            assert pix.shape == (3, *gb.shape)
+            assert pix.shape == expect_shape
 
             # again but with dst=
             _, pix2 = rio_read(src, cfg, gb, dst=pix)
@@ -295,7 +304,7 @@ def test_rio_read_rgb(resamlpling):
             roi, pix = rio_read(src, cfg, gb, selection=np.s_[:2])
             assert len(roi) == 2
             assert pix.ndim == 3
-            assert pix.shape == (2, *gb.shape)
+            assert pix.shape == expect_shape_2
 
 
 def test_reader_unhappy_paths():

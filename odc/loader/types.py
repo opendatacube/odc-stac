@@ -261,6 +261,13 @@ class RasterSource:
             driver_data=self.driver_data,
         )
 
+    @property
+    def ydim(self) -> int:
+        """Index of y dimension, typically 0."""
+        if self.meta is None:
+            return 0
+        return self.meta.ydim
+
     def __dask_tokenize__(self):
         return (self.uri, self.band, self.subdataset)
 

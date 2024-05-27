@@ -468,10 +468,39 @@ def rio_read(
            mosaic[roi] = pix  # if sources are true tiles (no overlaps)
 
     """
+    ydim = src.ydim
+
+    def prep_dst(dst: Optional[np.ndarray]) -> Optional[np.ndarray]:
+        if dst is None:
+            return None
+        if dst.ndim == 2 or ydim == 1:
+            # Y,X or B,Y,X
+            return dst
+
+        # Supplied as Y,X,B, but we need B,Y,X
+        assert ydim == 0 and dst.ndim == 3
+        return dst.transpose([2, 0, 1])
+
+    def fixup_out(
+        x: tuple[tuple[slice, slice], np.ndarray]
+    ) -> tuple[tuple[slice, slice], np.ndarray]:
+        roi, out = x
+        if out.ndim == 2 or ydim == 1:
+            # Y,X or B,Y,X
+            return roi, out
+
+        # must be Y,X,B on output
+        if dst is not None:
+            return roi, dst[roi]
+
+        assert ydim == 0 and out.ndim == 3
+        # B,Y,X -> Y,X,B
+        return roi, out.transpose([1, 2, 0])
 
     try:
-        # TODO: deal with Y,X,B order on output
-        return _rio_read(src, cfg, dst_geobox, dst, selection=selection)
+        return fixup_out(
+            _rio_read(src, cfg, dst_geobox, prep_dst(dst), selection=selection)
+        )
     except (
         rasterio.errors.RasterioIOError,
         rasterio.errors.RasterBlockError,
