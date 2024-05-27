@@ -17,6 +17,7 @@ from pystac.extensions.projection import ProjectionExtension
 from odc.loader.testing.fixtures import FakeMDPlugin
 from odc.loader.types import FixedCoord, RasterBandMetadata, RasterGroupMetadata
 from odc.stac._mdtools import (
+    MDParseConfig,
     _auto_load_params,
     _most_common_gbox,
     _normalize_geometry,
@@ -35,6 +36,28 @@ from odc.stac.model import ParsedItem
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 
 GBOX = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
+
+
+def test_mdparse_config():
+    assert MDParseConfig() == MDParseConfig()
+    assert MDParseConfig.from_dict({}) == MDParseConfig()
+    assert MDParseConfig.from_dict({}, "cc") == MDParseConfig()
+    assert MDParseConfig().extra_coords == ()
+    assert MDParseConfig().extra_dims == {}
+
+    cfg = {
+        "assets": {"visual": {"data_type": "uint8", "dims": ["y", "x", "rgb"]}},
+        "dims": {"rgb": 3},
+        "coords": {"rgb": ["r", "g", "b"]},
+    }
+    assert MDParseConfig.from_dict(cfg) == MDParseConfig.from_dict({"*": cfg}, "cc")
+    assert MDParseConfig.from_dict(cfg) == MDParseConfig.from_dict({"cc": cfg}, "cc")
+    assert MDParseConfig() == MDParseConfig.from_dict({"cc": cfg}, "not-in-cfg")
+    assert MDParseConfig.from_dict(cfg) == MDParseConfig.from_dict(cfg, "irrelevant")
+
+    cfg = MDParseConfig.from_dict(cfg)
+    assert cfg.extra_dims == {"rgb": 3}
+    assert cfg.extra_coords == (FixedCoord("rgb", ["r", "g", "b"]),)
 
 
 def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):

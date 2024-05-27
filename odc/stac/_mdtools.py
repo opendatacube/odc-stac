@@ -486,7 +486,7 @@ class _CMDAssembler:
         if cfg is None:
             cfg = {}
 
-        self._cfg = MDParseConfig.from_dict(collection_id, cfg)
+        self._cfg = MDParseConfig.from_dict(cfg, collection_id)
         self.check_proj: bool = not self._cfg.ignore_proj
         self.has_proj: Optional[bool] = None
         self.collection_id = collection_id
@@ -547,7 +547,9 @@ class _CMDAssembler:
 
             for alias, bkey in self._cfg.aliases.items():
                 aliases.setdefault(alias, []).insert(0, bkey)
-            md = RasterGroupMetadata(bands, aliases)
+            md = RasterGroupMetadata(
+                bands, aliases, self._cfg.extra_dims, self._cfg.extra_coords
+            )
 
         # We assume that grouping of data bands into grids is consistent across
         # entire collection, so we compute it once and keep it

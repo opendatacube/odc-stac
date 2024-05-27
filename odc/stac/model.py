@@ -1,10 +1,12 @@
 """Metadata and data loading model classes."""
 
+from __future__ import annotations
+
 import datetime as dt
 import math
 from copy import copy
 from dataclasses import astuple, dataclass, field, replace
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Set, Tuple
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
 
 from odc.geo import CRS, Geometry, MaybeCRS
 from odc.geo.geobox import GeoBox
@@ -14,6 +16,7 @@ from odc.loader.types import (
     BandIdentifier,
     BandKey,
     BandQuery,
+    FixedCoord,
     RasterBandMetadata,
     RasterGroupMetadata,
     RasterSource,
@@ -412,15 +415,28 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 class MDParseConfig:
     """Item parsing config."""
 
-    band_defaults: RasterBandMetadata = field(default_factory=RasterBandMetadata)
+    band_defaults: RasterBandMetadata = field(
+        default_factory=lambda: norm_band_metadata({})
+    )
     band_cfg: Dict[str, RasterBandMetadata] = field(default_factory=dict)
     aliases: Dict[str, BandKey] = field(default_factory=dict)
     ignore_proj: bool = False
+    extra_dims: Dict[str, int] = field(default_factory=dict)
+    extra_coords: Sequence[FixedCoord] = ()
 
     @staticmethod
-    def from_dict(collection_id: str, cfg=Dict[str, Any]) -> "MDParseConfig":
-        _cfg = copy(cfg.get("*", {}))
-        _cfg.update(cfg.get(collection_id, {}))
+    def from_dict(
+        cfg: Dict[str, Any], collection_id: str | None = None
+    ) -> "MDParseConfig":
+        if collection_id is not None:
+            if "assets" in cfg:  # Assume it's a single collection config
+                _cfg = copy(cfg)
+            else:
+                _cfg = copy(cfg.get("*", {}))
+                _cfg.update(cfg.get(collection_id, {}))
+        else:
+            _cfg = copy(cfg)
+
         band_defaults, band_cfg = _norm_band_cfg(_cfg.get("assets", {}))
 
         aliases = {
@@ -428,11 +444,22 @@ class MDParseConfig:
             for alias, band in _cfg.get("aliases", {}).items()
         }
         ignore_proj: bool = _cfg.get("ignore_proj", False)
+        extra_dims: Dict[str, int] = _cfg.get("dims", {})
+        extra_coords: list[FixedCoord] = []
+        cc: dict[str, list[Any]] = _cfg.get("coords", {})
+        assert isinstance(cc, dict)
+
+        for name, val in cc.items():
+            assert isinstance(val, list)
+            extra_coords.append(FixedCoord(name, val))
+
         return MDParseConfig(
             band_defaults=band_defaults,
             band_cfg=band_cfg,
             ignore_proj=ignore_proj,
             aliases=aliases,
+            extra_dims=extra_dims,
+            extra_coords=tuple(extra_coords),
         )
 
 
