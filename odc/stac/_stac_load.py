@@ -413,7 +413,7 @@ def load(
 
     # Spatio-temporal binning
     assert isinstance(gbox.crs, CRS)
-    gbt = GeoboxTiles(gbox, chunk_shape[1:])
+    gbt = GeoboxTiles(gbox, (chunk_shape[1], chunk_shape[2]))
     tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
     _parsed = [item.strip() for item in _parsed]
 
