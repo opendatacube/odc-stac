@@ -693,6 +693,10 @@ def parse_item(
         if md_plugin is not None:
             driver_data = md_plugin.driver_data(asset, bk)
 
+        # Assumption: if extra dims are defined then asset bands are loaded into 3d+ array
+        if meta.extra_dims:
+            band_idx = 0
+
         bands[bk] = RasterSource(
             uri=uri,
             band=band_idx,
