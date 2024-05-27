@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import astuple, dataclass, field
+from dataclasses import astuple, dataclass, field, replace
 from typing import (
     Any,
     ContextManager,
@@ -73,6 +73,12 @@ class RasterBandMetadata:
             units=with_default(self.units, defaults.units, "1"),
             dims=with_default(self.dims, defaults.dims, ()),
         )
+
+    def patch(self, **kwargs) -> "RasterBandMetadata":
+        """
+        Return a new object with updated fields.
+        """
+        return replace(self, **kwargs)
 
     def __dask_tokenize__(self):
         return astuple(self)
@@ -180,6 +186,12 @@ class RasterGroupMetadata:
     Must be same values across items/datasets.
     """
 
+    def patch(self, **kwargs) -> "RasterGroupMetadata":
+        """
+        Return a new object with updated fields.
+        """
+        return replace(self, **kwargs)
+
     def _repr_json_(self) -> Dict[str, Any]:
         """
         Return a JSON serializable representation of the RasterGroupMetadata object.
@@ -227,6 +239,12 @@ class RasterSource:
 
     driver_data: Any = None
     """IO Driver specific extra data."""
+
+    def patch(self, **kwargs) -> "RasterSource":
+        """
+        Return a new object with updated fields.
+        """
+        return replace(self, **kwargs)
 
     def strip(self) -> "RasterSource":
         """
@@ -323,6 +341,12 @@ class RasterLoadParams:
 
     dims: Tuple[str, ...] = ()
     """Dimension names for this band."""
+
+    def patch(self, **kwargs) -> "RasterLoadParams":
+        """
+        Return a new object with updated fields.
+        """
+        return replace(self, **kwargs)
 
     @property
     def ydim(self) -> int:

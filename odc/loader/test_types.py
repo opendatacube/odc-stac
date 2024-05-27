@@ -1,5 +1,7 @@
 # pylint: disable=protected-access,missing-function-docstring,missing-module-docstring
+# pylint: disable=use-implicit-booleaness-not-comparison
 import json
+import math
 
 import pytest
 from odc.geo.geobox import GeoBox
@@ -10,6 +12,7 @@ from .types import (
     RasterGroupMetadata,
     RasterLoadParams,
     RasterSource,
+    norm_nodata,
     with_default,
 )
 
@@ -78,3 +81,37 @@ def test_raster_band():
     assert RasterBandMetadata(dims=("y", "x", "B")).ydim == 0
     assert RasterBandMetadata(dims=("B", "y", "x")).ydim == 1
     assert RasterBandMetadata(dims=("B", "y", "x")).extra_dims == ("B",)
+
+    assert RasterBandMetadata().patch(nodata=-1).nodata == -1
+    assert RasterBandMetadata(nodata=10).patch(nodata=-1).nodata == -1
+
+    assert RasterBandMetadata(nodata=-9999).with_defaults(
+        RasterBandMetadata(
+            "float64",
+            dims=("y", "x", "B"),
+        ),
+    ) == RasterBandMetadata(
+        "float64",
+        -9999,
+        dims=("y", "x", "B"),
+    )
+
+
+def test_basics():
+    assert RasterLoadParams().fill_value is None
+    assert RasterLoadParams().dtype is None
+    assert RasterLoadParams().resampling == "nearest"
+    assert RasterLoadParams().patch(resampling="cubic").resampling == "cubic"
+
+    assert RasterSource("").band == 1
+    assert RasterSource("").patch(band=0).band == 0
+
+    assert RasterGroupMetadata({}).extra_dims == {}
+    assert RasterGroupMetadata({}).patch(extra_dims={"b": 3}).extra_dims == {"b": 3}
+
+
+def test_norm_nodata():
+    assert norm_nodata(None) is None
+    assert norm_nodata(0) == 0
+    assert isinstance(norm_nodata(0), (float, int))
+    assert math.isnan(norm_nodata("nan"))
