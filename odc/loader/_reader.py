@@ -119,6 +119,9 @@ def resolve_dst_fill_value(
 
 
 def _selection_to_bands(selection: Any, n: int) -> list[int]:
+    if selection is None:
+        return list(range(1, n + 1))
+
     if isinstance(selection, list):
         return selection
 
@@ -139,9 +142,7 @@ def resolve_band_query(
         )
 
     if src.band == 0:
-        if selection:
-            return _selection_to_bands(selection, n)
-        return list(range(1, n + 1))
+        return _selection_to_bands(selection, n)
 
     meta = src.meta
     if meta is None:
