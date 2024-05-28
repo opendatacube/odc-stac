@@ -218,12 +218,12 @@ class DaskGraphBuilder:
         src_key = f"open-{name}-{tk}"
         shape_in_blocks = tuple(len(ch) for ch in chunks)
 
-        for src_idx, src in enumerate(self.srcs):
-            band = src.get(name, None)
-            if band is not None:
+        for src_idx, mbsrc in enumerate(self.srcs):
+            rsrc = mbsrc.get(name, None)
+            if rsrc is not None:
                 dsk[src_key, src_idx] = (
                     _dask_open_reader,
-                    band,
+                    rsrc,
                     self.rdr,
                     self.env,
                     load_state,
