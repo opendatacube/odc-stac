@@ -517,6 +517,7 @@ def load_tasks(
     nt: Optional[int] = None,
     chunks: Mapping[str, int] | None = None,
     extra_dims: Mapping[str, int] | None = None,
+    bands: Sequence[str] | None = None,
 ) -> Iterator[LoadChunkTask]:
     """
     Convert tyx_bins into a complete set of load tasks.
@@ -535,7 +536,11 @@ def load_tasks(
 
     base_shape = (nt, *gbt.base.shape.yx)
 
-    for band_name, cfg in load_cfg.items():
+    if bands is None:
+        bands = list(load_cfg)
+
+    for band_name in bands:
+        cfg = load_cfg[band_name]
         _edims: Mapping[str, int] = {}
 
         if _dims := cfg.extra_dims:
