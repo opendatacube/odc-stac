@@ -207,11 +207,15 @@ class RasterGroupMetadata:
             "extra_coords": [c._repr_json_() for c in self.extra_coords],
         }
 
-    def extra_dims_full(self) -> Dict[str, int]:
+    def extra_dims_full(self, band: BandIdentifier | None = None) -> dict[str, int]:
         dims = {**self.extra_dims}
         for coord in self.extra_coords:
             if coord.dim not in dims:
                 dims[coord.dim] = len(coord.values)
+
+        if band is not None:
+            band_dims = self.bands[norm_key(band)].dims
+            dims = {k: v for k, v in dims.items() if k in band_dims}
 
         return dims
 

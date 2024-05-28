@@ -1,9 +1,10 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring,too-many-statements,too-many-locals
+# pylint: disable=redefined-outer-name,unused-argument
 from __future__ import annotations
 
 from datetime import datetime
 from types import SimpleNamespace as _sn
-from typing import Dict, Mapping, Sequence
+from typing import Any, Dict, Literal, Mapping, Sequence
 
 import dask
 import dask.array as da
@@ -13,7 +14,14 @@ import xarray as xr
 from odc.geo.geobox import GeoBox, GeoboxTiles
 
 from . import chunked_load
-from ._builder import DaskGraphBuilder, mk_dataset, resolve_chunk_shape
+from ._builder import (
+    DaskGraphBuilder,
+    _largest_dtype,
+    load_tasks,
+    mk_dataset,
+    resolve_chunk_shape,
+    resolve_chunks,
+)
 from .testing.fixtures import FakeMDPlugin, FakeReaderDriver
 from .types import (
     FixedCoord,
@@ -35,6 +43,10 @@ def _full_tyx_bins(
     tiles: GeoboxTiles, nsrcs=1, nt=1
 ) -> Dict[tuple[int, int, int], list[int]]:
     return {idx: list(range(nsrcs)) for idx in np.ndindex((nt, *tiles.shape.yx))}  # type: ignore
+
+
+def _num_chunks(chunk: int, sz: int) -> int:
+    return (sz + chunk - 1) // chunk
 
 
 # bands,extra_coords,extra_dims,expect
@@ -194,6 +206,55 @@ def test_dask_builder(
     check_xx(xx_dasked, bands, extra_coords, extra_dims, expect)
 
 
+@pytest.mark.parametrize(
+    "cfg,fallback,expect",
+    [
+        ({}, "uint8", "uint8"),
+        ({}, "float64", "float64"),
+        (None, "float64", "float64"),
+        ({"a": _rlp("uint16")}, "float32", "uint16"),
+        ({"a": _rlp("uint16"), "b": _rlp("int32")}, "float32", "int32"),
+        ({"a": _rlp()}, "float32", "float32"),
+    ],
+)
+def test_largest_dtype(cfg, fallback, expect):
+    assert _largest_dtype(cfg, fallback) == expect
+
+
+@pytest.mark.parametrize(
+    "base_shape,chunks,extra_dims,expect",
+    [
+        ((1, 200, 300), {}, None, ((1,), (200,), (300,))),
+        ((1, 200, 300), {"y": 100}, None, ((1,), (100, 100), (300,))),
+        (
+            (3, 200, 300),
+            {"y": 100, "x": 200, "time": 2},
+            None,
+            ((2, 1), (100, 100), (200, 100)),
+        ),
+        ((1, 200, 300), {}, {"b": 3}, ((1,), (200,), (300,), (3,))),
+        ((1, 200, 300), {"b": 1}, {"b": 3}, ((1,), (200,), (300,), (1, 1, 1))),
+    ],
+)
+@pytest.mark.parametrize("dtype", [None, "uint8", "uint16"])
+def test_resolve_chunks(
+    base_shape: tuple[int, int, int],
+    chunks: Mapping[str, int | Literal["auto"]],
+    extra_dims: Mapping[str, int] | None,
+    expect: tuple[int, ...],
+    dtype: Any | None,
+):
+    normed_chunks = resolve_chunks(base_shape, chunks, dtype, extra_dims)
+    assert isinstance(normed_chunks, tuple)
+    assert len(normed_chunks) == len(base_shape) + len(extra_dims or {})
+    assert all(
+        (isinstance(ii, tuple) and isinstance(ii[0], int)) for ii in normed_chunks
+    )
+
+    if expect is not None:
+        assert normed_chunks == expect
+
+
 def test_resolve_chunk_shape():
     # pylint: disable=redefined-outer-name
     nt = 7
@@ -202,6 +263,11 @@ def test_resolve_chunk_shape():
     assert resolve_chunk_shape(nt, gbox, {}) == (1, *yx_shape)
     assert resolve_chunk_shape(nt, gbox, {"time": 3}) == (3, *yx_shape)
     assert resolve_chunk_shape(nt, gbox, {"y": 10, "x": 20}) == (1, 10, 20)
+    assert resolve_chunk_shape(
+        nt,
+        gbox,
+        dict(zip(gbox.dimensions, [10, 20])),
+    ) == (1, 10, 20)
 
     # extra chunks without extra_dims should be ignored
     assert resolve_chunk_shape(nt, gbox, {"y": 10, "x": 20, "b": 3}) == (1, 10, 20)
@@ -218,3 +284,66 @@ def test_resolve_chunk_shape():
         {"y": 10, "x": 20},
         extra_dims={"b": 100},
     ) == (1, 10, 20, 100)
+
+
+@pytest.mark.parametrize(
+    "chunks,dims,nt,nsrcs,extra_dims",
+    [
+        ({}, (), 3, 1, {}),
+        ({"time": 2}, (), 3, 1, {}),
+        ({"time": 2, "y": 80, "x": 80}, (), 3, 1, {}),
+        ({"b": 2, "y": 80, "x": 80}, ("b", "y", "x"), 2, 1, {"b": 5}),
+        ({"time": 2, "y": 100, "b": 1}, ("y", "x", "b"), 4, 3, {"b": 4}),
+        ({"time": 2, "y": 100, "b": 1}, ("y", "x", "b"), 1, 3, {"b": 4}),
+    ],
+)
+def test_load_tasks(
+    chunks: Mapping[str, int],
+    dims: tuple[str, ...],
+    extra_dims: Mapping[str, int],
+    nt: int,
+    nsrcs: int,
+):
+    var_name = "xx"
+    cfg = {var_name: RasterLoadParams("uint8", dims=dims)}
+
+    ydim = 1 + (dims.index("y") if dims else 0)
+    assert ydim in (1, 2)
+
+    _nt, ny, nx, *extra_chunks = resolve_chunk_shape(
+        nt, gbox, chunks, extra_dims=extra_dims
+    )
+    assert len(extra_chunks) in (0, 1)
+    assert _nt == min(chunks.get("time", 1), nt)
+    nt_chunks = _num_chunks(_nt, nt)
+    nb_chunks = 1
+    if extra_chunks:
+        nb_chunks = _num_chunks(extra_chunks[0], list(extra_dims.values())[0])
+
+    gbt = GeoboxTiles(gbox, (ny, nx))
+
+    tyx_bins = _full_tyx_bins(gbt, nsrcs=nsrcs, nt=nt)
+    assert len(tyx_bins) == nt * gbt.shape.y * gbt.shape.x
+
+    tasks = load_tasks(cfg, tyx_bins, gbt, nt=nt, chunks=chunks, extra_dims=extra_dims)
+    tasks = list(tasks)
+    assert len(tasks) == nt_chunks * gbt.shape.y * gbt.shape.x * nb_chunks
+
+    for t in tasks:
+        assert t.band == var_name
+        assert t.gbt is gbt
+        assert t.idx_tyx in tyx_bins
+        assert t.ydim == ydim
+        assert len(t.srcs) > 0
+        assert isinstance(t.srcs[0], list)
+        assert len(t.idx) == len(t.postfix_dims) + len(t.prefix_dims) + 2 + 1
+
+        if dims:
+            assert len(t.postfix_dims) + len(t.prefix_dims) == len(dims) - 2
+            assert len(t.idx) == len(dims) + 1
+        else:
+            assert t.idx == t.idx_tyx
+            assert len(t.postfix_dims) + len(t.prefix_dims) == 0
+
+        assert gbox.enclosing(t.dst_gbox.boundingbox) == t.dst_gbox
+        assert gbox[t.dst_roi[ydim : ydim + 2]] == t.dst_gbox
