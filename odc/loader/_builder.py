@@ -32,7 +32,6 @@ from numpy.typing import DTypeLike
 from odc.geo.geobox import GeoBox, GeoBoxBase, GeoboxTiles
 from odc.geo.xr import xr_coords
 
-from ._dask import unpack_chunks
 from ._reader import nodata_mask, resolve_dst_fill_value, resolve_src_nodata
 from ._utils import SizedIterable, pmap
 from .types import (
@@ -195,7 +194,7 @@ class DaskGraphBuilder:
             *postfix_dims,
         )
         assert len(chunk_shape) == len(shape)
-        chunks = unpack_chunks(chunk_shape, shape)
+        chunks: tuple[tuple[int, ...], ...] = normalize_chunks(chunk_shape, shape)
         tchunk_range = [
             range(last - n, last) for last, n in zip(np.cumsum(chunks[0]), chunks[0])
         ]

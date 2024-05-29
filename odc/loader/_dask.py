@@ -34,29 +34,3 @@ def tokenize_stream(
         for k, x in kx:
             dsk[k] = x
             yield k, x
-
-
-def unpack_chunksize(chunk: int, N: int) -> Tuple[int, ...]:
-    """
-    Compute chunk sizes
-    Example: 4, 11 -> (4, 4, 3)
-    """
-    if chunk >= N or chunk < 0:
-        return (N,)
-
-    nb = N // chunk
-    last_chunk = N - chunk * nb
-    if last_chunk == 0:
-        return tuple(chunk for _ in range(nb))
-
-    return tuple(chunk for _ in range(nb)) + (last_chunk,)
-
-
-def unpack_chunks(
-    chunks: Tuple[int, ...], shape: Tuple[int, ...]
-) -> Tuple[Tuple[int, ...], ...]:
-    """
-    Expand chunks
-    """
-    assert len(chunks) == len(shape)
-    return tuple(unpack_chunksize(ch, n) for ch, n in zip(chunks, shape))
