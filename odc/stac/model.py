@@ -166,6 +166,17 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
     def bands(self) -> Dict[BandKey, RasterBandMetadata]:
         return self.meta.bands
 
+    def meta_for(self, bands: BandQuery = None) -> RasterGroupMetadata:
+        """
+        Extract raster group metadata for a subset of bands.
+
+        Output uses supplied band names as keys, effectively replacing canonical
+        names with aliases supplied by the user.
+        """
+        return self.meta.patch(
+            bands={norm_key(b): self[b] for b in self.normalize_band_query(bands)}
+        )
+
     @property
     def aliases(self) -> Dict[str, List[BandKey]]:
         return self.meta.aliases

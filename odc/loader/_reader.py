@@ -153,6 +153,22 @@ def resolve_band_query(
     return src.band
 
 
+def expand_selection(selection: Any, ydim: int) -> tuple[slice, ...]:
+    """
+    Add Y/X slices to selection tuple
+
+    :param selection: Selection object
+    :return: Tuple of slices
+    """
+    if selection is None:
+        selection = ()
+    if not isinstance(selection, tuple):
+        selection = (selection,)
+
+    prefix, postfix = selection[:ydim], selection[ydim:]
+    return prefix + (slice(None), slice(None)) + postfix
+
+
 def pick_overview(read_shrink: int, overviews: Sequence[int]) -> Optional[int]:
     if len(overviews) == 0 or read_shrink < overviews[0]:
         return None

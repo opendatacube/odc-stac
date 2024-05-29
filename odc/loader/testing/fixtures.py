@@ -19,6 +19,7 @@ import xarray as xr
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtensionDa
 
+from .._reader import expand_selection
 from ..types import (
     BandKey,
     MDParser,
@@ -126,26 +127,25 @@ class FakeReader:
         def __init__(
             self,
             geobox: GeoBox,
-            group_md: RasterGroupMetadata,
+            meta: RasterGroupMetadata,
             env: dict[str, Any],
             is_dask: bool,
         ) -> None:
             self.geobox = geobox
-            self.group_md = group_md
+            self.meta = meta
             self.env = env
             self.is_dask = is_dask
             self.finalised = False
 
         def with_env(self, env: dict[str, Any]) -> "FakeReader.LoadState":
-            return FakeReader.LoadState(self.geobox, self.group_md, env, self.is_dask)
+            return FakeReader.LoadState(self.geobox, self.meta, env, self.is_dask)
 
     def __init__(self, src: RasterSource, load_state: "FakeReader.LoadState"):
         self._src = src
         self._load_state = load_state
 
     def _extra_dims(self) -> Dict[str, int]:
-        md = self._load_state.group_md
-        return md.extra_dims_full()
+        return self._load_state.meta.extra_dims_full()
 
     def read(
         self,
@@ -157,8 +157,6 @@ class FakeReader:
     ) -> tuple[tuple[slice, slice], np.ndarray]:
         meta = self._src.meta
         assert meta is not None
-        # TODO: handle selection
-        assert selection is None
 
         extra_dims = self._extra_dims()
         prefix_dims: tuple[int, ...] = ()
@@ -180,7 +178,13 @@ class FakeReader:
         else:
             assert src_pix.shape == shape
 
+        if selection is not None:
+            src_pix = src_pix[expand_selection(selection, ydim)]
+            prefix_dims = src_pix.shape[:ydim]
+            postfix_dims = src_pix.shape[ydim + 2 :]
+
         assert postfix_dims == src_pix.shape[ydim + 2 :]
+        assert prefix_dims == src_pix.shape[:ydim]
 
         if dst is None:
             dst = np.zeros((*prefix_dims, ny, nx, *postfix_dims), dtype=cfg.dtype)

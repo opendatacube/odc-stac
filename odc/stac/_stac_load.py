@@ -405,9 +405,17 @@ def load(
     )
 
     tss = _extract_timestamps(ndeepmap(2, lambda idx: _parsed[idx], _grouped_idx))
+    meta = collection.meta_for(bands)
 
     if chunks is not None:
-        chunk_shape = resolve_chunk_shape(len(tss), gbox, chunks, dtype, cfg=load_cfg)
+        chunk_shape = resolve_chunk_shape(
+            len(tss),
+            gbox,
+            chunks,
+            dtype,
+            cfg=load_cfg,
+            extra_dims=meta.extra_dims_full(),
+        )
     else:
         chunk_shape = (1, DEFAULT_CHUNK_FOR_LOAD, DEFAULT_CHUNK_FOR_LOAD)
 
@@ -442,7 +450,7 @@ def load(
     return _with_debug_info(
         chunked_load(
             load_cfg,
-            collection.meta,
+            meta,
             _parsed,
             tyx_bins,
             gbt,

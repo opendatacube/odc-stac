@@ -107,6 +107,11 @@ class RasterBandMetadata:
         return _ydim(self.dims)
 
     @property
+    def ndim(self) -> int:
+        """Number of dimensions."""
+        return len(self.extra_dims) + 2
+
+    @property
     def unit(self) -> str:
         """
         Alias for units.

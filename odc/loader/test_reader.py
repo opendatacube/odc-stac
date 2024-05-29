@@ -14,6 +14,7 @@ from odc.geo.geobox import GeoBox
 from odc.geo.xr import xr_zeros
 
 from ._reader import (
+    expand_selection,
     pick_overview,
     resolve_band_query,
     resolve_dst_dtype,
@@ -97,6 +98,22 @@ def test_resolve_band_query(
 ):
     src = RasterSource("", band=band, meta=RasterBandMetadata(dims=dims))
     assert resolve_band_query(src, n, selection) == expect
+
+
+@pytest.mark.parametrize(
+    "ydim, selection, expect",
+    [
+        (0, None, np.s_[:, :]),
+        (0, np.s_[:4], np.s_[:, :, :4]),
+        (1, np.s_[:3], np.s_[:3, :, :]),
+        (1, np.s_[8], np.s_[8, :, :]),
+        (0, np.s_[1:2, 3:4], np.s_[:, :, 1:2, 3:4]),
+        (1, np.s_[1:2, 3:4], np.s_[1:2, :, :, 3:4]),
+        (2, np.s_[1:2, 3:4], np.s_[1:2, 3:4, :, :]),
+    ],
+)
+def test_expand_selection(ydim, selection, expect):
+    assert expand_selection(selection, ydim) == expect
 
 
 def test_rio_reader_env():

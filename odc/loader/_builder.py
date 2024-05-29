@@ -41,6 +41,7 @@ from .types import (
     RasterReader,
     RasterSource,
     ReaderDriver,
+    T,
 )
 
 
@@ -122,6 +123,9 @@ class LoadChunkTask:
             out.append(_srcs)
         return out
 
+    def resolve_sources_dask(self, dask_key: str) -> list[list[tuple[str, int]]]:
+        return [[(dask_key, idx) for idx, _ in layer] for layer in self.srcs]
+
 
 class DaskGraphBuilder:
     """
@@ -143,6 +147,10 @@ class DaskGraphBuilder:
     ) -> None:
         gbox = gbt.base
         assert isinstance(gbox, GeoBox)
+        # make sure chunks for tyx match our structure
+        chunk_tyx = (chunks.get("time", 1), *gbt.chunk_shape((0, 0)).yx)
+        chunks = {**chunks}
+        chunks.update(dict(zip(["time", "y", "x"], chunk_tyx)))
 
         self.cfg = cfg
         self.template = template
@@ -153,10 +161,20 @@ class DaskGraphBuilder:
         self.rdr = rdr
         self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, chunks)
         self._chunks = chunks
-        self.chunk_tyx = (chunks.get("time", 1), *self.gbt.chunk_shape((0, 0)).yx)
-        self._load_state = rdr.new_load(
-            gbox, chunks=dict(zip(["time", "y", "x"], self.chunk_tyx))
+        self._load_state = rdr.new_load(gbox, chunks=chunks)
+
+    def _band_chunks(
+        self,
+        band: str,
+        shape: tuple[int, ...],
+        ydim: int,
+    ) -> tuple[tuple[int, ...], ...]:
+        chunks = resolve_chunks(
+            (shape[0], shape[ydim], shape[ydim + 1]),
+            self._chunks,
+            extra_dims=self.template.extra_dims_full(band),
         )
+        return denorm_ydim(chunks, ydim)
 
     def build(
         self,
@@ -222,58 +240,34 @@ class DaskGraphBuilder:
         src_key, load_state = self._prep_sources(name, dsk, deps)
 
         band_key = f"{name}-{tk}"
+        chunks = self._band_chunks(name, shape, ydim)
 
-        postfix_dims = shape[ydim + 2 :]
-        prefix_dims = shape[1:ydim]
-
-        chunk_shape: Tuple[int, ...] = (
-            self.chunk_tyx[0],
-            *prefix_dims,
-            *self.chunk_tyx[1:],
-            *postfix_dims,
-        )
-        assert len(chunk_shape) == len(shape)
-        chunks: tuple[tuple[int, ...], ...] = normalize_chunks(chunk_shape, shape)
-        tchunk_range = [
-            range(last - n, last) for last, n in zip(np.cumsum(chunks[0]), chunks[0])
-        ]
-
-        shape_in_blocks = tuple(len(ch) for ch in chunks)
-
-        for block_idx in np.ndindex(shape_in_blocks):
-            ti, yi, xi = block_idx[0], block_idx[ydim], block_idx[ydim + 1]
-            srcs_keys: list[list[tuple[str, int]]] = []
-            for _ti in tchunk_range[ti]:
-                srcs_keys.append(
-                    [
-                        (src_key, src_idx)
-                        for src_idx in self.tyx_bins.get((_ti, yi, xi), [])
-                        if (src_key, src_idx) in dsk
-                    ]
-                )
-
-            dsk[(band_key, *block_idx)] = (
+        for task in self.load_tasks(name, shape[0]):
+            dsk[(band_key, *task.idx)] = (
                 _dask_loader_tyx,
-                srcs_keys,
+                task.resolve_sources_dask(src_key),
                 gbt_dask_key,
-                quote((yi, xi)),
-                quote(prefix_dims),
-                quote(postfix_dims),
+                quote(task.idx_tyx[1:]),
+                quote(task.prefix_dims),
+                quote(task.postfix_dims),
                 cfg_dask_key,
                 self.rdr,
                 self.env,
                 load_state,
+                task.selection,
             )
 
         dsk = HighLevelGraph.from_collections(band_key, dsk, dependencies=deps)
 
         return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
 
-    def load_tasks(self, name: str) -> Iterator[LoadChunkTask]:
+    def load_tasks(self, name: str, nt: int) -> Iterator[LoadChunkTask]:
         return load_tasks(
             self.cfg,
             self.tyx_bins,
             self.gbt,
+            nt=nt,
+            chunks=self._chunks,
             extra_dims=self.template.extra_dims_full(name),
             bands=[name],
         )
@@ -299,6 +293,7 @@ def _dask_loader_tyx(
     rdr: ReaderDriver,
     env: Dict[str, Any],
     load_state: Any,
+    selection: Any | None = None,
 ):
     assert cfg.dtype is not None
     gbox = cast(GeoBox, gbt[iyx])
@@ -309,7 +304,9 @@ def _dask_loader_tyx(
     ydim = len(prefix_dims)
     with rdr.restore_env(env, load_state):
         for ti, ti_srcs in enumerate(srcs):
-            _fill_nd_slice(ti_srcs, gbox, cfg, chunk[ti], ydim=ydim)
+            _fill_nd_slice(
+                ti_srcs, gbox, cfg, chunk[ti], ydim=ydim, selection=selection
+            )
         return chunk
 
 
@@ -319,12 +316,14 @@ def _fill_nd_slice(
     cfg: RasterLoadParams,
     dst: Any,
     ydim: int = 0,
+    selection: Any | None = None,
 ) -> Any:
     # TODO: support masks not just nodata based fusing
     #
     # ``nodata``     marks missing pixels, but it might be None (everything is valid)
     # ``fill_value`` is the initial value to use, it's equal to ``nodata`` when set,
     #                otherwise defaults to .nan for floats and 0 for integers
+    # pylint: disable=too-many-locals
 
     assert dst.shape[ydim : ydim + 2] == dst_gbox.shape.yx
     postfix_roi = (slice(None),) * len(dst.shape[ydim + 2 :])
@@ -338,13 +337,13 @@ def _fill_nd_slice(
         return dst
 
     src, *rest = srcs
-    yx_roi, pix = src.read(cfg, dst_gbox, dst=dst)
+    yx_roi, pix = src.read(cfg, dst_gbox, dst=dst, selection=selection)
     assert len(yx_roi) == 2
     assert pix.ndim == dst.ndim
 
     for src in rest:
         # first valid pixel takes precedence over others
-        yx_roi, pix = src.read(cfg, dst_gbox)
+        yx_roi, pix = src.read(cfg, dst_gbox, selection=selection)
         assert len(yx_roi) == 2
         assert pix.ndim == dst.ndim
 
@@ -521,7 +520,7 @@ def dask_chunked_load(
     return dask_loader.build(gbox, tss, load_cfg)
 
 
-def denorm_ydim(x: tuple[int, ...], ydim: int) -> tuple[int, ...]:
+def denorm_ydim(x: tuple[T, ...], ydim: int) -> tuple[T, ...]:
     ydim = ydim - 1
     if ydim == 0:
         return x
@@ -546,14 +545,14 @@ def load_tasks(
     instances for every possible time, y, x, bins, including empty ones.
     """
     # pylint: disable=too-many-locals
+    extra_dims = extra_dims or {}
+    chunks = chunks or {}
+
     if nt is None:
         nt = max(t for t, _, _ in tyx_bins) + 1
 
-    if extra_dims is None:
-        extra_dims = {}
-    if chunks is None:
-        chunks = {}
-
+    chunks = {**chunks}
+    chunks.update(zip(["y", "x"], gbt.chunk_shape((0, 0)).yx))
     base_shape = (nt, *gbt.base.shape.yx)
 
     if bands is None:
@@ -612,6 +611,8 @@ def load_tasks(
                 )
                 if len(selection) == 1:
                     selection = selection[0]
+                    if shape_in_chunks[3] == 1:
+                        selection = None
 
                 yield LoadChunkTask(
                     band_name,
@@ -681,6 +682,8 @@ def direct_chunked_load(
         nt=nt,
         extra_dims=template.extra_dims_full(),
     )
+    tasks = list(tasks)
+    assert len(tasks) == total_tasks
 
     _work = pmap(_do_one, tasks, pool)
 

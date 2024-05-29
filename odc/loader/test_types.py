@@ -76,11 +76,13 @@ def test_raster_band():
     assert RasterBandMetadata("float32", -9999).nodata == -9999
     assert RasterBandMetadata().units == "1"
     assert RasterBandMetadata().unit == "1"
+    assert RasterBandMetadata().ndim == 2
     assert RasterBandMetadata("float32").data_type == "float32"
     assert RasterBandMetadata("float32").dtype == "float32"
     assert RasterBandMetadata(dims=("y", "x", "B")).ydim == 0
     assert RasterBandMetadata(dims=("B", "y", "x")).ydim == 1
     assert RasterBandMetadata(dims=("B", "y", "x")).extra_dims == ("B",)
+    assert RasterBandMetadata(dims=("B", "y", "x")).ndim == 3
 
     assert RasterBandMetadata().patch(nodata=-1).nodata == -1
     assert RasterBandMetadata(nodata=10).patch(nodata=-1).nodata == -1
