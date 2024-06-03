@@ -33,7 +33,13 @@ from ._reader import (
     resolve_src_nodata,
     same_nodata,
 )
-from .types import MDParser, RasterLoadParams, RasterSource, ReaderSubsetSelection
+from .types import (
+    DaskRasterReader,
+    MDParser,
+    RasterLoadParams,
+    RasterSource,
+    ReaderSubsetSelection,
+)
 
 log = logging.getLogger(__name__)
 
@@ -143,7 +149,11 @@ class RioDriver:
         return RioReader(src, ctx)
 
     @property
-    def md_parser(self) -> Optional[MDParser]:
+    def md_parser(self) -> MDParser | None:
+        return None
+
+    @property
+    def dask_reader(self) -> DaskRasterReader | None:
         return None
 
 

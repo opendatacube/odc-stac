@@ -14,6 +14,7 @@ from odc.geo.xr import ODCExtensionDa, ODCExtensionDs, xr_reproject
 
 from ..types import (
     BandKey,
+    DaskRasterReader,
     FixedCoord,
     MDParser,
     RasterBandMetadata,
@@ -149,6 +150,10 @@ class XrMemReaderDriver:
     @property
     def md_parser(self) -> MDParser:
         return XrMDPlugin(self.src)
+
+    @property
+    def dask_reader(self) -> DaskRasterReader | None:
+        return None
 
 
 def band_info(xx: xr.DataArray) -> RasterBandMetadata:

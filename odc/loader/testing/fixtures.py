@@ -22,6 +22,7 @@ from odc.geo.xr import ODCExtensionDa
 from .._reader import expand_selection
 from ..types import (
     BandKey,
+    DaskRasterReader,
     MDParser,
     RasterGroupMetadata,
     RasterLoadParams,
@@ -239,3 +240,7 @@ class FakeReaderDriver:
     @property
     def md_parser(self) -> MDParser | None:
         return self._parser
+
+    @property
+    def dask_reader(self) -> DaskRasterReader | None:
+        return None

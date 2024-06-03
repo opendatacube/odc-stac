@@ -445,6 +445,30 @@ class RasterReader(Protocol):
     ) -> tuple[tuple[slice, slice], np.ndarray]: ...
 
 
+class DaskRasterReader(Protocol):
+    """
+    Protocol for raster readers that produce Dask sub-graphs.
+
+    ``.read`` method should return a Dask future evaluating to a numpy array of
+    pixels for a given geobox, alternatively dask future may evaluate to a
+    subset of the geobox overlapping with the source. In this case Dask future
+    should evaluate to a tuple: ``(yx_slice, pixels)``, such that
+    ``dst_geobox[yx_slice].shape == pixels.shape[ydim:ydim+2]``.
+    """
+
+    # pylint: disable=too-few-public-methods
+
+    def read(
+        self,
+        cfg: RasterLoadParams,
+        dst_geobox: GeoBox,
+        *,
+        selection: Optional[ReaderSubsetSelection] = None,
+    ) -> Any: ...
+
+    def open(self, src: RasterSource, ctx: Any) -> "DaskRasterReader": ...
+
+
 class ReaderDriver(Protocol):
     """
     Protocol for reader drivers.
@@ -469,6 +493,9 @@ class ReaderDriver(Protocol):
 
     @property
     def md_parser(self) -> MDParser | None: ...
+
+    @property
+    def dask_reader(self) -> DaskRasterReader | None: ...
 
 
 ReaderDriverSpec = Union[str, ReaderDriver]
