@@ -68,7 +68,7 @@ class LoadChunkTask:
     # pylint: disable=too-many-instance-attributes
 
     band: str
-    srcs: List[List[Tuple[int, str]]]
+    srcs: List[List[int]]
     cfg: RasterLoadParams
     gbt: GeoboxTiles
     idx: Tuple[int, ...]
@@ -116,15 +116,24 @@ class LoadChunkTask:
 
         for layer in self.srcs:
             _srcs: List[RasterSource] = []
-            for idx, b in layer:
-                src = srcs[idx].get(b, None)
+            for idx in layer:
+                src = srcs[idx].get(self.band, None)
                 if src is not None:
                     _srcs.append(src)
             out.append(_srcs)
         return out
 
-    def resolve_sources_dask(self, dask_key: str) -> list[list[tuple[str, int]]]:
-        return [[(dask_key, idx) for idx, _ in layer] for layer in self.srcs]
+    def resolve_sources_dask(
+        self, dask_key: str, dsk: Mapping[Key, Any] | None = None
+    ) -> list[list[tuple[str, int]]]:
+        if dsk is None:
+            return [[(dask_key, idx) for idx in layer] for layer in self.srcs]
+
+        # Skip missing sources
+        return [
+            [(dask_key, idx) for idx in layer if (dask_key, idx) in dsk]
+            for layer in self.srcs
+        ]
 
 
 class DaskGraphBuilder:
@@ -245,7 +254,7 @@ class DaskGraphBuilder:
         for task in self.load_tasks(name, shape[0]):
             dsk[(band_key, *task.idx)] = (
                 _dask_loader_tyx,
-                task.resolve_sources_dask(src_key),
+                task.resolve_sources_dask(src_key, dsk),
                 gbt_dask_key,
                 quote(task.idx_tyx[1:]),
                 quote(task.prefix_dims),
@@ -575,11 +584,11 @@ def load_tasks(
 
         for idx in np.ndindex(shape_in_chunks[:3]):
             tBi, yi, xi = idx  # type: ignore
-            srcs: List[List[Tuple[int, str]]] = []
+            srcs: List[List[int]] = []
             t0, nt = _offsets[0][tBi], _chunks[0][tBi]
             for ti in range(t0, t0 + nt):
                 tyx_idx = (ti, yi, xi)
-                srcs.append([(idx, band_name) for idx in tyx_bins.get(tyx_idx, [])])
+                srcs.append(tyx_bins.get(tyx_idx, []))
 
             chunk_shape_tyx: tuple[int, ...] = tuple(
                 _chunks[dim][i_chunk] for dim, i_chunk in enumerate(idx)
