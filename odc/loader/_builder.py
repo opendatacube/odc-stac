@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import (
@@ -33,9 +34,15 @@ from numpy.typing import DTypeLike
 from odc.geo.geobox import GeoBox, GeoBoxBase, GeoboxTiles
 from odc.geo.xr import xr_coords
 
-from ._reader import nodata_mask, resolve_dst_fill_value, resolve_src_nodata
+from ._reader import (
+    ReaderDaskAdaptor,
+    nodata_mask,
+    resolve_dst_fill_value,
+    resolve_src_nodata,
+)
 from ._utils import SizedIterable, pmap
 from .types import (
+    DaskRasterReader,
     MultiBandRasterSource,
     RasterGroupMetadata,
     RasterLoadParams,
@@ -44,6 +51,8 @@ from .types import (
     ReaderDriver,
     T,
 )
+
+DaskBuilderMode = Literal["mem", "concurrency"]
 
 
 class MkArray(Protocol):
@@ -137,6 +146,13 @@ class LoadChunkTask:
         ]
 
 
+def _default_dask_mode() -> DaskBuilderMode:
+    mode = os.environ.get("ODC_STAC_DASK_MODE", "mem")
+    if mode == "concurrency":
+        return "concurrency"
+    return "mem"
+
+
 class DaskGraphBuilder:
     """
     Build xarray from parsed metadata.
@@ -154,6 +170,7 @@ class DaskGraphBuilder:
         env: Dict[str, Any],
         rdr: ReaderDriver,
         chunks: Mapping[str, int],
+        mode: DaskBuilderMode | Literal["auto"] = "auto",
     ) -> None:
         gbox = gbt.base
         assert isinstance(gbox, GeoBox)
@@ -161,6 +178,9 @@ class DaskGraphBuilder:
         chunk_tyx = (chunks.get("time", 1), *gbt.chunk_shape((0, 0)).yx)
         chunks = {**chunks}
         chunks.update(dict(zip(["time", "y", "x"], chunk_tyx)))
+        if mode == "auto":
+            # "mem" unless overwriten by env var
+            mode = _default_dask_mode()
 
         self.cfg = cfg
         self.template = template
@@ -169,8 +189,9 @@ class DaskGraphBuilder:
         self.gbt = gbt
         self.env = env
         self.rdr = rdr
-        self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, chunks)
+        self._tk = tokenize(srcs, cfg, gbt, tyx_bins, env, chunks, mode)
         self._chunks = chunks
+        self._mode = mode
         self._load_state = rdr.new_load(gbox, chunks=chunks)
 
     def _band_chunks(
@@ -191,7 +212,7 @@ class DaskGraphBuilder:
         gbox: GeoBox,
         time: Sequence[datetime],
         bands: Mapping[str, RasterLoadParams],
-    ):
+    ) -> xr.Dataset:
         return mk_dataset(
             gbox,
             time,
@@ -200,16 +221,21 @@ class DaskGraphBuilder:
             template=self.template,
         )
 
-    def _prep_sources(
-        self, name: str, dsk: dict[Key, Any], deps: list[Any]
-    ) -> tuple[str, Any]:
+    def _norm_load_state(self, cfg_layer: dict[Key, Any]) -> tuple[Any, Any]:
         load_state = self._load_state
         if is_dask_collection(load_state):
-            deps.append(load_state)
-            load_state = load_state.key
+            cfg_layer.update(load_state.dask)
+            return load_state, load_state.key
 
-        tk = self._tk
-        src_key = f"open-{name}-{tk}"
+        return load_state, load_state
+
+    def _prep_sources(
+        self,
+        name: str,
+        dsk: dict[Key, Any],
+        load_state_dsk: Any,
+    ) -> dict[Key, Any]:
+        src_key = f"open-{name}-{self._tk}"
 
         for src_idx, mbsrc in enumerate(self.srcs):
             rsrc = mbsrc.get(name, None)
@@ -219,9 +245,41 @@ class DaskGraphBuilder:
                     rsrc,
                     self.rdr,
                     self.env,
-                    load_state,
+                    load_state_dsk,
                 )
-        return src_key, load_state
+        return dsk
+
+    def _dask_rdr(self) -> DaskRasterReader:
+        if (dask_reader := self.rdr.dask_reader) is not None:
+            return dask_reader
+        return ReaderDaskAdaptor(self.rdr, self.env)
+
+    def _task_futures(
+        self,
+        task: LoadChunkTask,
+        dask_reader: DaskRasterReader,
+        layer_name: str,
+        dsk: dict[Key, Any],
+    ) -> list[list[Key]]:
+        # pylint: disable=too-many-locals
+        srcs = task.resolve_sources(self.srcs)
+        out: list[list[Key]] = []
+        ctx = self._load_state
+        cfg = task.cfg
+        dst_gbox = task.dst_gbox
+
+        for i_time, layer in enumerate(srcs, start=task.idx[0]):
+            keys_out: list[Key] = []
+            for i_src, src in enumerate(layer):
+                idx = (i_time, *task.idx[1:], i_src)
+                rdr = dask_reader.open(src, ctx, layer_name=layer_name)
+                fut = rdr.read(cfg, dst_gbox, selection=task.selection, idx=idx)
+                keys_out.append(fut.key)
+                dsk.update(fut.dask)
+
+            out.append(keys_out)
+
+        return out
 
     def __call__(
         self,
@@ -237,39 +295,81 @@ class DaskGraphBuilder:
         cfg = self.cfg[name]
         assert dtype == cfg.dtype
         assert ydim == cfg.ydim + 1  # +1 for time dimension
-
-        tk = self._tk
-        deps: list[Any] = []
-        cfg_dask_key = f"cfg-{tokenize(cfg)}"
-        gbt_dask_key = f"grid-{tokenize(self.gbt)}"
-
-        dsk: Dict[Key, Any] = {
-            cfg_dask_key: cfg,
-            gbt_dask_key: self.gbt,
-        }
-        src_key, load_state = self._prep_sources(name, dsk, deps)
-
-        band_key = f"{name}-{tk}"
         chunks = self._band_chunks(name, shape, ydim)
 
+        tk = self._tk
+        cfg_dsk = f"cfg-{tokenize(cfg)}"
+        gbt_dsk = f"grid-{tokenize(self.gbt)}"
+
+        cfg_layer, open_layer, band_layer = (
+            f"cfg-{name}-{tk}",
+            f"open-{name}-{tk}",
+            f"{name}-{tk}",
+        )
+
+        layers: Dict[str, Dict[Key, Any]] = {
+            cfg_layer: {
+                cfg_dsk: cfg,
+                gbt_dsk: self.gbt,
+            },
+            open_layer: {},
+            band_layer: {},
+        }
+        layer_deps: Dict[str, Any] = {
+            cfg_layer: set(),
+            open_layer: set([cfg_layer]),
+            band_layer: set([cfg_layer, open_layer]),
+        }
+
+        dsk = layers[f"{name}-{tk}"]
+
+        dask_reader: DaskRasterReader | None = None
+        load_state, load_state_dsk = self._norm_load_state(layers[cfg_layer])
+        assert load_state is load_state_dsk or is_dask_collection(load_state)
+
+        if self._mode == "mem":
+            self._prep_sources(name, layers[open_layer], load_state_dsk)
+        else:
+            dask_reader = self._dask_rdr()
+
+        fill_value = resolve_dst_fill_value(
+            np.dtype(dtype),
+            cfg,
+            resolve_src_nodata(cfg.fill_value, cfg),
+        )
+
         for task in self.load_tasks(name, shape[0]):
-            dsk[(band_key, *task.idx)] = (
-                _dask_loader_tyx,
-                task.resolve_sources_dask(src_key, dsk),
-                gbt_dask_key,
-                quote(task.idx_tyx[1:]),
-                quote(task.prefix_dims),
-                quote(task.postfix_dims),
-                cfg_dask_key,
-                self.rdr,
-                self.env,
-                load_state,
-                task.selection,
-            )
+            task_key: Key = (band_layer, *task.idx)
+            if dask_reader is None:
+                dsk[task_key] = (
+                    _dask_loader_tyx,
+                    task.resolve_sources_dask(open_layer, layers[open_layer]),
+                    gbt_dsk,
+                    quote(task.idx_tyx[1:]),
+                    quote(task.prefix_dims),
+                    quote(task.postfix_dims),
+                    cfg_dsk,
+                    self.rdr,
+                    self.env,
+                    load_state_dsk,
+                    task.selection,
+                )
+            else:
+                srcs_futures = self._task_futures(
+                    task, dask_reader, open_layer, layers[open_layer]
+                )
 
-        dsk = HighLevelGraph.from_collections(band_key, dsk, dependencies=deps)
+                dsk[task_key] = (
+                    _dask_fuser,
+                    srcs_futures,
+                    task.shape,
+                    dtype,
+                    fill_value,
+                    ydim - 1,
+                )
 
-        return da.Array(dsk, band_key, chunks, dtype=dtype, shape=shape)
+        dsk = HighLevelGraph(layers, layer_deps)
+        return da.Array(dsk, band_layer, chunks, dtype=dtype, shape=shape)
 
     def load_tasks(self, name: str, nt: int) -> Iterator[LoadChunkTask]:
         return load_tasks(
@@ -318,6 +418,30 @@ def _dask_loader_tyx(
                 ti_srcs, gbox, cfg, chunk[ti], ydim=ydim, selection=selection
             )
         return chunk
+
+
+def _dask_fuser(
+    srcs: list[list[Any]],
+    shape: tuple[int, ...],
+    dtype: DTypeLike,
+    fill_value: float | int,
+    src_ydim: int = 0,
+):
+    assert shape[0] == len(srcs)
+    assert len(shape) >= 3  # time, ..., y, x, ...
+
+    dst = np.full(shape, fill_value, dtype=dtype)
+
+    for ti, layer in enumerate(srcs):
+        fuse_nd_slices(
+            layer,
+            fill_value,
+            dst[ti],
+            ydim=src_ydim,
+            prefilled=True,
+        )
+
+    return dst
 
 
 def fuse_nd_slices(

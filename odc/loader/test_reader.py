@@ -380,13 +380,16 @@ def test_dask_reader_adaptor(dtype: str):
     ctx = base_driver.new_load(gbox, chunks={"x": 64, "y": 64})
 
     src = RasterSource("mem://", meta=meta)
-    rdr = driver.open(src, ctx)
+    rdr = driver.open(src, ctx, layer_name="aa")
 
     assert isinstance(rdr, ReaderDaskAdaptor)
 
     cfg = RasterLoadParams.same_as(src)
-    xx = rdr.read(cfg, gbox)
+    xx = rdr.read(cfg, gbox, idx=(0,))
     assert is_dask_collection(xx)
+    assert xx.key == ("aa", 0)
+    assert rdr.read(cfg, gbox, idx=(1,)).key == ("aa", 1)
+    assert rdr.read(cfg, gbox, idx=(1, 2, 3)).key == ("aa", 1, 2, 3)
 
     yy = xx.compute(scheduler="synchronous")
     assert isinstance(yy, tuple)

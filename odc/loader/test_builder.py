@@ -149,12 +149,14 @@ def test_mk_dataset(
 
 @pytest.mark.parametrize("bands,extra_coords,extra_dims,expect", rlp_fixtures)
 @pytest.mark.parametrize("chunk_extra_dims", [False, True])
+@pytest.mark.parametrize("mode", ["auto", "concurrency"])
 def test_dask_builder(
     bands: Dict[str, RasterLoadParams],
     extra_coords: Sequence[FixedCoord] | None,
     extra_dims: Mapping[str, int] | None,
     expect: Mapping[str, _sn],
     chunk_extra_dims: bool,
+    mode,
 ):
     _bands = {
         k: RasterBandMetadata(b.dtype, b.fill_value, dims=b.dims)
@@ -195,6 +197,7 @@ def test_dask_builder(
         env=rdr_env,
         rdr=rdr,
         chunks=chunks,
+        mode=mode,
     )
 
     xx = builder.build(gbox, tss, bands)

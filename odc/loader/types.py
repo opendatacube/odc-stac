@@ -464,9 +464,16 @@ class DaskRasterReader(Protocol):
         dst_geobox: GeoBox,
         *,
         selection: Optional[ReaderSubsetSelection] = None,
+        idx: tuple[int, ...],
     ) -> Any: ...
 
-    def open(self, src: RasterSource, ctx: Any) -> "DaskRasterReader": ...
+    def open(
+        self,
+        src: RasterSource,
+        ctx: Any,
+        *,
+        layer_name: str,
+    ) -> "DaskRasterReader": ...
 
 
 class ReaderDriver(Protocol):

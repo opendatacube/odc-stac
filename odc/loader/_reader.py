@@ -53,6 +53,7 @@ class ReaderDaskAdaptor:
         env: dict[str, Any] | None = None,
         ctx: Any | None = None,
         src: RasterSource | None = None,
+        layer_name: str = "",
     ) -> None:
         if env is None:
             env = driver.capture_env()
@@ -61,6 +62,7 @@ class ReaderDaskAdaptor:
         self._env = env
         self._ctx = ctx
         self._src = src
+        self._layer_name = layer_name
 
     def read(
         self,
@@ -68,10 +70,11 @@ class ReaderDaskAdaptor:
         dst_geobox: GeoBox,
         *,
         selection: Optional[ReaderSubsetSelection] = None,
+        idx: tuple[int, ...],
     ) -> Any:
         assert self._src is not None
         assert self._ctx is not None
-        read_op = delayed(_dask_read_adaptor)
+        read_op = delayed(_dask_read_adaptor, name=self._layer_name)
 
         # TODO: supply `dask_key_name=` that makes sense
         return read_op(
@@ -82,10 +85,17 @@ class ReaderDaskAdaptor:
             self._driver,
             self._env,
             selection=selection,
+            dask_key_name=(self._layer_name, *idx),
         )
 
-    def open(self, src: RasterSource, ctx: Any) -> "ReaderDaskAdaptor":
-        return ReaderDaskAdaptor(self._driver, self._env, ctx, src)
+    def open(self, src: RasterSource, ctx: Any, layer_name: str) -> "ReaderDaskAdaptor":
+        return ReaderDaskAdaptor(
+            self._driver,
+            self._env,
+            ctx,
+            src,
+            layer_name=layer_name,
+        )
 
 
 def resolve_load_cfg(
