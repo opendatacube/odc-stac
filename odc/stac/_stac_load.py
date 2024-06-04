@@ -412,7 +412,6 @@ def load(
             len(tss),
             gbox,
             chunks,
-            dtype,
             cfg=load_cfg,
             extra_dims=meta.extra_dims_full(),
         )
