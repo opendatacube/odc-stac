@@ -11,15 +11,81 @@ import math
 from typing import Any, Optional, Sequence
 
 import numpy as np
+from dask import delayed
 from numpy.typing import DTypeLike
+from odc.geo.geobox import GeoBox
 
 from .types import (
     RasterBandMetadata,
     RasterLoadParams,
     RasterSource,
+    ReaderDriver,
     ReaderSubsetSelection,
     with_default,
 )
+
+
+def _dask_read_adaptor(
+    src: RasterSource,
+    ctx: Any,
+    cfg: RasterLoadParams,
+    dst_geobox: GeoBox,
+    driver: ReaderDriver,
+    env: dict[str, Any],
+    selection: Optional[ReaderSubsetSelection] = None,
+) -> tuple[tuple[slice, slice], np.ndarray]:
+
+    with driver.restore_env(env, ctx) as local_ctx:
+        rdr = driver.open(src, local_ctx)
+        return rdr.read(cfg, dst_geobox, selection=selection)
+
+
+class ReaderDaskAdaptor:
+    """
+    Creates default ``DaskRasterReader`` from a ``ReaderDriver``.
+
+    Suitable for implementing ``.dask_reader`` property for generic reader drivers.
+    """
+
+    def __init__(
+        self,
+        driver: ReaderDriver,
+        env: dict[str, Any] | None = None,
+        ctx: Any | None = None,
+        src: RasterSource | None = None,
+    ) -> None:
+        if env is None:
+            env = driver.capture_env()
+
+        self._driver = driver
+        self._env = env
+        self._ctx = ctx
+        self._src = src
+
+    def read(
+        self,
+        cfg: RasterLoadParams,
+        dst_geobox: GeoBox,
+        *,
+        selection: Optional[ReaderSubsetSelection] = None,
+    ) -> Any:
+        assert self._src is not None
+        assert self._ctx is not None
+        read_op = delayed(_dask_read_adaptor)
+
+        # TODO: supply `dask_key_name=` that makes sense
+        return read_op(
+            self._src,
+            self._ctx,
+            cfg,
+            dst_geobox,
+            self._driver,
+            self._env,
+            selection=selection,
+        )
+
+    def open(self, src: RasterSource, ctx: Any) -> "ReaderDaskAdaptor":
+        return ReaderDaskAdaptor(self._driver, self._env, ctx, src)
 
 
 def resolve_load_cfg(

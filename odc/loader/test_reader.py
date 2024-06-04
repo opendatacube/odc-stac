@@ -8,12 +8,14 @@ import numpy as np
 import pytest
 import rasterio
 import xarray as xr
+from dask import is_dask_collection
 from numpy import ma
 from numpy.testing import assert_array_equal
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import xr_zeros
 
 from ._reader import (
+    ReaderDaskAdaptor,
     expand_selection,
     pick_overview,
     resolve_band_query,
@@ -23,8 +25,13 @@ from ._reader import (
     same_nodata,
 )
 from ._rio import RioDriver, configure_rio, get_rio_env, rio_read
-from .testing.fixtures import with_temp_tiff
-from .types import RasterBandMetadata, RasterLoadParams, RasterSource
+from .testing.fixtures import FakeReaderDriver, with_temp_tiff
+from .types import (
+    RasterBandMetadata,
+    RasterGroupMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
 
 
 def test_same_nodata():
@@ -358,3 +365,31 @@ def test_reader_fail_on_error():
     assert yy.shape == (0, 0)
     assert yy.dtype == cfg.dtype
     assert roi == np.s_[0:0, 0:0]
+
+
+@pytest.mark.parametrize("dtype", ["int16", "float32"])
+def test_dask_reader_adaptor(dtype: str):
+    gbox = GeoBox.from_bbox((-180, -90, 180, 90), shape=(160, 320), tight=True)
+
+    meta = RasterBandMetadata(dtype, 333)
+    group_md = RasterGroupMetadata({(b, 1): meta for b in ("aa", "bb")})
+
+    base_driver = FakeReaderDriver(group_md)
+    driver = ReaderDaskAdaptor(base_driver)
+
+    ctx = base_driver.new_load(gbox, chunks={"x": 64, "y": 64})
+
+    src = RasterSource("mem://", meta=meta)
+    rdr = driver.open(src, ctx)
+
+    assert isinstance(rdr, ReaderDaskAdaptor)
+
+    cfg = RasterLoadParams.same_as(src)
+    xx = rdr.read(cfg, gbox)
+    assert is_dask_collection(xx)
+
+    yy = xx.compute(scheduler="synchronous")
+    assert isinstance(yy, tuple)
+    yx_roi, pix = yy
+    assert pix.shape == gbox[yx_roi].shape.yx
+    assert pix.dtype == dtype
