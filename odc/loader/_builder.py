@@ -9,6 +9,7 @@ from typing import (
     Any,
     Dict,
     Hashable,
+    Iterable,
     Iterator,
     List,
     Literal,
@@ -319,6 +320,29 @@ def _dask_loader_tyx(
         return chunk
 
 
+def fuse_nd_slices(
+    srcs: Iterable[tuple[tuple[slice, slice], np.ndarray]],
+    fill_value: float | int,
+    dst: Any,
+    ydim: int = 0,
+    prefilled: bool = False,
+) -> Any:
+    postfix_roi = (slice(None),) * len(dst.shape[ydim + 2 :])
+    prefix_roi = (slice(None),) * ydim
+
+    if not prefilled:
+        np.copyto(dst, fill_value)
+
+    for yx_roi, pix in srcs:
+        _roi: tuple[slice, ...] = prefix_roi + yx_roi + postfix_roi  # type: ignore
+        assert dst[_roi].shape == pix.shape
+
+        missing = nodata_mask(dst[_roi], fill_value)
+        np.copyto(dst[_roi], pix, where=missing)
+
+    return dst
+
+
 def _fill_nd_slice(
     srcs: Sequence[RasterReader],
     dst_gbox: GeoBox,
@@ -335,9 +359,6 @@ def _fill_nd_slice(
     # pylint: disable=too-many-locals
 
     assert dst.shape[ydim : ydim + 2] == dst_gbox.shape.yx
-    postfix_roi = (slice(None),) * len(dst.shape[ydim + 2 :])
-    prefix_roi = (slice(None),) * ydim
-
     nodata = resolve_src_nodata(cfg.fill_value, cfg)
     fill_value = resolve_dst_fill_value(dst.dtype, cfg, nodata)
 
@@ -350,22 +371,13 @@ def _fill_nd_slice(
     assert len(yx_roi) == 2
     assert pix.ndim == dst.ndim
 
-    for src in rest:
-        # first valid pixel takes precedence over others
-        yx_roi, pix = src.read(cfg, dst_gbox, selection=selection)
-        assert len(yx_roi) == 2
-        assert pix.ndim == dst.ndim
-
-        _roi: Tuple[slice,] = prefix_roi + yx_roi + postfix_roi  # type: ignore
-        assert dst[_roi].shape == pix.shape
-
-        # nodata mask takes care of nan when working with floats
-        # so you can still get proper mask even when nodata is None
-        # when working with float32 data.
-        missing = nodata_mask(dst[_roi], nodata)
-        np.copyto(dst[_roi], pix, where=missing)
-
-    return dst
+    return fuse_nd_slices(
+        (src.read(cfg, dst_gbox, selection=selection) for src in rest),
+        fill_value,
+        dst,
+        ydim=ydim,
+        prefilled=True,
+    )
 
 
 def mk_dataset(
