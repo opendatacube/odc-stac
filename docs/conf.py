@@ -23,6 +23,11 @@ sys.path.insert(0, os.path.abspath(".."))
 from odc.stac._version import __version__ as _odc_stac_version
 from scripts import notebook_hash
 
+# isort: off
+# extra imports to check env
+import odc.stac.bench
+import odc.stac.eo3
+
 
 # Workaround for https://github.com/agronholm/sphinx-autodoc-typehints/issues/123
 # When this https://github.com/agronholm/sphinx-autodoc-typehints/pull/153
