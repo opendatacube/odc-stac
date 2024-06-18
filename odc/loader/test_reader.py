@@ -310,23 +310,32 @@ def test_rio_read_rgb(resamlpling, dims):
             band=0,
             meta=RasterBandMetadata(cfg.dtype, dims=cfg.dims),
         )
-        for gb in [gbox, gbox2]:
-            expect_shape = (3, *gb.shape) if src.ydim == 1 else (*gb.shape, 3)
-            expect_shape_2 = (2, *gb.shape) if src.ydim == 1 else (*gb.shape, 2)
+        assert src.ydim in (0, 1)
 
+        for gb in [gbox, gbox2]:
             roi, pix = rio_read(src, cfg, gb)
+
+            if src.ydim == 1:
+                expect_shape = (3, *gb[roi].shape.yx)
+                expect_shape_2 = (2, *gb[roi].shape.yx)
+                _dst = np.zeros((3, *gb.shape.yx), dtype=pix.dtype)
+            else:
+                assert src.ydim == 0
+                expect_shape = (*gb[roi].shape.yx, 3)
+                expect_shape_2 = (*gb[roi].shape.yx, 2)
+                _dst = np.zeros((*gb.shape.yx, 3), dtype=pix.dtype)
 
             assert len(roi) == 2
             assert pix.ndim == 3
             assert pix.shape == expect_shape
 
             # again but with dst=
-            _, pix2 = rio_read(src, cfg, gb, dst=pix)
-            assert pix2.shape == pix.shape
+            _roi, pix2 = rio_read(src, cfg, gb, dst=_dst)
+            assert pix2.shape == _dst[(np.s_[:],) * src.ydim + _roi].shape
 
             # again but with selection
-            roi, pix = rio_read(src, cfg, gb, selection=np.s_[:2])
-            assert len(roi) == 2
+            roi_2, pix = rio_read(src, cfg, gb, selection=np.s_[:2])
+            assert roi == roi_2
             assert pix.ndim == 3
             assert pix.shape == expect_shape_2
 
