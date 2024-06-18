@@ -272,7 +272,7 @@ class DaskGraphBuilder:
             keys_out: list[Key] = []
             for i_src, src in enumerate(layer):
                 idx = (i_time, *task.idx[1:], i_src)
-                rdr = dask_reader.open(src, ctx, layer_name=layer_name)
+                rdr = dask_reader.open(src, ctx, layer_name=layer_name, idx=i_src)
                 fut = rdr.read(cfg, dst_gbox, selection=task.selection, idx=idx)
                 keys_out.append(fut.key)
                 dsk.update(fut.dask)

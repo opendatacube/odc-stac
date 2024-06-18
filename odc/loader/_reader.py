@@ -54,6 +54,7 @@ class ReaderDaskAdaptor:
         ctx: Any | None = None,
         src: RasterSource | None = None,
         layer_name: str = "",
+        idx: int = -1,
     ) -> None:
         if env is None:
             env = driver.capture_env()
@@ -63,6 +64,7 @@ class ReaderDaskAdaptor:
         self._ctx = ctx
         self._src = src
         self._layer_name = layer_name
+        self._src_idx = idx
 
     def read(
         self,
@@ -88,13 +90,16 @@ class ReaderDaskAdaptor:
             dask_key_name=(self._layer_name, *idx),
         )
 
-    def open(self, src: RasterSource, ctx: Any, layer_name: str) -> "ReaderDaskAdaptor":
+    def open(
+        self, src: RasterSource, ctx: Any, layer_name: str, idx: int
+    ) -> "ReaderDaskAdaptor":
         return ReaderDaskAdaptor(
             self._driver,
             self._env,
             ctx,
             src,
             layer_name=layer_name,
+            idx=idx,
         )
 
 

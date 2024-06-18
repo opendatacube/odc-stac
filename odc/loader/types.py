@@ -473,6 +473,7 @@ class DaskRasterReader(Protocol):
         ctx: Any,
         *,
         layer_name: str,
+        idx: int,
     ) -> "DaskRasterReader": ...
 
 

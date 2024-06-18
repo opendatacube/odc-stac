@@ -380,7 +380,7 @@ def test_dask_reader_adaptor(dtype: str):
     ctx = base_driver.new_load(gbox, chunks={"x": 64, "y": 64})
 
     src = RasterSource("mem://", meta=meta)
-    rdr = driver.open(src, ctx, layer_name="aa")
+    rdr = driver.open(src, ctx, layer_name="aa", idx=0)
 
     assert isinstance(rdr, ReaderDaskAdaptor)
 
