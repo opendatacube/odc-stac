@@ -36,6 +36,7 @@ dependencies:
   - pystac-client >=0.2.0
   - geopandas
   - stackstac
+  - zarr
 
   # for docs
   - sphinx
