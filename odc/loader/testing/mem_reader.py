@@ -37,7 +37,7 @@ class XrMDPlugin:
 
     def __init__(self, src: xr.Dataset) -> None:
         self._src = src
-        self._md = _extract_xr_md(src)
+        self._md = raster_group_md(src)
 
     def extract(self, md: Any) -> RasterGroupMetadata:
         """Fixed description of src dataset."""
@@ -177,7 +177,7 @@ def band_info(xx: xr.DataArray) -> RasterBandMetadata:
     )
 
 
-def _extract_xr_md(src: xr.Dataset) -> RasterGroupMetadata:
+def raster_group_md(src: xr.Dataset) -> RasterGroupMetadata:
     oo: ODCExtensionDs = src.odc
     sdims = oo.spatial_dims or ("y", "x")
 
