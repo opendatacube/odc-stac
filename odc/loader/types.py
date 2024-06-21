@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import astuple, dataclass, field, replace
 from typing import (
     Any,
@@ -17,6 +18,7 @@ from typing import (
 )
 
 import numpy as np
+from odc.geo import Unset
 from odc.geo.geobox import GeoBox
 
 T = TypeVar("T")
@@ -89,7 +91,7 @@ class RasterBandMetadata:
         """
         return {
             "data_type": self.data_type,
-            "nodata": self.nodata,
+            "nodata": _maybe_json(self.nodata),
             "units": self.units,
             "dims": self.dims,
         }
@@ -148,12 +150,13 @@ class FixedCoord:
         """
         Return a JSON serializable representation of the FixedCoord object.
         """
+
         return {
             "name": self.name,
-            "values": list(self.values),
+            "values": [_maybe_json(v) for v in self.values],
             "dim": self.dim,
-            "dtype": self.dtype,
-            "units": self.units,
+            "dtype": str(self.dtype),
+            "units": str(self.units),
         }
 
 
@@ -299,7 +302,14 @@ class RasterSource:
         if gbox is not None:
             doc["crs"] = str(gbox.crs)
             doc["transform"] = [*gbox.transform][:6]
-            doc["shape"] = gbox.shape.yx
+            doc["shape"] = list(gbox.shape.yx)
+
+        doc["driver_data"] = _maybe_json(
+            self.driver_data,
+            allow_nan=False,
+            roundtrip=True,
+            on_error="SET, NOT JSON SERIALIZABLE",
+        )
 
         return doc
 
@@ -403,14 +413,14 @@ class RasterLoadParams:
         Return a JSON serializable representation of the RasterLoadParams object.
         """
         return {
-            "dtype": self.dtype,
-            "fill_value": self.fill_value,
+            "dtype": _maybe_json(self.dtype, on_error=str),
+            "fill_value": _maybe_json(self.fill_value),
             "src_nodata_fallback": self.src_nodata_fallback,
             "src_nodata_override": self.src_nodata_override,
             "use_overviews": self.use_overviews,
             "resampling": self.resampling,
             "fail_on_error": self.fail_on_error,
-            "dims": self.dims,
+            "dims": list(self.dims),
         }
 
 
@@ -588,3 +598,47 @@ def _extra_dims(dims: tuple[str, ...]) -> tuple[str, ...]:
         return ()
     ydim = _ydim(dims)
     return dims[:ydim] + dims[ydim + 2 :]
+
+
+def _jsonify_float(nodata: float) -> float | str:
+    assert isinstance(nodata, float)
+    if np.isfinite(nodata):
+        return nodata
+    return str(nodata)
+
+
+def _maybe_json(
+    obj,
+    *,
+    on_error=Unset(),
+    allow_nan: bool = False,
+    roundtrip: bool = False,
+):
+    """
+    Try to convert object to json string, return on_error on failure
+    """
+    # pylint: disable=unnecessary-lambda-assignment
+    if isinstance(obj, (int, str, bool, type(None))):
+        return obj
+
+    if isinstance(obj, float):
+        return _jsonify_float(obj)
+
+    if isinstance(on_error, Unset):
+        on_error = lambda _: "** NOT JSON SERIALIZABLE **"
+
+    if not callable(on_error):
+        on_error = lambda _: on_error
+
+    try:
+        json_txt = json.dumps(obj, allow_nan=allow_nan)
+    except ValueError:
+        return on_error(obj)
+
+    if roundtrip:
+        try:
+            obj = json.loads(json_txt)
+        except ValueError:
+            return on_error(obj)
+
+    return obj

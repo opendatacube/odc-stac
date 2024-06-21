@@ -51,7 +51,7 @@ def test_repr_json_smoke(xx):
         assert "crs" in dd
         assert "transform" in dd
         assert "shape" in dd
-        assert dd["shape"] == gbox.shape.yx
+        assert dd["shape"] == list(gbox.shape.yx)
         assert dd["crs"] == str(gbox.crs)
         assert dd["transform"] == list(gbox.transform)[:6]
 
