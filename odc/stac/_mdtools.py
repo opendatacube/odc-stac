@@ -692,8 +692,11 @@ def parse_item(
             )  # pragma: no cover (https://github.com/stac-utils/pystac/issues/754)
 
         driver_data: Any = None
+        subdataset: str | None = None
         if md_plugin is not None:
             driver_data = md_plugin.driver_data(asset, bk)
+            if isinstance(driver_data, dict):
+                subdataset = driver_data.get("subdataset", None)
 
         # Assumption: if extra dims are defined then asset bands are loaded into 3d+ array
         if meta.extra_dims:
@@ -702,6 +705,7 @@ def parse_item(
         bands[bk] = RasterSource(
             uri=uri,
             band=band_idx,
+            subdataset=subdataset,
             geobox=geobox,
             meta=meta,
             driver_data=driver_data,

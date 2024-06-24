@@ -275,6 +275,16 @@ def test_parse_item_with_plugin():
     assert pit.collection["b2"].data_type == "float32"
     assert pit["b1"].driver_data == {"foo": "bar"}
     assert pit["b2"].driver_data == {"foo": "bar"}
+    assert pit["b1"].subdataset is None
+    assert pit["b2"].subdataset is None
+
+    md_plugin = FakeMDPlugin(group_md, {"foo": "bar"}, add_subdataset=True)
+    pit = parse_item(item, md_plugin=md_plugin)
+    assert isinstance(pit, ParsedItem)
+    assert pit.collection["b1"].data_type == "uint8"
+    assert pit["b1"].driver_data == {"foo": "bar", "subdataset": "AA"}
+    assert pit["b1"].subdataset == "AA"
+    assert pit["b2"].subdataset == "AA"
 
 
 def test_noassets_case(no_bands_stac):

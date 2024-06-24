@@ -96,9 +96,11 @@ class FakeMDPlugin:
         self,
         group_md: RasterGroupMetadata,
         driver_data,
+        add_subdataset: bool = False,
     ):
         self._group_md = group_md
         self._driver_data = driver_data
+        self._add_subdataset = add_subdataset
 
     def extract(self, md: Any) -> RasterGroupMetadata:
         assert md is not None
@@ -107,12 +109,19 @@ class FakeMDPlugin:
     def driver_data(self, md, band_key: BandKey) -> Any:
         assert md is not None
         name, _ = band_key
+
+        def _patch(x):
+            if not isinstance(x, dict) or self._add_subdataset is False:
+                return x
+            return {"subdataset": name, **x}
+
         if isinstance(self._driver_data, dict):
             if name in self._driver_data:
-                return self._driver_data[name]
+                return _patch(self._driver_data[name])
             if band_key in self._driver_data:
-                return self._driver_data[band_key]
-        return self._driver_data
+                return _patch(self._driver_data[band_key])
+
+        return _patch(self._driver_data)
 
 
 class FakeReader:
