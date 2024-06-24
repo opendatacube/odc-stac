@@ -1,6 +1,6 @@
 black
 folium
-geopandas
+geopandas<1
 ipywidgets
 jupytext
 mapclassify
