@@ -9,16 +9,29 @@ import json
 import numpy as np
 import pytest
 import xarray as xr
+from dask import is_dask_collection
+from dask.base import tokenize
 from odc.geo.data import country_geom
 from odc.geo.gcp import GCPGeoBox
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtensionDa, ODCExtensionDs, rasterize
 
-from ._zarr import Context, XrMemReader, XrMemReaderDriver, raster_group_md
-from .types import FixedCoord, RasterGroupMetadata, RasterLoadParams, RasterSource
+from odc.loader._zarr import (
+    Context,
+    XrMemReader,
+    XrMemReaderDask,
+    XrMemReaderDriver,
+    raster_group_md,
+)
+from odc.loader.types import (
+    FixedCoord,
+    RasterGroupMetadata,
+    RasterLoadParams,
+    RasterSource,
+)
 
-# pylint: disable=missing-function-docstring,use-implicit-booleaness-not-comparison
-# pylint: disable=too-many-locals,too-many-statements,redefined-outer-name
+# pylint: disable=missing-function-docstring,use-implicit-booleaness-not-comparison,protected-access
+# pylint: disable=too-many-locals,too-many-statements,redefined-outer-name,import-outside-toplevel
 
 
 @pytest.fixture
@@ -70,6 +83,7 @@ def test_mem_reader(sample_ds: xr.Dataset) -> None:
 
     driver = XrMemReaderDriver(ds)
     assert driver.md_parser is not None
+    assert driver.dask_reader is not None
     md = driver.md_parser.extract(fake_item)
 
     assert isinstance(md, RasterGroupMetadata)
@@ -201,3 +215,18 @@ def test_memreader_zarr(sample_ds: xr.Dataset):
     assert isinstance(xx, np.ndarray)
     assert xx.shape == gbox[roi].shape.yx
     assert gbox == gbox[roi]
+
+    tk = tokenize(src, cfg, gbox)
+    ctx = Context(gbox, {})
+    rdr = XrMemReaderDask().open(src, ctx, layer_name=f"xx-{tk}", idx=0)
+    assert isinstance(rdr, XrMemReaderDask)
+    assert rdr._src is not None
+    assert rdr._src._chunks == {}
+
+    fut = rdr.read(cfg, gbox)
+    assert is_dask_collection(fut)
+
+    roi, xx = fut.compute(scheduler="synchronous")
+    assert isinstance(xx, np.ndarray)
+    assert roi == (slice(None), slice(None))
+    assert xx.shape == gbox.shape.yx
