@@ -1,5 +1,5 @@
 """
-Reader Driver from in-memory xarray.
+Reader Driver from in-memory xarray/zarr spec docs.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import xarray as xr
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtensionDa, ODCExtensionDs, xr_coords, xr_reproject
 
-from ..types import (
+from .types import (
     BandKey,
     DaskRasterReader,
     FixedCoord,

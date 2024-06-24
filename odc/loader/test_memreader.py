@@ -14,7 +14,7 @@ from odc.geo.gcp import GCPGeoBox
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtensionDa, ODCExtensionDs, rasterize
 
-from .testing.mem_reader import Context, XrMemReader, XrMemReaderDriver, raster_group_md
+from ._zarr import Context, XrMemReader, XrMemReaderDriver, raster_group_md
 from .types import FixedCoord, RasterGroupMetadata, RasterLoadParams, RasterSource
 
 # pylint: disable=missing-function-docstring,use-implicit-booleaness-not-comparison
