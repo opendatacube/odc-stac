@@ -98,14 +98,14 @@ class XrMDPlugin:
     def __init__(
         self,
         template: RasterGroupMetadata,
-        src: xr.Dataset | None = None,
+        fallback: xr.Dataset | None = None,
     ) -> None:
         self._template = template
-        self._src = src
+        self._fallback = fallback
 
     def _resolve_src(self, md: Any, regen_coords: bool = False) -> xr.Dataset | None:
         return _resolve_src_dataset(
-            md, regen_coords=regen_coords, fallback=self._src, chunks={}
+            md, regen_coords=regen_coords, fallback=self._fallback, chunks={}
         )
 
     def extract(self, md: Any) -> RasterGroupMetadata:
@@ -150,9 +150,11 @@ class Context:
         self,
         geobox: GeoBox,
         chunks: None | dict[str, int],
+        driver: Any | None = None,
     ) -> None:
         self.geobox = geobox
         self.chunks = chunks
+        self.driver = driver
 
     def with_env(self, env: dict[str, Any]) -> "Context":
         assert isinstance(env, dict)
@@ -161,7 +163,10 @@ class Context:
 
 class XrMemReader:
     """
-    Protocol for raster readers.
+    Implements protocol for raster readers.
+
+    - Read from in-memory xarray.Dataset
+    - Read from zarr spec
     """
 
     # pylint: disable=too-few-public-methods
@@ -242,7 +247,7 @@ class XrMemReader:
 
 class XrMemReaderDriver:
     """
-    Read from in memory xarray.Dataset.
+    Read from in memory xarray.Dataset or zarr spec document.
     """
 
     Reader = XrMemReader
@@ -265,7 +270,7 @@ class XrMemReaderDriver:
         *,
         chunks: None | dict[str, int] = None,
     ) -> Context:
-        return Context(geobox, chunks)
+        return Context(geobox, chunks, driver=self)
 
     def finalise_load(self, load_state: Context) -> Context:
         return load_state
@@ -284,7 +289,7 @@ class XrMemReaderDriver:
 
     @property
     def md_parser(self) -> MDParser:
-        return XrMDPlugin(self.template, src=self.src)
+        return XrMDPlugin(self.template, fallback=self.src)
 
     @property
     def dask_reader(self) -> DaskRasterReader | None:
