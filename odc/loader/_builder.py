@@ -179,8 +179,11 @@ class DaskGraphBuilder:
         chunks = {**chunks}
         chunks.update(dict(zip(["time", "y", "x"], chunk_tyx)))
         if mode == "auto":
-            # "mem" unless overwriten by env var
-            mode = _default_dask_mode()
+            if rdr.dask_reader is not None:
+                mode = "concurrency"
+            else:
+                # "mem" unless overwritten by env var
+                mode = _default_dask_mode()
 
         self.cfg = cfg
         self.template = template
