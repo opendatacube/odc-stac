@@ -186,9 +186,7 @@ def test_memreader_zarr(sample_ds: xr.Dataset):
 
     zarr = pytest.importorskip("zarr")
     assert zarr is not None
-
     _gbox = sample_ds.odc.geobox
-    chunks = None
     assert _gbox is not None
     gbox = _gbox.approx if isinstance(_gbox, GCPGeoBox) else _gbox
 
@@ -205,23 +203,28 @@ def test_memreader_zarr(sample_ds: xr.Dataset):
         driver_data=zmd,
     )
     assert src.driver_data is zmd
-
     cfg = RasterLoadParams.same_as(src)
 
-    ctx = Context(gbox, chunks)
-    rdr = XrMemReader(src, ctx)
+    driver = XrMemReaderDriver()
+    ctx = driver.new_load(gbox, chunks=None)
+    rdr = driver.open(src, ctx)
 
     roi, xx = rdr.read(cfg, gbox)
     assert isinstance(xx, np.ndarray)
     assert xx.shape == gbox[roi].shape.yx
     assert gbox == gbox[roi]
 
+    assert driver.dask_reader is not None
+
     tk = tokenize(src, cfg, gbox)
-    ctx = Context(gbox, {})
-    rdr = XrMemReaderDask().open(src, ctx, layer_name=f"xx-{tk}", idx=0)
+
+    ctx = driver.new_load(gbox, chunks={})
+    assert isinstance(ctx, Context)
+
+    rdr = driver.dask_reader.open(src, ctx, layer_name=f"xx-{tk}", idx=0)
     assert isinstance(rdr, XrMemReaderDask)
-    assert rdr._src is not None
-    assert rdr._src._chunks == {}
+    assert rdr._xx is not None
+    assert is_dask_collection(rdr._xx)
 
     fut = rdr.read(cfg, gbox)
     assert is_dask_collection(fut)

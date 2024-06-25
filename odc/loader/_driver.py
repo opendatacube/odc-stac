@@ -10,10 +10,12 @@ from importlib import import_module
 from typing import Any, Callable
 
 from ._rio import RioDriver
+from ._zarr import XrMemReaderDriver
 from .types import ReaderDriver, ReaderDriverSpec, is_reader_driver
 
 _available_drivers: dict[str, Callable[[], ReaderDriver] | ReaderDriver] = {
-    "rio": RioDriver
+    "rio": RioDriver,
+    "zarr": XrMemReaderDriver,
 }
 
 
