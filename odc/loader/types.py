@@ -19,7 +19,7 @@ from typing import (
 
 import numpy as np
 from odc.geo import Unset
-from odc.geo.geobox import GeoBox
+from odc.geo.geobox import GeoBox, GeoBoxBase
 
 T = TypeVar("T")
 
@@ -243,7 +243,7 @@ class RasterSource:
     subdataset: Optional[str] = None
     """Used for netcdf/hdf5 sources."""
 
-    geobox: Optional[GeoBox] = None
+    geobox: Optional[GeoBoxBase] = None
     """Data footprint/shape/projection if known."""
 
     meta: Optional[RasterBandMetadata] = None
