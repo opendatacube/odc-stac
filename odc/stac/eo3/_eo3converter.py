@@ -192,6 +192,7 @@ def _to_dataset(
         gbox = src.geobox
         if gbox is None:
             continue
+        assert isinstance(gbox, GeoBox)
 
         if crs is None:
             crs = gbox.crs

@@ -176,6 +176,7 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
     for asset_name, asset in xx.assets.items():
         bb = item.bands[(asset_name, 1)]
         if bb.geobox is not None:
+            assert isinstance(bb.geobox, GeoBox)
             _add_proj(bb.geobox, asset)
 
     if item.href is not None:

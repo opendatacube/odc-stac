@@ -301,8 +301,9 @@ class RasterSource:
         gbox = self.geobox
         if gbox is not None:
             doc["crs"] = str(gbox.crs)
-            doc["transform"] = [*gbox.transform][:6]
             doc["shape"] = list(gbox.shape.yx)
+            if isinstance(gbox, GeoBox):
+                doc["transform"] = [*gbox.transform][:6]
 
         doc["driver_data"] = _maybe_json(
             self.driver_data,

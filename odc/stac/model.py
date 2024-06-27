@@ -238,11 +238,13 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         def _resolution(g: GeoBox) -> float:
             return min(g.resolution.map(abs).xy)  # type: ignore
 
+        # TODO: support other geobox types?
         gbx: Set[GeoBox] = set()
         for name in bands:
             b = self.bands.get(self.collection.band_key(name), None)
             if b is not None:
                 if b.geobox is not None:
+                    assert isinstance(b.geobox, GeoBox)
                     gbx.add(b.geobox)
 
         return tuple(sorted(gbx, key=_resolution))
