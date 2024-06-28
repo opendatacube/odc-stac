@@ -283,8 +283,9 @@ class XrMemReaderDask:
         layer_name: str,
         idx: int,
     ) -> DaskRasterReader:
+        assert idx >= 0
         base, *_ = layer_name.rsplit("-", 1)
-        _tk = tokenize(layer_name, idx)
+        _tk = tokenize(src, ctx)
         xx = from_raster_source(src, ctx, name=f"{base}-zarr-{_tk}")
 
         assert xx.odc.geobox is not None

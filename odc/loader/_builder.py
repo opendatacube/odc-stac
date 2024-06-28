@@ -121,15 +121,15 @@ class LoadChunkTask:
 
     def resolve_sources(
         self, srcs: Sequence[MultiBandRasterSource]
-    ) -> List[List[RasterSource]]:
-        out: List[List[RasterSource]] = []
+    ) -> List[List[tuple[int, RasterSource]]]:
+        out: List[List[tuple[int, RasterSource]]] = []
 
         for layer in self.srcs:
             _srcs: List[RasterSource] = []
             for idx in layer:
                 src = srcs[idx].get(self.band, None)
                 if src is not None:
-                    _srcs.append(src)
+                    _srcs.append((idx, src))
             out.append(_srcs)
         return out
 
@@ -263,6 +263,7 @@ class DaskGraphBuilder:
         dask_reader: DaskRasterReader,
         layer_name: str,
         dsk: dict[Key, Any],
+        rdr_cache: dict[str, DaskRasterReader],
     ) -> list[list[Key]]:
         # pylint: disable=too-many-locals
         srcs = task.resolve_sources(self.srcs)
@@ -273,9 +274,15 @@ class DaskGraphBuilder:
 
         for i_time, layer in enumerate(srcs, start=task.idx[0]):
             keys_out: list[Key] = []
-            for i_src, src in enumerate(layer):
-                idx = (i_time, *task.idx[1:], i_src)
-                rdr = dask_reader.open(src, ctx, layer_name=layer_name, idx=i_src)
+            for i_src, src in layer:
+                idx = (i_src, i_time, *task.idx[1:])
+
+                src_hash = tokenize(src)
+                rdr = rdr_cache.get(src_hash, None)
+                if rdr is None:
+                    rdr = dask_reader.open(src, ctx, layer_name=layer_name, idx=i_src)
+                    rdr_cache[src_hash] = rdr
+
                 fut = rdr.read(cfg, dst_gbox, selection=task.selection, idx=idx)
                 keys_out.append(fut.key)
                 dsk.update(fut.dask)
@@ -340,6 +347,7 @@ class DaskGraphBuilder:
             cfg,
             resolve_src_nodata(cfg.fill_value, cfg),
         )
+        rdr_cache: dict[str, DaskRasterReader] = {}
 
         for task in self.load_tasks(name, shape[0]):
             task_key: Key = (band_layer, *task.idx)
@@ -359,7 +367,11 @@ class DaskGraphBuilder:
                 )
             else:
                 srcs_futures = self._task_futures(
-                    task, dask_reader, open_layer, layers[open_layer]
+                    task,
+                    dask_reader,
+                    open_layer,
+                    layers[open_layer],
+                    rdr_cache=rdr_cache,
                 )
 
                 dsk[task_key] = (
@@ -812,7 +824,7 @@ def direct_chunked_load(
 
         with rdr.restore_env(env, load_state) as ctx:
             for t_idx, layer in enumerate(layers):
-                loaders = [rdr.open(src, ctx) for src in layer]
+                loaders = [rdr.open(src, ctx) for _, src in layer]
                 _ = _fill_nd_slice(
                     loaders,
                     task.dst_gbox,
