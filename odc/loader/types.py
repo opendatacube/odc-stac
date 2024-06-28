@@ -471,7 +471,6 @@ class DaskRasterReader(Protocol):
 
     def read(
         self,
-        cfg: RasterLoadParams,
         dst_geobox: GeoBox,
         *,
         selection: Optional[ReaderSubsetSelection] = None,
@@ -481,6 +480,7 @@ class DaskRasterReader(Protocol):
     def open(
         self,
         src: RasterSource,
+        cfg: RasterLoadParams,
         ctx: Any,
         *,
         layer_name: str,

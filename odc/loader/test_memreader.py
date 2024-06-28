@@ -222,12 +222,12 @@ def test_memreader_zarr(sample_ds: xr.Dataset):
     ctx = driver.new_load(gbox, chunks={})
     assert isinstance(ctx, Context)
 
-    rdr = driver.dask_reader.open(src, ctx, layer_name=f"xx-{tk}", idx=0)
+    rdr = driver.dask_reader.open(src, cfg, ctx, layer_name=f"xx-{tk}", idx=0)
     assert isinstance(rdr, XrMemReaderDask)
     assert rdr._xx is not None
     assert is_dask_collection(rdr._xx)
 
-    fut = rdr.read(cfg, gbox)
+    fut = rdr.read(gbox)
     assert is_dask_collection(fut)
 
     roi, xx = fut.compute(scheduler="synchronous")

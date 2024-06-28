@@ -19,7 +19,8 @@ from dask.array.core import normalize_chunks
 from dask.base import tokenize
 from dask.delayed import Delayed, delayed
 from fsspec.core import url_to_fs
-from odc.geo.geobox import GeoBox, GeoBoxBase
+from odc.geo.gcp import GCPGeoBox
+from odc.geo.geobox import GeoBox, GeoBoxBase, GeoboxTiles
 from odc.geo.xr import ODCExtensionDa, ODCExtensionDs, xr_coords, xr_reproject
 
 from .types import (
@@ -106,9 +107,17 @@ class Context:
         chunks: None | dict[str, int],
         driver: Any | None = None,
     ) -> None:
+        gbt: GeoboxTiles | None = None
+        if chunks is not None:
+            cy, cx = (
+                chunks.get(name, fallback)
+                for name, fallback in zip(["y", "x"], geobox.shape.yx)
+            )
+            gbt = GeoboxTiles(geobox, (cy, cx))
         self.geobox = geobox
         self.chunks = chunks
         self.driver = driver
+        self.gbt = gbt
 
     def with_env(self, env: dict[str, Any]) -> "Context":
         assert isinstance(env, dict)
@@ -183,6 +192,7 @@ def from_raster_source(
 
     coords = {**xx.coords}
     if geobox is not None:
+        assert isinstance(geobox, (GeoBox, GCPGeoBox))
         coords.update(xr_coords(geobox, dims=xx.odc.spatial_dims or ("y", "x")))
 
     xx = xr.DataArray(
@@ -246,38 +256,42 @@ class XrMemReaderDask:
     def __init__(
         self,
         src: xr.DataArray | None = None,
+        cfg: RasterLoadParams | None = None,
         layer_name: str = "",
     ) -> None:
         self._layer_name = layer_name
         self._xx = src
+        self._cfg = cfg
 
     def read(
         self,
-        cfg: RasterLoadParams,
         dst_geobox: GeoBox,
         *,
         selection: ReaderSubsetSelection | None = None,
         idx: tuple[int, ...] = (),
     ) -> Delayed:
         assert self._xx is not None
+        assert self._cfg is not None
         assert isinstance(idx, tuple)
+        xx = self._xx
+        assert isinstance(xx.odc, ODCExtensionDa)
+        assert isinstance(xx.odc.geobox, GeoBox)
+        assert xx.odc.spatial_dims is not None
 
-        xx = _select_extra_dims(self._xx, selection, cfg)
-        assert xx.odc.geobox is not None
+        yx_roi = xx.odc.geobox.overlap_roi(dst_geobox)
+        selection = _extra_dims_selector(selection, self._cfg)
+        selection.update(zip(xx.odc.spatial_dims, yx_roi))
 
-        yy = xr_reproject(
-            xx,
-            dst_geobox,
-            resampling=cfg.resampling,
-            dst_nodata=cfg.fill_value,
-            dtype=cfg.dtype,
-            chunks=dst_geobox.shape.yx,
-        )
-        return delayed(_with_roi)(yy.data, dask_key_name=(self._layer_name, *idx))
+        xx = self._xx.isel(selection)
+        out_key = (self._layer_name, *idx)
+        fut = delayed(_with_roi)(xx.data, dask_key_name=out_key)
+
+        return fut
 
     def open(
         self,
         src: RasterSource,
+        cfg: RasterLoadParams,
         ctx: Context,
         *,
         layer_name: str,
@@ -290,7 +304,20 @@ class XrMemReaderDask:
 
         assert xx.odc.geobox is not None
         assert not any(map(math.isnan, xx.odc.geobox.transform[:6]))
-        return XrMemReaderDask(xx, layer_name=layer_name)
+        assert ctx.gbt is not None
+        gbt = ctx.gbt
+        assert isinstance(gbt.base, GeoBox)
+
+        xx_warped = xr_reproject(
+            xx,
+            gbt.base,
+            resampling=cfg.resampling,
+            dst_nodata=cfg.fill_value,
+            dtype=cfg.dtype,
+            chunks=gbt.chunk_shape((0, 0)).yx,
+        )
+
+        return XrMemReaderDask(xx_warped, cfg, layer_name=layer_name)
 
 
 class XrMemReaderDriver:
@@ -483,16 +510,25 @@ def _with_roi(xx: np.ndarray) -> tuple[tuple[slice, slice], np.ndarray]:
     return (slice(None), slice(None)), xx
 
 
+def _extra_dims_selector(
+    selection: ReaderSubsetSelection, cfg: RasterLoadParams
+) -> dict[str, Any]:
+    if selection is None:
+        return {}
+
+    assert isinstance(selection, (slice, int)) or len(selection) == 1
+    assert len(cfg.extra_dims) == 1
+    (band_dim,) = cfg.extra_dims
+    return {band_dim: selection}
+
+
 def _select_extra_dims(
     src: xr.DataArray, selection: ReaderSubsetSelection, cfg: RasterLoadParams
 ) -> xr.DataArray:
     if selection is None:
         return src
 
-    assert isinstance(selection, (slice, int)) or len(selection) == 1
-    assert len(cfg.extra_dims) == 1
-    (band_dim,) = cfg.extra_dims
-    return src.isel({band_dim: selection})
+    return src.isel(_extra_dims_selector(selection, cfg))
 
 
 def extract_zarr_spec(src: SomeDoc) -> ZarrSpecDict | None:

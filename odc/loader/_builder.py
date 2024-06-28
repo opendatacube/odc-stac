@@ -125,7 +125,7 @@ class LoadChunkTask:
         out: List[List[tuple[int, RasterSource]]] = []
 
         for layer in self.srcs:
-            _srcs: List[RasterSource] = []
+            _srcs: List[tuple[int, RasterSource]] = []
             for idx in layer:
                 src = srcs[idx].get(self.band, None)
                 if src is not None:
@@ -280,10 +280,12 @@ class DaskGraphBuilder:
                 src_hash = tokenize(src)
                 rdr = rdr_cache.get(src_hash, None)
                 if rdr is None:
-                    rdr = dask_reader.open(src, ctx, layer_name=layer_name, idx=i_src)
+                    rdr = dask_reader.open(
+                        src, cfg, ctx, layer_name=layer_name, idx=i_src
+                    )
                     rdr_cache[src_hash] = rdr
 
-                fut = rdr.read(cfg, dst_gbox, selection=task.selection, idx=idx)
+                fut = rdr.read(dst_gbox, selection=task.selection, idx=idx)
                 keys_out.append(fut.key)
                 dsk.update(fut.dask)
 
