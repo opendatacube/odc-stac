@@ -16,6 +16,7 @@ import numpy as np
 import xarray as xr
 from dask import is_dask_collection
 from dask.array.core import normalize_chunks
+from dask.base import tokenize
 from dask.delayed import Delayed, delayed
 from fsspec.core import url_to_fs
 from odc.geo.geobox import GeoBox, GeoBoxBase
@@ -38,79 +39,6 @@ SomeDoc = Mapping[str, Any]
 ZarrSpec = Mapping[str, Any]
 ZarrSpecDict = dict[str, Any]
 # pylint: disable=too-few-public-methods
-
-
-def extract_zarr_spec(src: SomeDoc) -> ZarrSpecDict | None:
-    if ".zgroup" in src:
-        return dict(src)
-
-    if "zarr:metadata" in src:
-        # TODO: handle zarr:chunks for reference filesystem
-        return dict(src["zarr:metadata"])
-
-    if "zarr_consolidated_format" in src:
-        return dict(src["metadata"])
-
-    if ".zmetadata" in src:
-        return dict(json.loads(src[".zmetadata"])["metadata"])
-
-    return None
-
-
-def _from_zarr_spec(
-    spec_doc: ZarrSpecDict,
-    *,
-    regen_coords: bool = False,
-    chunk_store: fsspec.AbstractFileSystem | Mapping[str, Any] | None = None,
-    chunks=None,
-    target: str | None = None,
-    fsspec_opts: dict[str, Any] | None = None,
-    drop_variables: Sequence[str] = (),
-) -> xr.Dataset:
-    fsspec_opts = fsspec_opts or {}
-    if target is not None:
-        if chunk_store is None:
-            fs, target = url_to_fs(target, **fsspec_opts)
-            chunk_store = fs.get_mapper(target)
-        elif isinstance(chunk_store, fsspec.AbstractFileSystem):
-            chunk_store = chunk_store.get_mapper(target)
-
-    # TODO: deal with coordinates being loaded at open time.
-    #
-    # When chunk store is supplied xarray will try to load index coords (i.e.
-    # name == dim, coords)
-
-    xx = xr.open_zarr(
-        spec_doc,
-        chunk_store=chunk_store,
-        drop_variables=drop_variables,
-        chunks=chunks,
-        decode_coords="all",
-        consolidated=False,
-    )
-    gbox = xx.odc.geobox
-    if gbox is not None and regen_coords:
-        # re-gen x,y coords from geobox
-        xx = xx.assign_coords(xr_coords(gbox))
-
-    return xx
-
-
-def _resolve_src_dataset(
-    md: Any,
-    *,
-    regen_coords: bool = False,
-    fallback: xr.Dataset | None = None,
-    **kw,
-) -> xr.Dataset | None:
-    if isinstance(md, dict) and (spec_doc := extract_zarr_spec(md)) is not None:
-        return _from_zarr_spec(spec_doc, regen_coords=regen_coords, **kw)
-
-    if isinstance(md, xr.Dataset):
-        return md
-
-    # TODO: support stac items and datacube datasets
-    return fallback
 
 
 class XrMDPlugin:
@@ -193,142 +121,83 @@ class Context:
         return self.driver.fs
 
 
-class XrSource:
-    """
-    RasterSource -> xr.DataArray|xr.Dataset
-    """
-
-    def __init__(
-        self,
-        src: RasterSource,
-        chunks: Any | None = None,
-        chunk_store: (
-            fsspec.AbstractFileSystem | fsspec.FSMap | Mapping[str, Any] | None
-        ) = None,
-        drop_variables: Sequence[str] = (),
-    ) -> None:
-        if isinstance(chunk_store, fsspec.AbstractFileSystem):
-            chunk_store = chunk_store.get_mapper(src.uri)
-
-        driver_data: xr.DataArray | xr.Dataset | SomeDoc = src.driver_data
-        self._spec: ZarrSpecDict | None = None
-        self._ds: xr.Dataset | None = None
-        self._xx: xr.DataArray | None = None
-        self._src = src
-        self._chunks = chunks
-        self._chunk_store = chunk_store
-        self._drop_variables = drop_variables
-
-        subdataset = self._src.subdataset
-
-        if isinstance(driver_data, xr.DataArray):
-            self._xx = driver_data
-        elif isinstance(driver_data, xr.Dataset):
-            self._ds = driver_data
-            assert subdataset is not None
-            assert subdataset in driver_data.data_vars
-            self._xx = driver_data.data_vars[subdataset]
-        elif isinstance(driver_data, dict):
-            spec = extract_zarr_spec(driver_data)
-            if spec is None:
-                raise ValueError(f"Unsupported driver data: {type(driver_data)}")
-
-            # create unloadable xarray.Dataset
-            ds = xr.open_zarr(spec, consolidated=False, decode_coords="all", chunks={})
-            assert subdataset is not None
-            assert subdataset in ds.data_vars
-
-            if chunk_store is None:
-                chunk_store = fsspec.get_mapper(src.uri)
-
-            # recreate xr.DataArray with all the dims/coords/attrs
-            # but this time loadable from chunk_store
-            xx = ds.data_vars[subdataset]
-            xx = xr.DataArray(
-                da.from_zarr(
-                    spec,
-                    component=subdataset,
-                    chunk_store=chunk_store,
-                ),
-                coords=xx.coords,
-                dims=xx.dims,
-                name=xx.name,
-                attrs=xx.attrs,
-            )
-            assert xx.odc.geobox is not None
-            self._spec = spec
-            self._ds = ds
-            self._xx = xx
-
-        elif driver_data is not None:
-            raise ValueError(f"Unsupported driver data type: {type(driver_data)}")
-
-    @property
-    def spec(self) -> ZarrSpecDict | None:
-        return self._spec
-
-    @property
-    def geobox(self) -> GeoBoxBase | None:
-        if self._src.geobox is not None:
-            return self._src.geobox
-        return self.resolve().odc.geobox
-
-    def base(
-        self,
-        regen_coords: bool = False,
-        refresh: bool = False,
-    ) -> xr.Dataset | None:
-        if refresh and self._spec:
-            self._ds = None
-
-        if self._ds is not None:
-            return self._ds
-        if self._spec is None:
-            return None
-        self._ds = _from_zarr_spec(
-            self._spec,
-            regen_coords=regen_coords,
-            chunk_store=self._chunk_store,
-            target=self._src.uri,
-            chunks=self._chunks,
-        )
-        return self._ds
-
-    def resolve(
-        self,
-        regen_coords: bool = False,
-        refresh: bool = False,
-    ) -> xr.DataArray:
-        if refresh:
-            self._xx = None
-
-        if self._xx is not None:
-            return self._xx
-
-        src_ds = self.base(regen_coords=regen_coords, refresh=refresh)
-        if src_ds is None:
-            raise ValueError("Failed to interpret driver data")
-
-        subdataset = self._src.subdataset
-        assert subdataset is not None
-
-        if subdataset not in src_ds.data_vars:
-            raise ValueError(f"Band {subdataset!r} not found in dataset")
-
-        self._xx = src_ds.data_vars[subdataset]
-        return self._xx
-
-
-def _subset_src(
-    src: xr.DataArray, selection: ReaderSubsetSelection, cfg: RasterLoadParams
+def from_raster_source(
+    src: RasterSource,
+    ctx: Context,
+    *,
+    chunk_store: (
+        fsspec.AbstractFileSystem | fsspec.FSMap | Mapping[str, Any] | None
+    ) = None,
+    geobox: GeoBoxBase | None = None,
+    **kw,  # da.from_zarr options
 ) -> xr.DataArray:
-    if selection is None:
-        return src
+    driver_data: xr.DataArray | xr.Dataset | SomeDoc = src.driver_data
+    subdataset = src.subdataset
 
-    assert isinstance(selection, (slice, int)) or len(selection) == 1
-    assert len(cfg.extra_dims) == 1
-    (band_dim,) = cfg.extra_dims
-    return src.isel({band_dim: selection})
+    if isinstance(driver_data, xr.DataArray):
+        return driver_data
+
+    if isinstance(driver_data, xr.Dataset):
+        if subdataset is None:
+            _first, *_ = driver_data.data_vars
+            subdataset = str(_first)
+        return driver_data.data_vars[subdataset]
+
+    spec = extract_zarr_spec(driver_data)
+    assert spec is not None
+
+    # Chunk store resolution
+    # 1. Use supplied chunk_store
+    # 2. Use ctx.fs if available
+    # 3. Use fsspec.get_mapper(src.uri)
+
+    if chunk_store is None:
+        if ctx.fs:
+            chunk_store = ctx.fs
+        else:
+            chunk_store = fsspec.get_mapper(src.uri)
+
+    if isinstance(chunk_store, fsspec.AbstractFileSystem):
+        chunk_store = chunk_store.get_mapper(src.uri)
+
+    # create unloadable xarray.Dataset
+    ds = xr.open_zarr(
+        spec, consolidated=False, decode_coords="all", chunks={}, chunk_store={}
+    )
+    assert subdataset is not None
+    assert subdataset in ds.data_vars
+
+    # recreate xr.DataArray with all the dims/coords/attrs
+    # but this time loadable from chunk_store
+    xx = ds.data_vars[subdataset]
+    assert isinstance(xx.odc, ODCExtensionDa)
+
+    # regen coords using geobox if available
+    # 1. Geobox supplied by caller
+    # 2. Geobox from xarray.DataArray metadata
+    # 3. Geobox from RasterSource
+    if geobox is None:
+        geobox = xx.odc.geobox
+        if geobox is None:
+            geobox = src.geobox
+
+    coords = {**xx.coords}
+    if geobox is not None:
+        coords.update(xr_coords(geobox, dims=xx.odc.spatial_dims or ("y", "x")))
+
+    xx = xr.DataArray(
+        da.from_zarr(
+            spec,
+            component=subdataset,
+            chunk_store=chunk_store,
+            **kw,
+        ),
+        coords=coords,
+        dims=xx.dims,
+        name=xx.name,
+        attrs=xx.attrs,
+    )
+    return xx
 
 
 class XrMemReader:
@@ -339,8 +208,8 @@ class XrMemReader:
     - Read from zarr spec
     """
 
-    def __init__(self, src: RasterSource, ctx: Context) -> None:
-        self._src = XrSource(src, chunks=None, chunk_store=ctx.fs)
+    def __init__(self, src: xr.DataArray) -> None:
+        self._src = src
 
     def read(
         self,
@@ -350,8 +219,7 @@ class XrMemReader:
         dst: np.ndarray | None = None,
         selection: ReaderSubsetSelection | None = None,
     ) -> tuple[tuple[slice, slice], np.ndarray]:
-        src = self._src.resolve(regen_coords=True)
-        src = _subset_src(src, selection, cfg)
+        src = _select_extra_dims(self._src, selection, cfg)
 
         warped = xr_reproject(src, dst_geobox, resampling=cfg.resampling)
         if is_dask_collection(warped):
@@ -370,10 +238,6 @@ class XrMemReader:
         return yx_roi, dst
 
 
-def _with_roi(xx: np.ndarray) -> tuple[tuple[slice, slice], np.ndarray]:
-    return (slice(None), slice(None)), xx
-
-
 class XrMemReaderDask:
     """
     Dask version of the reader.
@@ -383,10 +247,8 @@ class XrMemReaderDask:
         self,
         src: xr.DataArray | None = None,
         layer_name: str = "",
-        idx: int = -1,
     ) -> None:
         self._layer_name = layer_name
-        self._idx = idx
         self._xx = src
 
     def read(
@@ -400,9 +262,8 @@ class XrMemReaderDask:
         assert self._xx is not None
         assert isinstance(idx, tuple)
 
-        xx = _subset_src(self._xx, selection, cfg)
+        xx = _select_extra_dims(self._xx, selection, cfg)
         assert xx.odc.geobox is not None
-        assert not math.isnan(xx.odc.geobox.transform.a)
 
         yy = xr_reproject(
             xx,
@@ -417,25 +278,24 @@ class XrMemReaderDask:
     def open(
         self,
         src: RasterSource,
-        ctx: Any,
+        ctx: Context,
         *,
         layer_name: str,
         idx: int,
     ) -> DaskRasterReader:
-        assert ctx is not None
-        _src = XrSource(src, chunks={}, chunk_store=ctx.fs)
-        xx = _src.resolve(regen_coords=True)
+        base, *_ = layer_name.rsplit("-", 1)
+        _tk = tokenize(layer_name, idx)
+        xx = from_raster_source(src, ctx, name=f"{base}-zarr-{_tk}")
+
         assert xx.odc.geobox is not None
         assert not any(map(math.isnan, xx.odc.geobox.transform[:6]))
-        return XrMemReaderDask(xx, layer_name=layer_name, idx=idx)
+        return XrMemReaderDask(xx, layer_name=layer_name)
 
 
 class XrMemReaderDriver:
     """
     Read from in memory xarray.Dataset or zarr spec document.
     """
-
-    Reader = XrMemReader
 
     def __init__(
         self,
@@ -472,7 +332,7 @@ class XrMemReaderDriver:
         yield load_state.with_env(env)
 
     def open(self, src: RasterSource, ctx: Context) -> XrMemReader:
-        return XrMemReader(src, ctx)
+        return XrMemReader(from_raster_source(src, ctx))
 
     @property
     def md_parser(self) -> MDParser:
@@ -561,25 +421,37 @@ def raster_group_md(
     )
 
 
-def _zarr_chunk_refs(
-    zspec: SomeDoc,
+def mk_zarr_chunk_refs(
+    spec_doc: SomeDoc,
     href: str,
     *,
     bands: Sequence[str] | None = None,
     sep: str = ".",
     overrides: dict[str, Any] | None = None,
 ) -> Iterator[tuple[str, Any]]:
-    if ".zmetadata" in zspec:
-        zspec = json.loads(zspec[".zmetadata"])["metadata"]
-    elif "zarr:metadata" in zspec:
-        zspec = zspec["zarr:metadata"]
+    """
+    Generate chunk references for all bands in zarr spec pointing to href.
 
-    assert ".zgroup" in zspec, "Not a zarr spec"
+    Output is a sequence of tuples in the form:
+
+    ``("{band}/0.0", (f"{href}/{band}/0.0",))``
+
+    suitable for building a dictionary for fsspec reference filesystem.
+
+    This was meant to support generating inline coords for spatial dimensions
+    and fixed coords for which we know the values. But we ended up not using
+    this and instead rely on xarray to generate coords filled with `nan` by
+    giving it empty chunk store.
+    """
+
+    spec = extract_zarr_spec(spec_doc)
+    assert spec is not None
+    assert ".zgroup" in spec, "Not a zarr spec"
 
     href = href.rstrip("/")
 
     if bands is None:
-        _bands = [k.rsplit("/", 1)[0] for k in zspec if k.endswith("/.zarray")]
+        _bands = [k.rsplit("/", 1)[0] for k in spec if k.endswith("/.zarray")]
     else:
         _bands = list(bands)
 
@@ -587,7 +459,7 @@ def _zarr_chunk_refs(
         overrides = {}
 
     for b in _bands:
-        meta = zspec[f"{b}/.zarray"]
+        meta = spec[f"{b}/.zarray"]
         assert "chunks" in meta and "shape" in meta
 
         shape_in_blocks = tuple(
@@ -604,3 +476,92 @@ def _zarr_chunk_refs(
                 v = (f"{href}/{k}",)
 
             yield (k, v)
+
+
+def _with_roi(xx: np.ndarray) -> tuple[tuple[slice, slice], np.ndarray]:
+    return (slice(None), slice(None)), xx
+
+
+def _select_extra_dims(
+    src: xr.DataArray, selection: ReaderSubsetSelection, cfg: RasterLoadParams
+) -> xr.DataArray:
+    if selection is None:
+        return src
+
+    assert isinstance(selection, (slice, int)) or len(selection) == 1
+    assert len(cfg.extra_dims) == 1
+    (band_dim,) = cfg.extra_dims
+    return src.isel({band_dim: selection})
+
+
+def extract_zarr_spec(src: SomeDoc) -> ZarrSpecDict | None:
+    if ".zgroup" in src:
+        return dict(src)
+
+    if "zarr:metadata" in src:
+        # TODO: handle zarr:chunks for reference filesystem
+        return dict(src["zarr:metadata"])
+
+    if "zarr_consolidated_format" in src:
+        return dict(src["metadata"])
+
+    if ".zmetadata" in src:
+        return dict(json.loads(src[".zmetadata"])["metadata"])
+
+    return None
+
+
+def _from_zarr_spec(
+    spec_doc: ZarrSpecDict,
+    *,
+    regen_coords: bool = False,
+    chunk_store: fsspec.AbstractFileSystem | Mapping[str, Any] | None = None,
+    chunks=None,
+    target: str | None = None,
+    fsspec_opts: dict[str, Any] | None = None,
+    drop_variables: Sequence[str] = (),
+) -> xr.Dataset:
+    fsspec_opts = fsspec_opts or {}
+    if target is not None:
+        if chunk_store is None:
+            fs, target = url_to_fs(target, **fsspec_opts)
+            chunk_store = fs.get_mapper(target)
+        elif isinstance(chunk_store, fsspec.AbstractFileSystem):
+            chunk_store = chunk_store.get_mapper(target)
+
+    # TODO: deal with coordinates being loaded at open time.
+    #
+    # When chunk store is supplied xarray will try to load index coords (i.e.
+    # name == dim, coords)
+
+    xx = xr.open_zarr(
+        spec_doc,
+        chunk_store=chunk_store,
+        drop_variables=drop_variables,
+        chunks=chunks,
+        decode_coords="all",
+        consolidated=False,
+    )
+    gbox = xx.odc.geobox
+    if gbox is not None and regen_coords:
+        # re-gen x,y coords from geobox
+        xx = xx.assign_coords(xr_coords(gbox))
+
+    return xx
+
+
+def _resolve_src_dataset(
+    md: Any,
+    *,
+    regen_coords: bool = False,
+    fallback: xr.Dataset | None = None,
+    **kw,
+) -> xr.Dataset | None:
+    if isinstance(md, dict) and (spec_doc := extract_zarr_spec(md)) is not None:
+        return _from_zarr_spec(spec_doc, regen_coords=regen_coords, **kw)
+
+    if isinstance(md, xr.Dataset):
+        return md
+
+    # TODO: support stac items and datacube datasets
+    return fallback

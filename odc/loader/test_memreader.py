@@ -21,6 +21,7 @@ from odc.loader._zarr import (
     XrMemReader,
     XrMemReaderDask,
     XrMemReaderDriver,
+    extract_zarr_spec,
     raster_group_md,
 )
 from odc.loader.types import (
@@ -233,3 +234,23 @@ def test_memreader_zarr(sample_ds: xr.Dataset):
     assert isinstance(xx, np.ndarray)
     assert roi == (slice(None), slice(None))
     assert xx.shape == gbox.shape.yx
+
+
+def test_extract_zarr_spec():
+    assert extract_zarr_spec({}) is None
+    assert extract_zarr_spec({"something": "else"}) is None
+
+    spec = {
+        ".zgroup": {"zarr_format": 2},
+        ".zattrs": {},
+    }
+    consolidated = {
+        "zarr_consolidated_format": 1,
+        "metadata": spec,
+    }
+    ref_fs = {
+        ".zmetadata": json.dumps(consolidated).encode("utf-8"),
+    }
+    assert extract_zarr_spec(spec) == spec
+    assert extract_zarr_spec(consolidated) == spec
+    assert extract_zarr_spec(ref_fs) == spec
