@@ -265,11 +265,6 @@ jobs:
         run: |
           echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
-      - name: Patch odc-geo
-        shell: bash
-        run: |
-          pip install "odc-geo>=0.4.7" 
-
       - name: Install in Edit mode
         shell: bash
         run: |
@@ -327,11 +322,6 @@ jobs:
         shell: bash
         run: |
           echo "/tmp/test_env/bin" >> $GITHUB_PATH
-
-      - name: Patch odc-geo
-        shell: bash
-        run: |
-          pip install "odc-geo>=0.4.7"
 
       - name: Install wheels for testing
         shell: bash
