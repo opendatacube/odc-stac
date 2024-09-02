@@ -105,6 +105,7 @@ def load(
     y: Optional[Tuple[float, float]] = None,
     like: Optional[Any] = None,
     geopolygon: Optional[Any] = None,
+    intersects: Optional[Any] = None,
     # UI
     progress: Optional[Any] = None,
     fail_on_error: bool = True,
@@ -263,6 +264,10 @@ def load(
        ``EPSG:4326`` projection for dictionary and Shapely inputs. CRS information available
        on GeoPandas inputs should be understood correctly.
 
+    :param intersects:
+       Simple alias to `geopolygon` so that the same inputs work for `pystac_client.Client.search`
+       as they do here.
+
     .. rubric:: STAC Related Options
 
     :param stac_cfg:
@@ -354,6 +359,9 @@ def load(
 
     items = list(items)
     _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_plugin))
+
+    if geopolygon is None and intersects is not None:
+        geopolygon = intersects
 
     gbox = output_geobox(
         _parsed,
