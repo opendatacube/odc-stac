@@ -20,7 +20,7 @@ try:
 except ImportError:
     from datacube.index.abstract import default_metadata_type_docs  # type: ignore
 
-from datacube.model import Dataset, DatasetType, metadata_from_doc
+from datacube.model import Dataset, Product, metadata_from_doc
 from odc.geo import CRS
 from odc.geo.geobox import GeoBox
 from toolz import dicttoolz
@@ -60,7 +60,7 @@ STAC_TO_EO3_RENAMES = {
 )
 
 
-def _to_product(md: RasterCollectionMetadata) -> DatasetType:
+def _to_product(md: RasterCollectionMetadata) -> Product:
     def make_band(
         band_key: BandKey,
         band: RasterBandMetadata,
@@ -95,11 +95,11 @@ def _to_product(md: RasterCollectionMetadata) -> DatasetType:
             for band_key, band in md.meta.bands.items()
         ],
     }
-    return DatasetType(_eo3, doc)
+    return Product(_eo3, doc)
 
 
 @singledispatch
-def infer_dc_product(x: Any, cfg: Optional[ConversionConfig] = None) -> DatasetType:
+def infer_dc_product(x: Any, cfg: Optional[ConversionConfig] = None) -> Product:
     """Overloaded function."""
     raise TypeError(
         "Invalid type, must be one of: pystac.item.Item, pystac.collection.Collection"
@@ -109,7 +109,7 @@ def infer_dc_product(x: Any, cfg: Optional[ConversionConfig] = None) -> DatasetT
 @infer_dc_product.register(pystac.item.Item)
 def infer_dc_product_from_item(
     item: pystac.item.Item, cfg: Optional[ConversionConfig] = None
-) -> DatasetType:
+) -> Product:
     """
     Infer Datacube product object from a STAC Item.
 
@@ -164,7 +164,7 @@ def _to_dataset(
     item: ParsedItem,
     properties: Dict[str, Any],
     ds_uuid: uuid.UUID,
-    product: DatasetType,
+    product: Product,
 ) -> Dataset:
     # pylint: disable=too-many-locals
 
@@ -227,7 +227,7 @@ def _to_dataset(
 
 
 def _item_to_ds(
-    item: pystac.item.Item, product: DatasetType, cfg: Optional[ConversionConfig] = None
+    item: pystac.item.Item, product: Product, cfg: Optional[ConversionConfig] = None
 ) -> Dataset:
     """
     Construct Dataset object from STAC Item and previously constructed Product.
@@ -251,7 +251,7 @@ def _item_to_ds(
 def stac2ds(
     items: Iterable[pystac.item.Item],
     cfg: Optional[ConversionConfig] = None,
-    product_cache: Optional[Dict[str, DatasetType]] = None,
+    product_cache: Optional[Dict[str, Product]] = None,
 ) -> Iterator[Dataset]:
     """
     STAC :class:`~pystac.item.Item` to :class:`~datacube.model.Dataset` stream converter.
@@ -276,7 +276,7 @@ def stac2ds(
 
     :param product_cache:
        Input/Output parameter, contains mapping from collection name to deduced product definition,
-       i.e. :py:class:`datacube.model.DatasetType` object.
+       i.e. :py:class:`datacube.model.Product` object.
 
     .. rubric: Sample Configuration
 
@@ -312,7 +312,7 @@ def stac2ds(
          warnings: ignore
 
     """
-    products: Dict[str, DatasetType] = {} if product_cache is None else product_cache
+    products: Dict[str, Product] = {} if product_cache is None else product_cache
     for item in items:
         collection_id = _collection_id(item)
         product = products.get(collection_id)
@@ -321,6 +321,10 @@ def stac2ds(
         if product is None:
             product = infer_dc_product(item, cfg)
             products[collection_id] = product
+        # if product_cache was provided, the products within may not have the custom _md attr
+        if not hasattr(product, "_md"):  # pylint: disable=protected-access
+            md = extract_collection_metadata(item, cfg)
+            setattr(product, "_md", md)  # pylint: disable=protected-access
 
         yield _item_to_ds(item, product, cfg)
 
@@ -328,7 +332,7 @@ def stac2ds(
 @infer_dc_product.register(pystac.collection.Collection)
 def infer_dc_product_from_collection(
     collection: pystac.collection.Collection, cfg: Optional[ConversionConfig] = None
-) -> DatasetType:
+) -> Product:
     """
     Construct Datacube Product definition from STAC Collection.
 
