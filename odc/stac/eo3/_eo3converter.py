@@ -220,6 +220,7 @@ def _to_dataset(
         "properties": dicttoolz.keymap(
             lambda k: STAC_TO_EO3_RENAMES.get(k, k), properties
         ),
+        "accessories": item.accessories,
         "lineage": {},
     }
 

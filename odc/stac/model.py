@@ -226,6 +226,9 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 
     href: Optional[str] = None
     """Self link from stac item."""
+    
+    accessories: dict[str, Any] = field(default_factory=dict)
+    """Additional assets"""
 
     def geoboxes(self, bands: BandQuery = None) -> Tuple[GeoBox, ...]:
         """
