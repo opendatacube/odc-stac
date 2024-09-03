@@ -205,6 +205,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 
     Only includes raster bands of interest.
     """
+
     # pylint: disable=too-many-instance-attributes
 
     id: str

@@ -715,12 +715,7 @@ def parse_item(
             driver_data=driver_data,
         )
 
-    accessories = {
-        name: {
-            "path": _assets[name].href
-        }
-        for name in _acc_names
-    }
+    accessories = {name: {"path": _assets[name].href} for name in _acc_names}
 
     md = item.common_metadata
     return ParsedItem(
