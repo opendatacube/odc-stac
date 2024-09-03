@@ -205,6 +205,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 
     Only includes raster bands of interest.
     """
+    # pylint: disable=too-many-instance-attributes
 
     id: str
     """Item id copied from STAC."""
@@ -226,7 +227,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 
     href: Optional[str] = None
     """Self link from stac item."""
-    
+
     accessories: dict[str, Any] = field(default_factory=dict)
     """Additional assets"""
 

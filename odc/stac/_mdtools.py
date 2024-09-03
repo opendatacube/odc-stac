@@ -721,7 +721,7 @@ def parse_item(
         }
         for name in _acc_names
     }
-        
+
     md = item.common_metadata
     return ParsedItem(
         item.id,
