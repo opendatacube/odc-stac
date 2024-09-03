@@ -238,7 +238,7 @@ def _item_to_ds(
     if cfg is None:
         cfg = {}
 
-    md: RasterCollectionMetadata = getattr(product, "_md")
+    md: RasterCollectionMetadata = getattr(product, "_md", None)
     uuid_cfg = cfg.get("uuid", {})
     ds_uuid = _compute_uuid(
         item, mode=uuid_cfg.get("mode", "auto"), extras=uuid_cfg.get("extras", [])
@@ -321,10 +321,6 @@ def stac2ds(
         if product is None:
             product = infer_dc_product(item, cfg)
             products[collection_id] = product
-        # if product_cache was provided, the products within may not have the custom _md attr
-        if not hasattr(product, "_md"):  # pylint: disable=protected-access
-            md = extract_collection_metadata(item, cfg)
-            setattr(product, "_md", md)  # pylint: disable=protected-access
 
         yield _item_to_ds(item, product, cfg)
 
