@@ -242,7 +242,6 @@ def test_product_cache(sentinel_stac_ms: pystac.item.Item):
     # (and therefore did not have the _md attr set)
     product = infer_dc_product(item, STAC_CFG)
     delattr(product, "_md")
-    
     # make sure it doesn't error when product_cache is provided
     (ds,) = stac2ds([item], STAC_CFG, {product.name: product})
     assert ds.id
