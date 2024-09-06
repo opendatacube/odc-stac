@@ -2,7 +2,6 @@ import datetime
 import math
 from pathlib import Path
 from typing import Iterable, Iterator
-from urllib.parse import urljoin
 import mimetypes
 
 import pystac.asset
