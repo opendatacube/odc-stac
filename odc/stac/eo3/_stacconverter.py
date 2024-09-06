@@ -1,7 +1,7 @@
 import datetime
 import math
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence
+from typing import Iterable, Iterator
 from urllib.parse import urljoin
 import mimetypes
 
@@ -12,18 +12,13 @@ import pystac.item
 from pystac.extensions.eo import Band, EOExtension
 from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.view import ViewExtension
-from pystac import Asset, Item, Link, MediaType
+from pystac import Asset, Link, MediaType
 from pystac.utils import datetime_to_str
 from pystac.errors import STACError
-from odc.geo.geom import Geometry
 
-
-from datacube.model import Dataset, Product
+from datacube.model import Dataset
 from datacube.utils.uris import uri_resolve
 from datacube.index.eo3 import EO3Grid
-from odc.geo import CRS
-from odc.geo.geobox import GeoBox
-from toolz import dicttoolz
 
 from ._eo3converter import STAC_TO_EO3_RENAMES
 
@@ -153,11 +148,7 @@ def eo3_to_stac_properties(dataset: Dataset) -> dict:
 
 def ds_to_item(
     dataset: Dataset,
-    stac_item_url: str | None = None,  # Either ds.uri or '/collections/<collection>/items/<dataset_id>'
-    # dataset_location: str | None = None,  # I don't think it's necessary to keep this
-    # odc_dataset_metadata_url: str | None = None,  # dataset.raw_doc in explorer (link to odc-metadata.yaml)
-    # explorer_base_url: str | None = None,  # default_redirect in explorer. Not optional unless collection_url is provided
-    # collection_url: str | None = None,  # normally just '/collection/<product.name>', so only needs base url
+    stac_item_url: str | None = None,
 ) -> pystac.Item:
     """
     Convert the given ODC Dataset into a Stac Item document.
@@ -167,12 +158,7 @@ def ds_to_item(
 
     :param collection_url: URL to the Stac Collection. Either this or an explorer_base_url
                            should be specified for Stac compliance.
-    :param stac_item_destination_url: Public 'self' URL where the stac document will be findable.
-    :param dataset_location: Use this location instead of picking from dataset.locations
-                             (for calculating relative band paths)
-    :param odc_dataset_metadata_url: Public URL for the original ODC dataset yaml document
-    :param explorer_base_url: An Explorer instance that contains this dataset.
-                              Will allow links to things such as the product definition.
+    :param stac_item_url: Public 'self' URL where the stac document will be findable.
     """
     if not dataset.is_eo3:
         raise STACError("Cannot convert non-eo3 datasets to STAC")
