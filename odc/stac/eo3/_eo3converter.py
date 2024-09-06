@@ -53,6 +53,7 @@ STAC_TO_EO3_RENAMES = {
     "view:azimuth": "eo:azimuth",
     "view:sun_azimuth": "eo:sun_azimuth",
     "view:sun_elevation": "eo:sun_elevation",
+    "created": "odc:processing_datetime",
 }
 
 (_eo3,) = (
