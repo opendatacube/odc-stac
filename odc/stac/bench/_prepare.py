@@ -65,7 +65,7 @@ def dump_site(site: Dict[str, Any], overwrite: bool = False) -> Dict[str, Any]:
     cat = pystac_client.Client.open(api)
     search = cat.search(**search)
     print(f"Query API end-point: {api}")
-    all_features = search.get_all_items_as_dict()
+    all_features = search.item_collection_as_dict()
     all_features["properties"] = dict(
         api=search.url, search=search._parameters  # pylint: disable=protected-access
     )
