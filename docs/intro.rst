@@ -10,7 +10,7 @@ Load STAC :py:class:`pystac.Item`\s into :py:class:`xarray.Dataset`.
    catalog = pystac_client.Client.open(...)
    query = catalog.search(...)
    xx = odc.stac.load(
-       query.get_items(),
+       query.items(),
        bands=["red", "green", "blue"],
        resolution=100,
    )

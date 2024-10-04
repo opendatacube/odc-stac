@@ -18,7 +18,7 @@ odc.stac.load
    catalog = pystac_client.Client.open(...)
    query = catalog.search(...)
    xx = odc.stac.load(
-       query.get_items(),
+       query.items(),
        bands=["red", "green", "blue"],
    )
    xx.red.plot.imshow(col="time")

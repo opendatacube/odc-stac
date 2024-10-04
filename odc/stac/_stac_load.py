@@ -131,7 +131,7 @@ def load(
        catalog = pystac.Client.open(...)
        query = catalog.search(...)
        xx = odc.stac.load(
-           query.get_items(),
+           query.items(),
            bands=["red", "green", "blue"],
        )
        xx.red.plot.imshow(col="time")
@@ -298,7 +298,7 @@ def load(
        )
 
        xx = stac.load(
-           query.get_items(),
+           query.items(),
            bands=["red", "green", "blue"],
            resolution=100,  # 1/10 of the native 10m resolution
            patch_url=pc.sign,
