@@ -466,7 +466,7 @@ def load(
             chunks=chunks,
             pool=pool,
             progress=progress,
-            dtype=dtype
+            dtype=dtype,
         )
     )
 

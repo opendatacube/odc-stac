@@ -642,7 +642,7 @@ def chunked_load(
         env,
         rdr,
         chunks=chunks,
-        dtype=dtype
+        dtype=dtype,
     )
 
 
@@ -666,11 +666,7 @@ def dask_chunked_load(
     gbox = gbt.base
     extra_dims = template.extra_dims_full()
     chunk_shape = resolve_chunk_shape(
-        len(tss),
-        gbox,
-        chunks,
-        extra_dims=extra_dims,
-        dtype=dtype
+        len(tss), gbox, chunks, extra_dims=extra_dims, dtype=dtype
     )
     chunks_normalized = dict(zip(["time", "y", "x", *extra_dims], chunk_shape))
     dask_loader = DaskGraphBuilder(

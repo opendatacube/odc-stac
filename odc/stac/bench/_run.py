@@ -360,8 +360,9 @@ class BenchLoadParams:
                 assets = list(self.bands)
 
             extra.setdefault("dtype", "uint16")
-            extra.setdefault("fill_value", 0)
+            extra.setdefault("fill_value", np.uint16(0))
             extra.setdefault("xy_coords", "center")
+            extra.setdefault("rescale", False)
 
             return _trim_dict(
                 {
@@ -380,7 +381,7 @@ class BenchLoadParams:
 def _default_nodata(dtype):
     if dtype.kind == "f":
         return float("nan")
-    return 0
+    return dtype.type(0)
 
 
 def load_from_json(geojson, params: BenchLoadParams, **kw):
