@@ -42,6 +42,7 @@ from ._reader import (
 )
 from ._utils import SizedIterable, pmap
 from .types import (
+    Band_DType,
     DaskRasterReader,
     MultiBandRasterSource,
     RasterGroupMetadata,
@@ -609,6 +610,7 @@ def chunked_load(
     env: Dict[str, Any],
     rdr: ReaderDriver,
     *,
+    dtype: Band_DType = None,
     chunks: Mapping[str, int | Literal["auto"]] | None = None,
     pool: ThreadPoolExecutor | int | None = None,
     progress: Optional[Any] = None,
@@ -640,6 +642,7 @@ def chunked_load(
         env,
         rdr,
         chunks=chunks,
+        dtype=dtype
     )
 
 
@@ -653,6 +656,7 @@ def dask_chunked_load(
     env: Dict[str, Any],
     rdr: ReaderDriver,
     *,
+    dtype: Band_DType = None,
     chunks: Mapping[str, int | Literal["auto"]] | None = None,
 ) -> xr.Dataset:
     """Builds Dask graph for data loading."""
@@ -666,6 +670,7 @@ def dask_chunked_load(
         gbox,
         chunks,
         extra_dims=extra_dims,
+        dtype=dtype
     )
     chunks_normalized = dict(zip(["time", "y", "x", *extra_dims], chunk_shape))
     dask_loader = DaskGraphBuilder(

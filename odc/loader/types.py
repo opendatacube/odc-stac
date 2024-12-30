@@ -18,6 +18,7 @@ from typing import (
 )
 
 import numpy as np
+from numpy.typing import DTypeLike
 from odc.geo import Unset
 from odc.geo.geobox import GeoBox, GeoBoxBase
 
@@ -33,6 +34,8 @@ BandQuery = Optional[Union[str, Sequence[str]]]
 """One|All|Some bands"""
 
 ReaderSubsetSelection = Any
+
+Band_DType = Union[DTypeLike, Mapping[str, DTypeLike]]
 
 
 @dataclass(eq=True, frozen=True)

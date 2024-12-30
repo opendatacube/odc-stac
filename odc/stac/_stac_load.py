@@ -26,7 +26,6 @@ import pystac
 import pystac.item
 import xarray as xr
 from dask.utils import ndeepmap
-from numpy.typing import DTypeLike
 from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
@@ -37,7 +36,7 @@ from odc.loader import (
     resolve_chunk_shape,
     resolve_load_cfg,
 )
-from odc.loader.types import ReaderDriverSpec
+from odc.loader.types import ReaderDriverSpec, Band_DType
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
@@ -90,7 +89,7 @@ def load(
     *,
     groupby: Optional[Groupby] = "time",
     resampling: Optional[Union[str, Dict[str, str]]] = None,
-    dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
+    dtype: Band_DType = None,
     chunks: Optional[Dict[str, int | Literal["auto"]]] = None,
     pool: Union[ThreadPoolExecutor, int, None] = None,
     # Geo selection
@@ -467,6 +466,7 @@ def load(
             chunks=chunks,
             pool=pool,
             progress=progress,
+            dtype=dtype
         )
     )
 
