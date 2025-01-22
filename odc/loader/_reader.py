@@ -12,10 +12,10 @@ from typing import Any, Optional, Sequence
 
 import numpy as np
 from dask import delayed
-from numpy.typing import DTypeLike
 from odc.geo.geobox import GeoBox
 
 from .types import (
+    Band_DType,
     RasterBandMetadata,
     RasterLoadParams,
     RasterSource,
@@ -115,7 +115,7 @@ class ReaderDaskAdaptor:
 def resolve_load_cfg(
     bands: dict[str, RasterBandMetadata],
     resampling: str | dict[str, str] | None = None,
-    dtype: DTypeLike | dict[str, DTypeLike] | None = None,
+    dtype: Band_DType | None = None,
     use_overviews: bool = True,
     nodata: float | None = None,
     fail_on_error: bool = True,

@@ -41,7 +41,7 @@ items = catalog.search(
     collections=["landsat-8-c2-l2"],
     datetime="2021-07-01T08:00:00Z/2021-07-01T09:00:00Z",
     bbox=(-180, -50, 180, 50),
-).get_all_items()
+).item_collection()
 
 # Compute Polygon of the pass in EPSG:3857
 ls8_pass = geom.unary_union(

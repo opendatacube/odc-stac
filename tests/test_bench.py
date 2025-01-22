@@ -7,6 +7,7 @@ distributed = pytest.importorskip("distributed")
 from unittest.mock import MagicMock
 
 import xarray
+import numpy as np
 from distributed import Client
 from odc.geo.xr import ODCExtension
 
@@ -107,7 +108,11 @@ def test_load_from_json_stackstac(fake_dask_client, bench_site1, bench_site2):
         resampling="nearest",
         extra={
             "odc-stac": {"groupby": "solar_day", "stac_cfg": CFG},
-            "stackstac": {"dtype": "uint16", "fill_value": 0},
+            "stackstac": {
+                "dtype": "uint16",
+                "fill_value": np.uint16(0),
+                "rescale": False,
+            },
         },
     )
     xx = load_from_json(bench_site1, params)

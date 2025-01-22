@@ -26,7 +26,6 @@ import pystac
 import pystac.item
 import xarray as xr
 from dask.utils import ndeepmap
-from numpy.typing import DTypeLike
 from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
@@ -37,7 +36,7 @@ from odc.loader import (
     resolve_chunk_shape,
     resolve_load_cfg,
 )
-from odc.loader.types import ReaderDriverSpec
+from odc.loader.types import ReaderDriverSpec, Band_DType
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
@@ -90,7 +89,7 @@ def load(
     *,
     groupby: Optional[Groupby] = "time",
     resampling: Optional[Union[str, Dict[str, str]]] = None,
-    dtype: Union[DTypeLike, Dict[str, DTypeLike], None] = None,
+    dtype: Band_DType = None,
     chunks: Optional[Dict[str, int | Literal["auto"]]] = None,
     pool: Union[ThreadPoolExecutor, int, None] = None,
     # Geo selection
@@ -105,6 +104,7 @@ def load(
     y: Optional[Tuple[float, float]] = None,
     like: Optional[Any] = None,
     geopolygon: Optional[Any] = None,
+    intersects: Optional[Any] = None,
     # UI
     progress: Optional[Any] = None,
     fail_on_error: bool = True,
@@ -130,7 +130,7 @@ def load(
        catalog = pystac.Client.open(...)
        query = catalog.search(...)
        xx = odc.stac.load(
-           query.get_items(),
+           query.items(),
            bands=["red", "green", "blue"],
        )
        xx.red.plot.imshow(col="time")
@@ -263,6 +263,10 @@ def load(
        ``EPSG:4326`` projection for dictionary and Shapely inputs. CRS information available
        on GeoPandas inputs should be understood correctly.
 
+    :param intersects:
+       Simple alias to `geopolygon` so that the same inputs work for `pystac_client.Client.search`
+       as they do here.
+
     .. rubric:: STAC Related Options
 
     :param stac_cfg:
@@ -293,7 +297,7 @@ def load(
        )
 
        xx = stac.load(
-           query.get_items(),
+           query.items(),
            bands=["red", "green", "blue"],
            resolution=100,  # 1/10 of the native 10m resolution
            patch_url=pc.sign,
@@ -354,6 +358,9 @@ def load(
 
     items = list(items)
     _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_plugin))
+
+    if geopolygon is None and intersects is not None:
+        geopolygon = intersects
 
     gbox = output_geobox(
         _parsed,
@@ -459,6 +466,7 @@ def load(
             chunks=chunks,
             pool=pool,
             progress=progress,
+            dtype=dtype,
         )
     )
 

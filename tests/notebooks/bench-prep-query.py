@@ -55,7 +55,7 @@ search = cat.search(
     bbox=bbox,
 )
 print("Query API end-point")
-all_features = search.get_all_items_as_dict()
+all_features = search.item_collection_as_dict()
 
 all_features["properties"] = dict(url=search.url, query=search._parameters)
 all_features["properties"]
