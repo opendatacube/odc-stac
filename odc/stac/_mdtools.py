@@ -660,7 +660,6 @@ def parse_item(
     band2grid = template.band2grid
     has_proj = False if template.has_proj is False else has_proj_ext(item)
     _assets = item.assets
-    _acc_names = list(_assets.keys())
 
     _grids: Dict[str, GeoBox] = {}
     bands: Dict[BandKey, RasterSource] = {}
@@ -677,14 +676,13 @@ def parse_item(
         _grids[grid_name] = grid
         return grid
 
+    band_names = []
     for bk, meta in template.meta.bands.items():
         asset_name, band_idx = bk
         asset = _assets.get(asset_name)
         if asset is None:
             continue
-        # the assets that aren't bands should be accessories
-        if asset_name in _acc_names:
-            _acc_names.remove(asset_name)
+        band_names.append(asset_name)
 
         grid_name = band2grid.get(asset_name, "default")
         geobox: Optional[GeoBox] = _get_grid(grid_name, asset) if has_proj else None
@@ -715,7 +713,9 @@ def parse_item(
             driver_data=driver_data,
         )
 
-    accessories = {name: {"path": _assets[name].href} for name in _acc_names}
+    # the assets that aren't bands are accessories
+    acc_names = set(_assets.keys()).difference(set(band_names))
+    accessories = {name: {"path": _assets[name].href} for name in acc_names}
 
     md = item.common_metadata
     return ParsedItem(

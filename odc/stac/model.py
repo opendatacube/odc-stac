@@ -400,7 +400,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         """
         Copy of self but with stripped bands.
         """
-        return replace(self, bands={k: band.strip() for k, band in self.bands.items()})
+        return replace(self, bands={k: band.strip() for k, band in self.bands.items()}, accessories={})
 
     def assets(self) -> Dict[str, List[RasterSource]]:
         """

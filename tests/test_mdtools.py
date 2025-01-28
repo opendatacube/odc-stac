@@ -400,6 +400,7 @@ def test_accessories_preserved(ga_landsat_stac: pystac.item.Item):
     assert xx.accessories.get("thumbnail:nbart")
     assert xx.accessories.get("checksum:sha1")
     assert xx.accessories.get("metadata:processor")
+    assert xx.strip().accessories == {}
 
 
 @pytest.fixture
