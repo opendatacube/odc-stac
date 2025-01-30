@@ -582,11 +582,15 @@ def norm_key(k: BandIdentifier) -> BandKey:
     ("band", i) -> ("band", i)
     "band" -> ("band", 1)
     "band.3" -> ("band", 3)
+    "band.tiff" -> ("band.tiff", 1)
     """
     if isinstance(k, str):
         parts = k.rsplit(".", 1)
         if len(parts) == 2:
-            return parts[0], int(parts[1])
+            try:
+                return parts[0], int(parts[1])
+            except ValueError:
+                return (k, 1)
         return (k, 1)
     return k
 
