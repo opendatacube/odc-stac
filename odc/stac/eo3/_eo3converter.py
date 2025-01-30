@@ -238,7 +238,7 @@ def _item_to_ds(
     if cfg is None:
         cfg = {}
 
-    md: RasterCollectionMetadata | None = getattr(product, "_md", None)
+    md: Optional[RasterCollectionMetadata] = getattr(product, "_md", None)
     uuid_cfg = cfg.get("uuid", {})
     ds_uuid = _compute_uuid(
         item, mode=uuid_cfg.get("mode", "auto"), extras=uuid_cfg.get("extras", [])
