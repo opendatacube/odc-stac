@@ -206,6 +206,8 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
     Only includes raster bands of interest.
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     id: str
     """Item id copied from STAC."""
 
@@ -226,6 +228,9 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 
     href: Optional[str] = None
     """Self link from stac item."""
+
+    accessories: dict[str, Any] = field(default_factory=dict)
+    """Additional assets"""
 
     def geoboxes(self, bands: BandQuery = None) -> Tuple[GeoBox, ...]:
         """
@@ -395,7 +400,11 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         """
         Copy of self but with stripped bands.
         """
-        return replace(self, bands={k: band.strip() for k, band in self.bands.items()})
+        return replace(
+            self,
+            bands={k: band.strip() for k, band in self.bands.items()},
+            accessories={},
+        )
 
     def assets(self) -> Dict[str, List[RasterSource]]:
         """
