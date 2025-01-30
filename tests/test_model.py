@@ -10,6 +10,7 @@ from odc.loader.types import (
     RasterGroupMetadata,
     RasterLoadParams,
     RasterSource,
+    norm_key,
 )
 from odc.stac import ParsedItem, RasterCollectionMetadata
 from odc.stac.testing.stac import b_, mk_parsed_item
@@ -206,3 +207,17 @@ def test_tokenize(parsed_item_ab: ParsedItem):
     assert tokenize(RasterLoadParams()) == tokenize(RasterLoadParams())
     assert tokenize(RasterLoadParams("uint8")) == tokenize(RasterLoadParams("uint8"))
     assert tokenize(RasterLoadParams("uint8")) != tokenize(RasterLoadParams("uint32"))
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("a", ("a", 1)),
+        ("a.1", ("a", 1)),
+        ("a.2", ("a", 2)),
+        (("b", 1), ("b", 1)),
+        ("foo.tiff", ("foo.tiff", 1)),
+    ],
+)
+def test_normkey(name, expected):
+    assert norm_key(name) == expected
