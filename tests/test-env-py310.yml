@@ -19,10 +19,10 @@ dependencies:
   - pandas
   - toolz
   - odc-geo >=0.4.7
-  - pystac ==1.9.0
-  - dask ==2023.12.0
-  - xarray ==2023.12.0
-  - rasterio ==1.3.9
+  - pystac >=1.12.1
+  - dask
+  - xarray
+  - rasterio
 
   # For mypy
   - types-python-dateutil
@@ -36,7 +36,7 @@ dependencies:
   - mock
   - deepdiff
   - pystac-client >=0.2.0
-  - geopandas <1
+  - geopandas
   - stackstac
   - zarr
 

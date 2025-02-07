@@ -392,7 +392,13 @@ def load_from_json(geojson, params: BenchLoadParams, **kw):
     :param params: data loading configuration
     :param kw: passed on to underlying data load function
     """
-    all_items = [pystac.item.Item.from_dict(f) for f in geojson["features"]]
+    # Don't migrate items when loading with stackstac. Migration to stac 1.1
+    # removes `proj:epsg` from the item properties that stackstac (==0.5.1 at
+    # the time of writing) uses to determine the CRS
+    migrate = kw.get("migrate", params.method == "odc-stac")
+    all_items = [
+        pystac.item.Item.from_dict(f, migrate=migrate) for f in geojson["features"]
+    ]
 
     opts = params.compute_args()
     opts.update(**kw)
