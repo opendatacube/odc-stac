@@ -486,7 +486,7 @@ class MDParseConfig:
 
 
 def _norm_band_cfg(
-    cfg: Dict[str, Any]
+    cfg: Dict[str, Any],
 ) -> Tuple[RasterBandMetadata, Dict[str, RasterBandMetadata]]:
     fallback = norm_band_metadata(cfg.get("*", {}))
     return fallback, {
