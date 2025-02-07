@@ -432,12 +432,15 @@ def alias_map_from_eo(item: pystac.item.Item) -> Dict[str, List[BandKey]]:
 
 
 def mk_sample_item(collection: pystac.collection.Collection) -> pystac.item.Item:
-    try:
-        item_assets = ItemAssetsExtension.ext(collection).item_assets
-    except pystac.errors.ExtensionNotImplemented:
-        raise ValueError(
-            "This only works on Collections with ItemAssets extension"
-        ) from None
+    item_assets = getattr(collection, "item_assets", None)
+    if item_assets is None:
+        try:
+            item_assets = ItemAssetsExtension.ext(collection).item_assets
+        except pystac.errors.ExtensionNotImplemented:
+            pass
+
+    if not item_assets:
+        raise ValueError("This only works on Collections with ItemAssets extension")
 
     item = pystac.item.Item(
         "sample",

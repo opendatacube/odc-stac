@@ -188,6 +188,9 @@ jobs:
       - name: Check with pylint
         shell: bash
         run: |
+          echo "Running pylint"
+          pylint --version
+          echo "-------------------------------------"
           pylint -v odc
 
   run-mypy:
