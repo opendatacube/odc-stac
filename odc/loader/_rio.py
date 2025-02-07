@@ -492,7 +492,7 @@ def rio_read(
         return dst.transpose([2, 0, 1])
 
     def fixup_out(
-        x: tuple[tuple[slice, slice], np.ndarray]
+        x: tuple[tuple[slice, slice], np.ndarray],
     ) -> tuple[tuple[slice, slice], np.ndarray]:
         roi, out = x
         if out.ndim == 2 or ydim == 1:

@@ -301,7 +301,7 @@ def geobox_gsd(geobox: GeoBox) -> float:
 
 
 def compute_eo3_grids(
-    assets: Dict[str, pystac.asset.Asset]
+    assets: Dict[str, pystac.asset.Asset],
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     """
     Compute a minimal set of eo3 grids.
@@ -319,7 +319,7 @@ def compute_eo3_grids(
 
 
 def _group_geoboxes(
-    geoboxes: Dict[str, GeoBox]
+    geoboxes: Dict[str, GeoBox],
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     # pylint: disable=too-many-locals
     assert len(geoboxes) > 0
