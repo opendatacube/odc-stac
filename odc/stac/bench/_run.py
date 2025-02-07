@@ -164,20 +164,20 @@ class BenchmarkContext:
 
     def to_pandas_dict(self) -> Dict[str, Any]:
         """Extract parts one would need for analysis of results."""
-        return dict(
-            method=self.method,
-            scenario=self.scenario,
-            data=self.data_signature,
-            chunks=self.chunk_signature,
-            chunks_x=self.chunks[2],
-            chunks_y=self.chunks[3],
-            resolution=self.resolution,
-            crs=self.crs,
-            npix=self.npix,
-            nbytes=self.nbytes,
-            nthreads=self.nthreads,
-            total_ram=self.total_ram,
-        )
+        return {
+            "method": self.method,
+            "scenario": self.scenario,
+            "data": self.data_signature,
+            "chunks": self.chunk_signature,
+            "chunks_x": self.chunks[2],
+            "chunks_y": self.chunks[3],
+            "resolution": self.resolution,
+            "crs": self.crs,
+            "npix": self.npix,
+            "nbytes": self.nbytes,
+            "nthreads": self.nthreads,
+            "total_ram": self.total_ram,
+        }
 
 
 def collect_context_info(
@@ -333,7 +333,7 @@ class BenchLoadParams:
         if method == "":
             method = self.method
 
-        extra = dict(**self.extra.get(method, {}))
+        extra = {**self.extra.get(method, {})}
 
         if method == "odc-stac":
             return _trim_dict(

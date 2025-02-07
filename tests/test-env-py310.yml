@@ -5,6 +5,8 @@
 name: odc-stac-tests-py310
 channels:
   - conda-forge
+  - nodefaults
+
 dependencies:
   - python =3.10
   - pip
@@ -48,9 +50,9 @@ dependencies:
 
   # dev
   - autoflake
-  - black >=23.1.0
+  - black >=25.1.0
   - isort
   - mypy
-  - pylint ==2.14.4
+  - pylint =3
   - pip:
     - -e ../

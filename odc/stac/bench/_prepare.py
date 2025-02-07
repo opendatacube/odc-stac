@@ -66,9 +66,10 @@ def dump_site(site: Dict[str, Any], overwrite: bool = False) -> Dict[str, Any]:
     search = cat.search(**search)
     print(f"Query API end-point: {api}")
     all_features = search.item_collection_as_dict()
-    all_features["properties"] = dict(
-        api=search.url, search=search._parameters  # pylint: disable=protected-access
-    )
+    all_features["properties"] = {
+        "api": search.url,
+        "search": search._parameters,  # pylint: disable=protected-access
+    }
 
     out_path = Path(f"{site['file_id']}.geojson")
     if out_path.exists():

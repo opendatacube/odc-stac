@@ -182,7 +182,7 @@ def get_aws_settings(
         aws_unsigned = aws_unsigned_check_env()
 
     if aws_unsigned:
-        return (dict(region_name=region_name, aws_unsigned=True), None)
+        return ({"region_name": region_name, "aws_unsigned": True}, None)
 
     creds = get_creds_with_retry(session)
     if creds is None:
@@ -191,12 +191,12 @@ def get_aws_settings(
     cc = creds.get_frozen_credentials()
 
     return (
-        dict(
-            region_name=region_name,
-            aws_access_key_id=cc.access_key,
-            aws_secret_access_key=cc.secret_key,
-            aws_session_token=cc.token,
-            requester_pays=requester_pays,
-        ),
+        {
+            "region_name": region_name,
+            "aws_access_key_id": cc.access_key,
+            "aws_secret_access_key": cc.secret_key,
+            "aws_session_token": cc.token,
+            "requester_pays": requester_pays,
+        },
         creds,
     )

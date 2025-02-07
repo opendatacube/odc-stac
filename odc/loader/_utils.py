@@ -43,5 +43,4 @@ def pmap(
         pool = ThreadPoolExecutor(pool)
 
     with pool as _runner:
-        for x in _runner.map(func, inputs):
-            yield x
+        yield from _runner.map(func, inputs)
