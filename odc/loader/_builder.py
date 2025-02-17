@@ -58,7 +58,7 @@ from .types import (
 DaskBuilderMode = Literal["mem", "concurrency"]
 
 DASK_VERSION = Version(dask.__version__)
-DASK_GE_20250100 = DASK_VERSION.release >= (2024, 12, 1)
+DASK_GE_20250100 = DASK_VERSION.release >= (2025, 1, 0)
 
 
 class MkArray(Protocol):
