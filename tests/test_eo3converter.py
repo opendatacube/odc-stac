@@ -6,6 +6,7 @@ import pytest
 _ = pytest.importorskip("datacube")
 
 import uuid
+from typing import Any
 
 import pystac
 import pystac.asset
@@ -55,7 +56,13 @@ def test_infer_product_collection(
 
     # Check unhappy path
     collection = sentinel_stac_collection.clone()
-    collection.stac_extensions.remove(ItemAssetsExtension.get_schema_uri())
+    item_assets = getattr(collection, "item_assets", None)
+    if item_assets is not None:
+        # newer pystac
+        item_assets.clear()
+    else:
+        collection.stac_extensions.remove(ItemAssetsExtension.get_schema_uri())
+
     with pytest.raises(ValueError):
         infer_dc_product(collection)
 
@@ -161,6 +168,7 @@ def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
 
     product = infer_dc_product(item, STAC_CFG)
 
+    assert item.geometry is not None
     geom = Geometry(item.geometry, "EPSG:4326")
     ds = _item_to_ds(item, product, STAC_CFG)
     assert ds.crs == "EPSG:4326"
@@ -196,7 +204,7 @@ def test_item_uuid():
     assert id1 != id2
 
 
-def test_issue_n6(usgs_landsat_stac_v1):
+def test_issue_n6(usgs_landsat_stac_v1: pystac.Item):
     expected_bands = {
         "blue",
         "coastal",
@@ -213,12 +221,12 @@ def test_issue_n6(usgs_landsat_stac_v1):
     assert set(p.measurements) == expected_bands
 
 
-def test_partial_proj(partial_proj_stac):
+def test_partial_proj(partial_proj_stac: pystac.Item):
     (ds,) = list(stac2ds([partial_proj_stac]))
     assert ds.metadata_doc["grids"]["default"]["shape"] == (1, 1)
 
 
-def test_noassets_case(no_bands_stac):
+def test_noassets_case(no_bands_stac: Any):
     (ds,) = stac2ds([no_bands_stac])
     assert len(ds.measurements) == 0
 
@@ -234,3 +242,14 @@ def test_old_imports():
 
     with pytest.raises(AttributeError):
         _ = odc.stac.no_such_thing
+
+
+def test_product_cache(sentinel_stac_ms: pystac.item.Item):
+    item = sentinel_stac_ms
+    # simulate a product that was not created via infer_dc_product
+    # (and therefore did not have the _md attr set)
+    product = infer_dc_product(item, STAC_CFG)
+    delattr(product, "_md")
+    # make sure it doesn't error when product_cache is provided
+    (ds,) = stac2ds([item], STAC_CFG, {product.name: product})
+    assert ds.id

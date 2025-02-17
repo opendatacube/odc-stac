@@ -389,6 +389,20 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
     assert _auto_load_params([xx] * 3) is None
 
 
+def test_accessories_preserved(ga_landsat_stac: pystac.item.Item):
+    item0 = ga_landsat_stac
+    item = pystac.Item.from_dict(item0.to_dict())
+
+    md = extract_collection_metadata(item, STAC_CFG)
+
+    xx = parse_item(item, md)
+    assert len(xx.accessories) == 3
+    assert xx.accessories.get("thumbnail:nbart")
+    assert xx.accessories.get("checksum:sha1")
+    assert xx.accessories.get("metadata:processor")
+    assert xx.strip().accessories == {}
+
+
 @pytest.fixture
 def parsed_item_s2(sentinel_stac_ms: pystac.item.Item):
     (item,) = parse_items([sentinel_stac_ms], STAC_CFG)

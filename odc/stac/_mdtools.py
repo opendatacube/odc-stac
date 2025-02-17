@@ -301,7 +301,7 @@ def geobox_gsd(geobox: GeoBox) -> float:
 
 
 def compute_eo3_grids(
-    assets: Dict[str, pystac.asset.Asset]
+    assets: Dict[str, pystac.asset.Asset],
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     """
     Compute a minimal set of eo3 grids.
@@ -319,7 +319,7 @@ def compute_eo3_grids(
 
 
 def _group_geoboxes(
-    geoboxes: Dict[str, GeoBox]
+    geoboxes: Dict[str, GeoBox],
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     # pylint: disable=too-many-locals
     assert len(geoboxes) > 0
@@ -432,12 +432,15 @@ def alias_map_from_eo(item: pystac.item.Item) -> Dict[str, List[BandKey]]:
 
 
 def mk_sample_item(collection: pystac.collection.Collection) -> pystac.item.Item:
-    try:
-        item_assets = ItemAssetsExtension.ext(collection).item_assets
-    except pystac.errors.ExtensionNotImplemented:
-        raise ValueError(
-            "This only works on Collections with ItemAssets extension"
-        ) from None
+    item_assets = getattr(collection, "item_assets", None)
+    if item_assets is None:
+        try:
+            item_assets = ItemAssetsExtension.ext(collection).item_assets
+        except pystac.errors.ExtensionNotImplemented:
+            pass
+
+    if not item_assets:
+        raise ValueError("This only works on Collections with ItemAssets extension")
 
     item = pystac.item.Item(
         "sample",
@@ -676,11 +679,13 @@ def parse_item(
         _grids[grid_name] = grid
         return grid
 
+    band_names = []
     for bk, meta in template.meta.bands.items():
         asset_name, band_idx = bk
         asset = _assets.get(asset_name)
         if asset is None:
             continue
+        band_names.append(asset_name)
 
         grid_name = band2grid.get(asset_name, "default")
         geobox: Optional[GeoBox] = _get_grid(grid_name, asset) if has_proj else None
@@ -711,6 +716,10 @@ def parse_item(
             driver_data=driver_data,
         )
 
+    # the assets that aren't bands are accessories
+    acc_names = set(_assets.keys()).difference(set(band_names))
+    accessories = {name: {"path": _assets[name].href} for name in acc_names}
+
     md = item.common_metadata
     return ParsedItem(
         item.id,
@@ -720,6 +729,7 @@ def parse_item(
         datetime=item.datetime,
         datetime_range=(md.start_datetime, md.end_datetime),
         href=item.get_self_href(),
+        accessories=accessories,
     )
 
 

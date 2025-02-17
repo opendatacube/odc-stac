@@ -13,7 +13,7 @@ similar concepts.
      - ODC
      - Description
    * - :py:class:`~pystac.Collection`
-     - Product or :py:class:`~datacube.model.DatasetType`
+     - :py:class:`~datacube.model.Product`
      - Collection of observations across space and time
    * - :py:class:`~pystac.Item`
      - :py:class:`~datacube.model.Dataset`

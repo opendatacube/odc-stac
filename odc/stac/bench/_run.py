@@ -164,20 +164,20 @@ class BenchmarkContext:
 
     def to_pandas_dict(self) -> Dict[str, Any]:
         """Extract parts one would need for analysis of results."""
-        return dict(
-            method=self.method,
-            scenario=self.scenario,
-            data=self.data_signature,
-            chunks=self.chunk_signature,
-            chunks_x=self.chunks[2],
-            chunks_y=self.chunks[3],
-            resolution=self.resolution,
-            crs=self.crs,
-            npix=self.npix,
-            nbytes=self.nbytes,
-            nthreads=self.nthreads,
-            total_ram=self.total_ram,
-        )
+        return {
+            "method": self.method,
+            "scenario": self.scenario,
+            "data": self.data_signature,
+            "chunks": self.chunk_signature,
+            "chunks_x": self.chunks[2],
+            "chunks_y": self.chunks[3],
+            "resolution": self.resolution,
+            "crs": self.crs,
+            "npix": self.npix,
+            "nbytes": self.nbytes,
+            "nthreads": self.nthreads,
+            "total_ram": self.total_ram,
+        }
 
 
 def collect_context_info(
@@ -333,7 +333,7 @@ class BenchLoadParams:
         if method == "":
             method = self.method
 
-        extra = dict(**self.extra.get(method, {}))
+        extra = {**self.extra.get(method, {})}
 
         if method == "odc-stac":
             return _trim_dict(
@@ -392,7 +392,13 @@ def load_from_json(geojson, params: BenchLoadParams, **kw):
     :param params: data loading configuration
     :param kw: passed on to underlying data load function
     """
-    all_items = [pystac.item.Item.from_dict(f) for f in geojson["features"]]
+    # Don't migrate items when loading with stackstac. Migration to stac 1.1
+    # removes `proj:epsg` from the item properties that stackstac (==0.5.1 at
+    # the time of writing) uses to determine the CRS
+    migrate = kw.get("migrate", params.method == "odc-stac")
+    all_items = [
+        pystac.item.Item.from_dict(f, migrate=migrate) for f in geojson["features"]
+    ]
 
     opts = params.compute_args()
     opts.update(**kw)
