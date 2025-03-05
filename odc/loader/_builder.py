@@ -143,7 +143,7 @@ class LoadChunkTask:
         self, dask_key: str, dsk: Mapping[Key, Any] | None = None
     ) -> list[list[tuple[str, int]]]:
         if DASK_GE_20250100:
-            from dask._task_spec import TaskRef, List
+            from dask.task_spec import TaskRef, List
 
             klass = TaskRef
             wrapper = List
@@ -301,7 +301,7 @@ class DaskGraphBuilder:
 
                 fut = rdr.read(dst_gbox, selection=task.selection, idx=idx)
                 if DASK_GE_20250100:
-                    from dask._task_spec import TaskRef
+                    from dask.task_spec import TaskRef
                     keys_out.append(TaskRef(fut.key))
                 else:
                     keys_out.append(fut.key)
@@ -309,14 +309,14 @@ class DaskGraphBuilder:
 
 
             if DASK_GE_20250100:
-                from dask._task_spec import List
+                from dask.task_spec import List
 
                 out.append(List(keys_out))
             else:
                 out.append(keys_out)
 
         if DASK_GE_20250100:
-            from dask._task_spec import List
+            from dask.task_spec import List
 
             return List(out)
         else:
@@ -384,7 +384,7 @@ class DaskGraphBuilder:
             task_key: Key = (band_layer, *task.idx)
             if dask_reader is None:
                 if DASK_GE_20250100:
-                    from dask._task_spec import Task, TaskRef
+                    from dask.task_spec import Task, TaskRef
 
                     dsk[task_key] = Task(
                         task_key,
@@ -425,7 +425,7 @@ class DaskGraphBuilder:
                     rdr_cache=rdr_cache,
                 )
                 if DASK_GE_20250100:
-                    from dask._task_spec import Task
+                    from dask.task_spec import Task
 
                     dsk[task_key] = Task(
                         task_key,
