@@ -1,6 +1,5 @@
 """STAC Item -> ODC Dataset[eo3]."""
 
-from ._version import __version__  # isort:skip  this has to be 1st import
 from odc.loader._rio import configure_rio, configure_s3_access
 from odc.loader.types import RasterBandMetadata, RasterLoadParams, RasterSource
 
@@ -33,14 +32,13 @@ __all__ = (
     "parse_items",
     "extract_collection_metadata",
     "output_geobox",
-    "__version__",
 )
 
 _eo3_methods = ["stac2ds", "infer_dc_product"]
 
 
 def __dir__():
-    return [*__all__, *_eo3_methods]
+    return [*__all__, *_eo3_methods, "__version__"]
 
 
 def __getattr__(name):
@@ -49,4 +47,9 @@ def __getattr__(name):
         from . import eo3
 
         return getattr(eo3, name)
+
+    if name == "__version__":
+        from importlib.metadata import version
+
+        return version(__name__)
     raise AttributeError(f"module {__name__} has no attribute {name}")

@@ -1,6 +1,98 @@
 [build-system]
-requires = ["setuptools>=51.0.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "odc-stac"
+description = "Tooling for converting STAC metadata to ODC data model"
+version = "0.4.0a1"
+authors = [
+    {name = "Open Data Cube"}
+]
+maintainers = [
+    {name = "Open Data Cube"}
+]
+readme = "README.rst"
+license = "Apache-2.0"
+requires-python = ">=3.8"
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Typing :: Typed"
+]
+dependencies = [
+    "affine",
+    "odc-geo>=0.4.7",
+    "odc-loader>=0.5.0",
+    "rasterio>=1.0.0,!=1.3.0,!=1.3.1",
+    "dask[array]",
+    "numpy>=1.20.0",
+    "pandas",
+    "pystac>=1.0.0,<2",
+    "toolz",
+    "xarray>=0.19"
+]
+
+[project.optional-dependencies]
+botocore = ["botocore"]
+docs = [
+    "sphinx",
+    "sphinx_rtd_theme",
+    "nbsphinx",
+    "sphinx-autodoc-typehints",
+    "matplotlib-inline",
+    "pandas",
+    "distributed",
+    "datacube>=1.8.8",
+    "ipython",
+    "ipykernel"
+]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "pystac_client",
+    "distributed",
+    "geopandas"
+]
+test-all = [
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "pystac_client",
+    "distributed",
+    "geopandas",
+    "datacube",
+    "stackstac"
+]
+
+[project.urls]
+Documentation = "https://odc-stac.readthedocs.io/en/latest/"
+"Bug Reporting" = "https://github.com/opendatacube/odc-stac/issues"
+Homepage = "https://github.com/opendatacube/odc-stac/"
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["odc"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/odc",
+    "/README.rst",
+    "/tests",
+    "/scripts",
+    "/docs",
+    "/notebooks",
+    "/binder"
+]
 
 [tool.mypy]
 python_version = "3.10"
@@ -18,10 +110,9 @@ omit = [
 profile = "black"
 
 [tool.pylint.messages_control]
-
 max-line-length = 120
 max-args = 15
-
+max-positional-arguments = 12
 disable = [
   "missing-function-docstring",
   "invalid-name",

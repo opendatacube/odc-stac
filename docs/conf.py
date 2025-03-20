@@ -20,7 +20,7 @@ import requests
 from sphinx.util import logging
 
 sys.path.insert(0, os.path.abspath(".."))
-from odc.stac._version import __version__ as _odc_stac_version
+from odc.stac import __version__ as _odc_stac_version
 from scripts import notebook_hash
 
 # isort: off
