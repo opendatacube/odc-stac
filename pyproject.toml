@@ -21,7 +21,6 @@ profile = "black"
 
 max-line-length = 120
 max-args = 15
-max-positional-arguments = 12
 
 disable = [
   "missing-function-docstring",
