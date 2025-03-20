@@ -1,10 +1,10 @@
 # pylint: disable=redefined-outer-name,missing-module-docstring,missing-function-docstring
+# pylint: disable=import-outside-toplevel
 import datetime as dt
 
 import pytest
 from dask.base import tokenize
 from odc.geo.geobox import GeoBox
-
 from odc.loader.types import (
     RasterBandMetadata,
     RasterGroupMetadata,
@@ -12,6 +12,7 @@ from odc.loader.types import (
     RasterSource,
     norm_key,
 )
+
 from odc.stac import ParsedItem, RasterCollectionMetadata
 from odc.stac.testing.stac import b_, mk_parsed_item
 
@@ -221,3 +222,10 @@ def test_tokenize(parsed_item_ab: ParsedItem):
 )
 def test_normkey(name, expected):
     assert norm_key(name) == expected
+
+
+def test_version():
+    from odc.stac import __version__
+
+    assert __version__ is not None
+    assert len(__version__.split(".")) == 3

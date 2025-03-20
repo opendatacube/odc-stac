@@ -24,31 +24,25 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade setuptools
-          python -m pip install --upgrade \
-           toml \
-           wheel \
-           packaging \
-           twine
+          python -m pip install --upgrade hatch
           python -m pip freeze
 
       - name: Build Clean Packages
         run: |
           mkdir -p ./wheels/clean
-          python setup.py bdist_wheel --dist-dir ./wheels/clean/
-          python setup.py sdist --dist-dir ./wheels/clean/
+          hatch build -t sdist -t wheel
+          mv dist/* ./wheels/clean/
           find ./wheels/clean -type f
 
       - name: Patch Package Versions
         run: |
-          find . -name _version.py | xargs python ./scripts/patch_version.py ${GITHUB_RUN_NUMBER:-0}
+          python ./scripts/patch_version.py ${GITHUB_RUN_NUMBER:-0} pyproject.toml
 
       - name: Build Dev Packages
         run: |
           mkdir -p ./wheels/dev
-          python setup.py bdist_wheel --dist-dir ./wheels/dev/
-          python setup.py sdist --dist-dir ./wheels/dev/
+          hatch build -t sdist -t wheel
+          mv dist/* ./wheels/dev/
           find ./wheels/dev -type f
 
   build-test-env-base:

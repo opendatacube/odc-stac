@@ -1,9 +1,13 @@
+"""
+Patch version in pyproject.toml
+"""
+
 import re
 import sys
 
 from packaging import version
 
-version_rgx = re.compile("^\\s*__version__\\s*=\\s*['\"]([^'\"]*)['\"]")
+version_rgx = re.compile("^\\s*version\\s*=\\s*['\"]([^'\"]*)['\"]")
 
 
 def match_version(line):
@@ -30,14 +34,13 @@ def patch_version_lines(lines, build_number):
 
 
 def patch_file(fname, build_number):
-    with open(fname) as src:
+    with open(fname, encoding="utf-8") as src:
         lines = list(patch_version_lines(src, build_number))
-    with open(fname, "wt") as dst:
+    with open(fname, "wt", encoding="utf-8") as dst:
         dst.writelines(lines)
 
 
-if __name__ == "__main__":
-    args = sys.argv[1:]
+def main(args):
     if len(args) < 2:
         print(f"Usage: {sys.argv[0]} build-number [FILE]...")
 
@@ -45,3 +48,7 @@ if __name__ == "__main__":
     build_number = int(build_number)
     for f in files:
         patch_file(f, build_number)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
