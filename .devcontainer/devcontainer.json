@@ -1,0 +1,39 @@
+{
+  "name": "ODC-STAC",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.isort",
+        "ms-python.pylint",
+        "ms-python.debugpy",
+        "ms-python.black-formatter",  
+        "ms-python.mypy-type-checker",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker",
+        "ms-toolsai.jupyter",
+        "ms-toolsai.jupyterhub",
+        "ms-toolsai.jupyter-renderers",
+        "ms-vscode.makefile-tools",
+        "github.vscode-github-actions",
+        "foxundermoon.shell-format",
+        "timonwong.shellcheck",
+        "streetsidesoftware.code-spell-checker",
+        "kahole.magit"
+      ],
+      "settings": {
+        "python.pythonPath": "/home/vscode/envs/main/bin/python",
+        "python.defaultInterpreterPath": "/home/vscode/envs/main/bin/python",
+        "jupyter.notebookFileRoot": "/workspace/${fileDirname}"
+      }
+    }
+  },
+  "features": {},
+  "workspaceFolder": "/workspace",
+  "dockerComposeFile": [
+    "docker-compose.yml"
+  ],
+  "service": "main",
+  "postCreateCommand": "bash .devcontainer/post-create.sh || true",
+  "remoteUser": "vscode"
+}

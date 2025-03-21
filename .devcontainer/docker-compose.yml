@@ -1,0 +1,14 @@
+services:
+  main:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace:cached
+      - home_vscode:/home/vscode/
+    command: sleep infinity
+
+    environment:
+      - PYTHONUNBUFFERED=1
+volumes:
+  home_vscode:
