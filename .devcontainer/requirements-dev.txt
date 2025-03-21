@@ -1,0 +1,12 @@
+pylint >=3
+black[jupyter]
+isort
+pycodestyle
+pylint
+docutils
+autopep8
+autoflake
+
+mypy
+types-shapely
+types-cachetools
