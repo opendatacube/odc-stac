@@ -27,7 +27,8 @@ import xarray as xr
 from dask import array as da
 from dask import is_dask_collection
 from dask.array.core import normalize_chunks
-from dask.base import quote, tokenize
+from dask.base import tokenize
+from dask.core import quote
 from dask.highlevelgraph import HighLevelGraph
 from dask.typing import Key
 from numpy.typing import DTypeLike
