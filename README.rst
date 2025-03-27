@@ -83,17 +83,14 @@ Sample ``environment.yml`` is provided below.
 Developing
 ##########
 
-To develop ``odc-stac`` locally using pip (assuming you have virtualenvwrapper_ installed):
+To develop ``odc-stac`` locally it's best to use provided ``devcontainer``_.
 
 .. code-block:: bash
 
    git clone https://github.com/opendatacube/odc-stac
-   cd odc-stac
-   mkvirtualenv odc-stac
-   pip install -e .
-   pip install -r requirements-dev.txt
+   code odc-stac
 
-Run tests with pytest_:
+Once running inside the dev container, run tests with pytest_:
 
 .. code-block:: bash
 
@@ -130,8 +127,6 @@ Linting is provided by mypy_, pylint_, and black_:
 
 .. _Binder: https://mybinder.org/v2/gh/opendatacube/odc-stac/develop?urlpath=lab/workspaces/demo
 
-.. _virtualenvwrapper: https://virtualenvwrapper.readthedocs.io
-
 .. _pytest: https://docs.pytest.org
 
 .. _mypy: http://mypy-lang.org/
@@ -145,3 +140,5 @@ Linting is provided by mypy_, pylint_, and black_:
 .. _`Sample Notebooks`: https://odc-stac.readthedocs.io/en/latest/examples.html
 
 .. _Dask: https://dask.org/
+
+.. _devcontainer: https://code.visualstudio.com/docs/devcontainers/containers
