@@ -139,7 +139,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
 
     dss = list(stac2ds(iter([item, item, item]), STAC_CFG))
     assert len(dss) == 3
-    assert len({id(ds.type) for ds in dss}) == 1
+    assert len({id(ds.product) for ds in dss}) == 1
 
     # Test missing band case
     item = item0.clone()
