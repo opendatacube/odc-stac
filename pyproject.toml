@@ -98,6 +98,7 @@ include = [
 python_version = "3.10"
 ignore_missing_imports = true
 allow_redefinition = true
+warn_unused_ignores = true
 plugins = "numpy.typing.mypy_plugin"
 explicit_package_bases = true
 
