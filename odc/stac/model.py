@@ -241,7 +241,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         bands = self.collection.normalize_band_query(bands)
 
         def _resolution(g: GeoBox) -> float:
-            return min(g.resolution.map(abs).xy)  # type: ignore
+            return min(g.resolution.map(abs).xy)
 
         # TODO: support other geobox types?
         gbx: Set[GeoBox] = set()

@@ -297,7 +297,7 @@ def geobox_gsd(geobox: GeoBox) -> float:
     :param geobox: input :class:`~odc.geo.geobox.GeoBox`
     :returns: Minimum ground sampling distance along X/Y
     """
-    return min(map(abs, [geobox.transform.a, geobox.transform.e]))  # type: ignore
+    return min(map(abs, [geobox.transform.a, geobox.transform.e]))
 
 
 def compute_eo3_grids(
