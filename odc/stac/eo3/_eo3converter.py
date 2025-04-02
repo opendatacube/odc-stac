@@ -224,7 +224,7 @@ def _to_dataset(
         "lineage": {},
     }
 
-    return Dataset(product, prep_eo3(ds_doc), uris=[item.href if item.href else ""])
+    return Dataset(product, prep_eo3(ds_doc), uri=item.href)
 
 
 def _item_to_ds(
