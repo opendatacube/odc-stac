@@ -24,7 +24,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python -m pip install --upgrade hatch
+          python -m pip install --upgrade hatch twine
           python -m pip freeze
 
       - name: Build Clean Packages
@@ -33,6 +33,10 @@ jobs:
           hatch build -t sdist -t wheel
           mv dist/* ./wheels/clean/
           find ./wheels/clean -type f
+
+      - name: Check Packaging
+        run: |
+          find ./wheels/clean -type f | xargs twine check
 
       - name: Patch Package Versions
         run: |
