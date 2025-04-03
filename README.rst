@@ -83,7 +83,7 @@ Sample ``environment.yml`` is provided below.
 Developing
 ##########
 
-To develop ``odc-stac`` locally it's best to use provided ``devcontainer``_.
+To develop ``odc-stac`` locally it's best to use provided devcontainer_.
 
 .. code-block:: bash
 
