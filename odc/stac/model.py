@@ -7,6 +7,7 @@ import math
 from copy import copy
 from dataclasses import astuple, dataclass, field, replace
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
+from typing_extensions import override
 
 from odc.geo import CRS, Geometry, MaybeCRS
 from odc.geo.geobox import GeoBox
@@ -149,6 +150,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         """
         return self._norm_key(self.band_key(band))
 
+    @override
     def __getitem__(self, band: BandIdentifier) -> RasterBandMetadata:
         """
         Query band taking care of aliases.
@@ -181,12 +183,15 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
     def aliases(self) -> Dict[str, List[BandKey]]:
         return self.meta.aliases
 
+    @override
     def __len__(self) -> int:
         return len(self.meta.bands)
 
+    @override
     def __iter__(self) -> Iterator[BandKey]:
         yield from self.meta.bands
 
+    @override
     def __contains__(self, __o: object) -> bool:
         if isinstance(__o, tuple):
             return __o in self.meta.bands
@@ -327,6 +332,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
             for k, _actual in ((k, canon(k)) for k in bands)
         }
 
+    @override
     def __getitem__(self, band: BandIdentifier) -> RasterSource:
         """
         Query band taking care of aliases.
@@ -337,12 +343,15 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
             band = self.collection.band_key(band)
         return self.bands[band]
 
+    @override
     def __len__(self) -> int:
         return len(self.bands)
 
+    @override
     def __iter__(self) -> Iterator[BandKey]:
         yield from self.bands
 
+    @override
     def __contains__(self, k: object) -> bool:
         if isinstance(k, str):
             try:
@@ -419,6 +428,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
             for k, srcs in assets.items()
         }
 
+    @override
     def __hash__(self) -> int:
         return hash((self.id, self.collection.name))
 
