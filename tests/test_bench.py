@@ -98,7 +98,7 @@ def dask_client():
 @pytest.mark.skipif(
     not pytest.importorskip("stackstac"), reason="stackstac not installed"
 )
-def test_load_from_json_stackstac(fake_dask_client, bench_site1, bench_site2):
+def test_load_from_json_stackstac(fake_dask_client, bench_site1, bench_site2) -> None:
     dask_client = fake_dask_client
     params = BenchLoadParams(
         scenario="test1",
@@ -145,7 +145,7 @@ def test_load_from_json_stackstac(fake_dask_client, bench_site1, bench_site2):
         load_from_json(bench_site1, params.with_method("wroNg"))
 
 
-def test_bench_context(fake_dask_client, bench_site1, bench_site2):
+def test_bench_context(fake_dask_client, bench_site1, bench_site2) -> None:
     params = BenchLoadParams(
         scenario="test1",
         method="odc-stac",
@@ -261,7 +261,7 @@ def _strip_geo(xx: xarray.DataArray) -> xarray.DataArray:
     return no_geo
 
 
-def test_run_bench(fake_dask_client, bench_site1, capsys):
+def test_run_bench(fake_dask_client, bench_site1, capsys) -> None:
     dask_client = fake_dask_client
     params = BenchLoadParams(
         scenario="test1",
@@ -281,7 +281,7 @@ def test_run_bench(fake_dask_client, bench_site1, capsys):
     assert len(_io.out) > 0
 
 
-def test_bench_params_json():
+def test_bench_params_json() -> None:
     params = BenchLoadParams(
         scenario="test1",
         method="odc-stac",

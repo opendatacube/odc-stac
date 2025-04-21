@@ -17,7 +17,7 @@ from odc.stac import ParsedItem, RasterCollectionMetadata
 from odc.stac.testing.stac import b_, mk_parsed_item
 
 
-def test_band_load_info():
+def test_band_load_info() -> None:
     meta = RasterBandMetadata(data_type="uint16", nodata=13)
     band = RasterSource("https://example.com/some.tif", meta=meta)
     assert RasterLoadParams.same_as(meta).dtype == "uint16"
@@ -31,7 +31,7 @@ def test_band_load_info():
 
 
 @pytest.mark.parametrize("lon", [0, -179, 179, 10, 23.4])
-def test_mid_longitude(lon: float):
+def test_mid_longitude(lon: float) -> None:
     gbox = GeoBox.from_bbox((lon - 0.1, 0, lon + 0.1, 1), shape=(100, 100))
     xx = mk_parsed_item([b_("b1", gbox)])
     assert xx.geometry is not None
@@ -41,7 +41,7 @@ def test_mid_longitude(lon: float):
     assert mk_parsed_item([]).mid_longitude is None
 
 
-def test_solar_day():
+def test_solar_day() -> None:
     def _mk(lon: float, datetime):
         gbox = GeoBox.from_bbox((lon - 0.1, 0, lon + 0.1, 1), shape=(100, 100))
         return mk_parsed_item([b_("b1", gbox)], datetime=datetime)
@@ -98,7 +98,7 @@ def parsed_item_ab(collection_ab: RasterCollectionMetadata) -> ParsedItem:
     )
 
 
-def test_collection(collection_ab: RasterCollectionMetadata):
+def test_collection(collection_ab: RasterCollectionMetadata) -> None:
     xx = collection_ab
 
     assert xx.canonical_name("b") == "b"
@@ -138,7 +138,7 @@ def test_collection(collection_ab: RasterCollectionMetadata):
         _ = xx["no-such-band"]
 
 
-def test_collection_allbands():
+def test_collection_allbands() -> None:
     xx = mk_parsed_item([b_("a.1"), b_("a.2"), b_("a.3")])
     md = xx.collection
     assert md.all_bands == ["a.1", "a.2", "a.3"]
@@ -157,7 +157,7 @@ def test_collection_allbands():
     assert md.canonical_name("AAA") == "AAA"
 
 
-def test_parsed_item(parsed_item_ab: ParsedItem):
+def test_parsed_item(parsed_item_ab: ParsedItem) -> None:
     xx = parsed_item_ab
     assert xx["AA"] is not None
     assert xx["b"] is not None
@@ -199,7 +199,7 @@ def test_parsed_item(parsed_item_ab: ParsedItem):
     assert xx.strip()["b"].driver_data == xx["b"].driver_data
 
 
-def test_tokenize(parsed_item_ab: ParsedItem):
+def test_tokenize(parsed_item_ab: ParsedItem) -> None:
     assert tokenize(parsed_item_ab.collection) == tokenize(parsed_item_ab.collection)
     assert tokenize(parsed_item_ab) == tokenize(parsed_item_ab)
     assert tokenize(parsed_item_ab["a"]) == tokenize(parsed_item_ab["a"])
@@ -220,11 +220,11 @@ def test_tokenize(parsed_item_ab: ParsedItem):
         ("foo.tiff", ("foo.tiff", 1)),
     ],
 )
-def test_normkey(name, expected):
+def test_normkey(name, expected) -> None:
     assert norm_key(name) == expected
 
 
-def test_version():
+def test_version() -> None:
     from odc.stac import __version__
 
     assert __version__ is not None
