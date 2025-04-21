@@ -33,14 +33,14 @@ def patch_version_lines(lines, build_number):
         yield line
 
 
-def patch_file(fname, build_number):
+def patch_file(fname, build_number) -> None:
     with open(fname, encoding="utf-8") as src:
         lines = list(patch_version_lines(src, build_number))
     with open(fname, "wt", encoding="utf-8") as dst:
         dst.writelines(lines)
 
 
-def main(args):
+def main(args) -> None:
     if len(args) < 2:
         print(f"Usage: {sys.argv[0]} build-number [FILE]...")
 

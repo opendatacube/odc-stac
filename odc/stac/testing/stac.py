@@ -116,7 +116,7 @@ def mk_parsed_item(
     )
 
 
-def _add_proj(gbox: GeoBox, xx):
+def _add_proj(gbox: GeoBox, xx) -> None:
     proj = ProjectionExtension.ext(xx, add_if_missing=True)
     proj.shape = list(gbox.shape.yx)
     proj.transform = gbox.transform[:6]
@@ -158,13 +158,13 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
         meta = src.meta
         assert meta is not None
         return RasterBand.create(
-            data_type=meta.data_type,  # type: ignore
+            data_type=meta.data_type,  # type: ignore[arg-type]
             nodata=meta.nodata,
             unit=meta.units,
         )
 
     for asset_name, bands in item.assets().items():
-        b = bands[0]  # all bands shoudl share same uri
+        b = bands[0]  # all bands should share same uri
         xx.add_asset(
             asset_name,
             pystac.asset.Asset(b.uri, media_type="image/tiff", roles=["data"]),

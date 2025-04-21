@@ -522,7 +522,7 @@ class _CMDAssembler:
 
         return {(name, idx + 1): bm for idx, bm in enumerate(bands)}
 
-    def _bootstrap(self, item: pystac.item.Item):
+    def _bootstrap(self, item: pystac.item.Item) -> None:
         """Called on the very first item only."""
         self.has_proj = has_proj_ext(item) if self.check_proj else False
         if self.md_plugin is not None:
@@ -571,7 +571,7 @@ class _CMDAssembler:
             band2grid=band2grid,
         )
 
-    def update(self, item: pystac.item.Item):
+    def update(self, item: pystac.item.Item) -> None:
         # pylint: disable=too-many-locals,too-many-branches
         if self.md is None:
             self._bootstrap(item)

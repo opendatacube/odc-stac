@@ -38,7 +38,7 @@ from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 GBOX = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
 
 
-def test_mdparse_config():
+def test_mdparse_config() -> None:
     assert MDParseConfig() == MDParseConfig()
     assert MDParseConfig.from_dict({}) == MDParseConfig()
     assert MDParseConfig.from_dict({}, "cc") == MDParseConfig()
@@ -60,7 +60,7 @@ def test_mdparse_config():
     assert cfg.extra_coords == (FixedCoord("rgb", ["r", "g", "b"]),)
 
 
-def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):
+def test_is_raster_data(sentinel_stac_ms: pystac.item.Item) -> None:
     item = sentinel_stac_ms
     assert "B01" in item.assets
     assert "B02" in item.assets
@@ -72,7 +72,7 @@ def test_is_raster_data(sentinel_stac_ms: pystac.item.Item):
     assert is_raster_data(item.assets["B02"])
 
 
-def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
+def test_eo3_grids(sentinel_stac_ms: pystac.item.Item) -> None:
     item0 = sentinel_stac_ms
 
     item = item0.clone()
@@ -108,7 +108,7 @@ def test_eo3_grids(sentinel_stac_ms: pystac.item.Item):
     assert crs.epsg == 3857
 
 
-def test_asset_geobox(sentinel_stac: pystac.item.Item):
+def test_asset_geobox(sentinel_stac: pystac.item.Item) -> None:
     item0 = sentinel_stac
     item = item0.clone()
     asset = item.assets["B01"]
@@ -144,11 +144,11 @@ def test_asset_geobox(sentinel_stac: pystac.item.Item):
         asset_geobox(asset)
 
 
-def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item):
+def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item) -> None:
     assert has_proj_ext(sentinel_stac_ms_no_ext) is False
 
 
-def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item) -> None:
     item = sentinel_stac_ms_with_raster_ext.clone()
     assert has_raster_ext(item) is True
     asset = item.assets["SCL"]
@@ -164,7 +164,7 @@ def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
     ]
 
 
-def test_is_raster_data_more():
+def test_is_raster_data_more() -> None:
     def _a(href="http://example.com/", **kw):
         return pystac.asset.Asset(href, **kw)
 
@@ -187,7 +187,7 @@ def test_is_raster_data_more():
     assert is_raster_data(_a(href="/foo.jpg")) is True
 
 
-def test_extract_md(sentinel_stac_ms: pystac.item.Item):
+def test_extract_md(sentinel_stac_ms: pystac.item.Item) -> None:
     item0 = sentinel_stac_ms
     item = pystac.Item.from_dict(item0.to_dict())
 
@@ -237,7 +237,7 @@ def test_extract_md(sentinel_stac_ms: pystac.item.Item):
     assert md.name == "_"
 
 
-def test_parse_item_with_plugin():
+def test_parse_item_with_plugin() -> None:
     item = pystac.item.Item.from_dict(
         {
             "type": "Feature",
@@ -287,12 +287,14 @@ def test_parse_item_with_plugin():
     assert pit["b2"].subdataset == "AA"
 
 
-def test_noassets_case(no_bands_stac):
+def test_noassets_case(no_bands_stac) -> None:
     md = extract_collection_metadata(no_bands_stac)
     assert len(md.bands) == 0
 
 
-def test_extract_md_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+def test_extract_md_raster_ext(
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+) -> None:
     item = sentinel_stac_ms_with_raster_ext
 
     md = extract_collection_metadata(item, STAC_CFG)
@@ -302,7 +304,7 @@ def test_extract_md_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Ite
     assert md.aliases["blue"] == [("B02", 1), ("visual", 3)]
 
 
-def test_parse_item(sentinel_stac_ms: pystac.item.Item):
+def test_parse_item(sentinel_stac_ms: pystac.item.Item) -> None:
     item0 = sentinel_stac_ms
     item = pystac.Item.from_dict(item0.to_dict())
 
@@ -346,7 +348,9 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item):
     assert xx.get("B01", None) is None
 
 
-def test_parse_item_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+def test_parse_item_raster_ext(
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+) -> None:
     item = sentinel_stac_ms_with_raster_ext
     parsed = parse_item(item)
     assert parsed[("visual", 2)].band == 2
@@ -359,7 +363,7 @@ def test_parse_item_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Ite
 
 
 @pytest.mark.xfail
-def test_parse_no_absolute_href(relative_href_only: pystac.item.Item):
+def test_parse_no_absolute_href(relative_href_only: pystac.item.Item) -> None:
     # Currently pystac never returns `None` from attached asset
     # see: https://github.com/stac-utils/pystac/issues/754
     item = relative_href_only
@@ -372,7 +376,7 @@ def test_parse_no_absolute_href(relative_href_only: pystac.item.Item):
         _ = parse_item(item, extract_collection_metadata(item))
 
 
-def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
+def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item) -> None:
     item0 = sentinel_stac_ms
     item = pystac.Item.from_dict(item0.to_dict())
     item.stac_extensions.remove(ProjectionExtension.get_schema_uri())
@@ -389,7 +393,7 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item):
     assert _auto_load_params([xx] * 3) is None
 
 
-def test_accessories_preserved(ga_landsat_stac: pystac.item.Item):
+def test_accessories_preserved(ga_landsat_stac: pystac.item.Item) -> None:
     item0 = ga_landsat_stac
     item = pystac.Item.from_dict(item0.to_dict())
 
@@ -409,7 +413,7 @@ def parsed_item_s2(sentinel_stac_ms: pystac.item.Item):
     yield item
 
 
-def test_auto_load_params(parsed_item_s2: ParsedItem):
+def test_auto_load_params(parsed_item_s2: ParsedItem) -> None:
     xx = parsed_item_s2
     assert len(xx.geoboxes()) == 3
     crs = xx.geoboxes()[0].crs
@@ -443,7 +447,7 @@ def test_auto_load_params(parsed_item_s2: ParsedItem):
     assert _auto_load_params([xx] * 3, ["B01", "B04"]) == (crs, _10m, _edge, _gbox_10m)
 
 
-def test_norm_geom(gpd_iso3):
+def test_norm_geom(gpd_iso3) -> None:
     g = geom.box(0, -1, 10, 1, "epsg:4326")
 
     assert _normalize_geometry(g) is g
@@ -470,7 +474,7 @@ def test_norm_geom(gpd_iso3):
         _ = _normalize_geometry(object())  # Can't interpret value as geometry
 
 
-def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
+def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem) -> None:
     au = gpd_iso3("AUS", "epsg:3577")
 
     gbox = output_geobox([], geopolygon=au, resolution=100, crs="epsg:3857")
@@ -541,7 +545,7 @@ def test_output_geobox(gpd_iso3, parsed_item_s2: ParsedItem):
     )
 
 
-def test_output_geobox_from_items():
+def test_output_geobox_from_items() -> None:
     cc = 0
 
     def mk_item(gbox: GeoBox, time="2020-01-10"):
@@ -576,12 +580,12 @@ def test_output_geobox_from_items():
         {"like": object()},
     ],
 )
-def test_output_gbox_bads(kw):
+def test_output_gbox_bads(kw) -> None:
     with pytest.raises(ValueError):
         _ = output_geobox([], **kw)
 
 
-def test_mk_parsed_item():
+def test_mk_parsed_item() -> None:
     fmt = "%Y-%m-%d"
     item = mk_parsed_item(
         [b_("b1"), b_("b2")],
@@ -659,7 +663,7 @@ def test_mk_parsed_item():
         ),
     ],
 )
-def test_round_trip(parsed_item: ParsedItem):
+def test_round_trip(parsed_item: ParsedItem) -> None:
     item = to_stac_item(parsed_item)
     md = extract_collection_metadata(item)
 
@@ -680,7 +684,7 @@ def test_usgs_v1_1_1_aliases(usgs_landsat_stac_v1_1_1: pystac.Item) -> None:
     }
 
 
-def test_most_common_gbox():
+def test_most_common_gbox() -> None:
     gbox = GeoBox.from_bbox((0, 0, 100, 200), resolution=10, crs=3857)
     assert _most_common_gbox(
         [gbox, gbox.center_pixel, gbox[:1, :1], gbox.zoom_out(1.3)]

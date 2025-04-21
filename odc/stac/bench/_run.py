@@ -90,7 +90,7 @@ class BenchmarkContext:
     extras: Dict[str, Any] = field(compare=False, default_factory=dict)
     """Any other parameters to capture"""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Extract stats from cluster_info."""
         self.nworkers = len(self.cluster_info["workers"])
         self.nthreads = sum(

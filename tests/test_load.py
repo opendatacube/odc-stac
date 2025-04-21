@@ -16,7 +16,9 @@ from odc.stac._stac_load import _group_items
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
 
 
-def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+def test_stac_load_smoketest(
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+) -> None:
     item = sentinel_stac_ms_with_raster_ext.clone()
 
     params = {"crs": "EPSG:3857", "resolution": 100, "align": 0, "chunks": {}}
@@ -143,7 +145,7 @@ def test_stac_load_smoketest(sentinel_stac_ms_with_raster_ext: pystac.item.Item)
     )
 
 
-def test_group_items():
+def test_group_items() -> None:
     def _mk(id: str, lon: float, datetime: str):
         gbox = GeoBox.from_bbox((lon - 0.1, 0, lon + 0.1, 1), shape=(100, 100))
         return mk_parsed_item([b_("b1", gbox)], datetime=datetime, id=id)
@@ -158,7 +160,7 @@ def test_group_items():
     b2 = _mk("b2", 15 * 10 + 2, "2020-01-03T00:01Z")
     cc = _mk("c", 0, "2020-01-02T23:59Z")
 
-    def _t(items, groupby, expect, lon=None, preserve_original_order=False):
+    def _t(items, groupby, expect, lon=None, preserve_original_order=False) -> None:
         stac_items = [to_stac_item(item) for item in items]
         rr = ndeepmap(
             2,
@@ -210,7 +212,7 @@ def test_group_items():
     )
 
 
-def test_resolve_load_cfg():
+def test_resolve_load_cfg() -> None:
     rlp = RasterLoadParams
     assert resolve_load_cfg({}) == {}
 

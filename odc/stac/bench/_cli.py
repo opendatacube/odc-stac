@@ -24,7 +24,7 @@ RIO_RESAMPLING_NAMES = [it.name for it in rasterio.enums.Resampling]
 
 
 @click.group("odc-stac-bench")
-def main():
+def main() -> None:
     """Benchmarking tool for odc.stac."""
 
 
@@ -76,7 +76,7 @@ def prepare(sample_site: str, list_sample_sites: bool, from_file, overwrite):
     "--threads-per-worker", type=int, help="Number of threads per worker (all cpus)"
 )
 @click.option("--memory-limit", type=str, help="Configure worker memory limit")
-def _dask(n_workers, threads_per_worker, memory_limit):
+def _dask(n_workers, threads_per_worker, memory_limit) -> None:
     """Launch local Dask Cluster."""
     client = distributed.Client(
         n_workers=n_workers,
@@ -137,7 +137,7 @@ def run(
     resampling: str,
     show_config: bool,
     scheduler,
-):
+) -> None:
     """
     Run data load benchmark using Dask.
 
@@ -216,7 +216,7 @@ def run(
 @click.argument(
     "pkls", type=click.Path(exists=True, dir_okay=False, readable=True), nargs=-1
 )
-def report(matching: str, output: str, pkls):
+def report(matching: str, output: str, pkls) -> None:
     """
     Collate results of multiple benchmark experiments.
 

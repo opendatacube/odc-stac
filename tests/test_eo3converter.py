@@ -28,7 +28,7 @@ from odc.stac.eo3._eo3converter import _compute_uuid, _item_to_ds
 def test_infer_product_collection(
     sentinel_stac_collection: pystac.collection.Collection,
     sentinel_stac_ms_with_raster_ext: pystac.item.Item,
-):
+) -> None:
     assert has_raster_ext(sentinel_stac_collection) is True
     product = infer_dc_product(sentinel_stac_collection)
     assert product.measurements["SCL"].dtype == "uint8"
@@ -71,7 +71,7 @@ def test_infer_product_collection(
         infer_dc_product([])
 
 
-def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
+def test_infer_product_item(sentinel_stac_ms: pystac.item.Item) -> None:
     item = sentinel_stac_ms
 
     assert item.collection_id in STAC_CFG
@@ -98,7 +98,9 @@ def test_infer_product_item(sentinel_stac_ms: pystac.item.Item):
     product = infer_dc_product(item_no_collection)
 
 
-def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.Item):
+def test_infer_product_raster_ext(
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+) -> None:
     item = sentinel_stac_ms_with_raster_ext.clone()
     assert has_raster_ext(item) is True
     product = infer_dc_product(item)
@@ -118,7 +120,7 @@ def test_infer_product_raster_ext(sentinel_stac_ms_with_raster_ext: pystac.item.
     )
 
 
-def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
+def test_item_to_ds(sentinel_stac_ms: pystac.item.Item) -> None:
     item0 = sentinel_stac_ms
     item = item0.clone()
 
@@ -160,7 +162,7 @@ def test_item_to_ds(sentinel_stac_ms: pystac.item.Item):
     infer_dc_product(item, NO_WARN_CFG)
 
 
-def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
+def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item) -> None:
     item0 = sentinel_stac_ms
     item = item0.clone()
     item.stac_extensions.remove(ProjectionExtension.get_schema_uri())
@@ -177,7 +179,7 @@ def test_item_to_ds_no_proj(sentinel_stac_ms: pystac.item.Item):
     assert native_geobox(ds).shape == (1, 1)
 
 
-def test_item_uuid():
+def test_item_uuid() -> None:
     item1 = mk_stac_item("id1", custom_property=1)
     item2 = mk_stac_item("id2")
 
@@ -204,7 +206,7 @@ def test_item_uuid():
     assert id1 != id2
 
 
-def test_issue_n6(usgs_landsat_stac_v1: pystac.Item):
+def test_issue_n6(usgs_landsat_stac_v1: pystac.Item) -> None:
     expected_bands = {
         "blue",
         "coastal",
@@ -221,17 +223,17 @@ def test_issue_n6(usgs_landsat_stac_v1: pystac.Item):
     assert set(p.measurements) == expected_bands
 
 
-def test_partial_proj(partial_proj_stac: pystac.Item):
+def test_partial_proj(partial_proj_stac: pystac.Item) -> None:
     (ds,) = list(stac2ds([partial_proj_stac]))
     assert ds.metadata_doc["grids"]["default"]["shape"] == (1, 1)
 
 
-def test_noassets_case(no_bands_stac: Any):
+def test_noassets_case(no_bands_stac: Any) -> None:
     (ds,) = stac2ds([no_bands_stac])
     assert len(ds.measurements) == 0
 
 
-def test_old_imports():
+def test_old_imports() -> None:
     import odc.stac
 
     assert "stac2ds" in dir(odc.stac)
@@ -244,7 +246,7 @@ def test_old_imports():
         _ = odc.stac.no_such_thing
 
 
-def test_product_cache(sentinel_stac_ms: pystac.item.Item):
+def test_product_cache(sentinel_stac_ms: pystac.item.Item) -> None:
     item = sentinel_stac_ms
     # simulate a product that was not created via infer_dc_product
     # (and therefore did not have the _md attr set)
