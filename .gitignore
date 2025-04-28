@@ -86,6 +86,7 @@ docs/notebooks/
 /notebooks/*html
 /notebooks/*ipynb
 /notebooks/*tif
+/wheels/*
 _off_*
 tt.py
 .cursorignore
