@@ -33,6 +33,7 @@ dependencies = [
     "pandas",
     "pystac>=1.0.0,<2",
     "toolz",
+    "typing-extensions",
     "xarray>=0.19"
 ]
 
