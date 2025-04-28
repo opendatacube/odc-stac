@@ -85,3 +85,7 @@ docs/notebooks/
 
 /notebooks/*html
 /notebooks/*ipynb
+/notebooks/*tif
+_off_*
+tt.py
+.cursorignore
