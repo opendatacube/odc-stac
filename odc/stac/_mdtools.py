@@ -44,12 +44,6 @@ from odc.geo import (
 from odc.geo.geobox import AnchorEnum, GeoBox, GeoboxAnchor
 from odc.geo.types import Unset
 from odc.geo.xr import ODCExtension
-from pystac.extensions.eo import EOExtension
-from pystac.extensions.item_assets import ItemAssetsExtension
-from pystac.extensions.projection import ProjectionExtension
-from pystac.extensions.raster import RasterBand, RasterExtension
-from toolz import dicttoolz
-
 from odc.loader.types import (
     MDParser,
     RasterBandMetadata,
@@ -58,6 +52,11 @@ from odc.loader.types import (
     norm_nodata,
     with_default,
 )
+from pystac.extensions.eo import EOExtension
+from pystac.extensions.item_assets import ItemAssetsExtension
+from pystac.extensions.projection import ProjectionExtension
+from pystac.extensions.raster import RasterBand, RasterExtension
+from toolz import dicttoolz
 
 from .model import (
     BandKey,
@@ -312,8 +311,6 @@ def compute_eo3_grids(
     Assets must have ProjectionExtension with shape, transform and crs information
     populated.
     """
-    assert len(assets) > 0
-
     geoboxes = dicttoolz.valmap(asset_geobox, assets)
     return _group_geoboxes(geoboxes)
 
@@ -322,7 +319,8 @@ def _group_geoboxes(
     geoboxes: Dict[str, GeoBox],
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     # pylint: disable=too-many-locals
-    assert len(geoboxes) > 0
+    if len(geoboxes) == 0:
+        return {}, {}
 
     def gbox_name(geobox: GeoBox) -> str:
         gsd = geobox_gsd(geobox)
@@ -471,6 +469,68 @@ def _collection_id(item: pystac.item.Item) -> str:
     return str(item.collection_id)
 
 
+class StacMDParser:
+    """
+    Extract metadata from STAC items.
+
+    implements :class:`~odc.loader.types.MDParser` protocol.
+    """
+
+    def __init__(self, cfg: MDParseConfig):
+        self._cfg = cfg
+
+    def extract(self, gmd: pystac.item.Item) -> RasterGroupMetadata:
+        item = gmd
+        c = self._cfg
+
+        # Ignore non-proj data bands when Item has proj extension, unless user
+        # disabled that filter with `ignore_proj=True` option
+        check_proj = has_proj_ext(item) and not c.ignore_proj
+
+        def _keep(kv: tuple[str, pystac.asset.Asset]) -> bool:
+            name, asset = kv
+            if name in c.band_cfg:
+                return True
+            return is_raster_data(asset, check_proj=check_proj)
+
+        data_bands = dicttoolz.itemfilter(_keep, item.assets)
+
+        bands: dict[BandKey, RasterBandMetadata] = {}
+        aliases = alias_map_from_eo(item)
+
+        # 1. If band in user config -- use that
+        # 2. Use data from raster extension (with fallback to "*" config)
+        # 3. Use config for "*" from user config as fallback
+        for name, asset in data_bands.items():
+            bands.update(self._extract_bands(name, asset))
+
+        for alias, bkey in c.aliases.items():
+            aliases.setdefault(alias, []).insert(0, bkey)
+
+        return RasterGroupMetadata(bands, aliases, c.extra_dims, c.extra_coords)
+
+    def driver_data(self, md: pystac.item.Item, band_key: BandKey) -> Any:
+        assert md and band_key
+        driver_data = None
+        return driver_data
+
+    def _extract_bands(
+        self, name: str, asset: pystac.asset.Asset
+    ) -> dict[BandKey, RasterBandMetadata]:
+        c = self._cfg
+        bm = c.band_cfg.get(name, None)
+        if bm is not None:
+            return {(name, 1): copy(bm)}
+
+        bm = c.band_cfg.get(f"{name}.*", None)
+        if bm is None:
+            bm = c.band_defaults
+
+        bands = band_metadata(asset, bm)
+
+        return {(name, idx + 1): bm for idx, bm in enumerate(bands)}
+
+
 class _CMDAssembler:
     """
     Incrementally build up collection metadata from item stream.
@@ -489,85 +549,39 @@ class _CMDAssembler:
         if cfg is None:
             cfg = {}
 
-        self._cfg = MDParseConfig.from_dict(cfg, collection_id)
-        self.check_proj: bool = not self._cfg.ignore_proj
-        self.has_proj: Optional[bool] = None
+        _cfg = MDParseConfig.from_dict(cfg, collection_id)
+        if md_plugin is None:
+            md_plugin = StacMDParser(_cfg)
+
         self.collection_id = collection_id
         self.md: Optional[RasterCollectionMetadata] = None
-        self.md_plugin = md_plugin
-        self._asset_keeps: Dict[str, bool] = {}
-        self._known_assets: Set[str] = set()
-
-    def _keep(self, kv: Tuple[str, pystac.asset.Asset]) -> bool:
-        c = self._cfg
-        name, asset = kv
-        if name in c.band_cfg:
-            return True
-        assert self.has_proj is not None
-        return is_raster_data(asset, check_proj=self.has_proj)
-
-    def _extract_bands(
-        self, name: str, asset: pystac.asset.Asset
-    ) -> Dict[BandKey, RasterBandMetadata]:
-        c = self._cfg
-        bm = c.band_cfg.get(name, None)
-        if bm is not None:
-            return {(name, 1): copy(bm)}
-
-        bm = c.band_cfg.get(f"{name}.*", None)
-        if bm is None:
-            bm = c.band_defaults
-
-        bands = band_metadata(asset, bm)
-
-        return {(name, idx + 1): bm for idx, bm in enumerate(bands)}
+        self.md_plugin: MDParser = md_plugin
+        self._asset_keeps: dict[str, bool] = {}
+        self._known_assets: set[str] = set()
 
     def _bootstrap(self, item: pystac.item.Item) -> None:
         """Called on the very first item only."""
-        self.has_proj = has_proj_ext(item) if self.check_proj else False
-        if self.md_plugin is not None:
-            md = self.md_plugin.extract(item)
-            used_assets = set(n for n, _ in md.bands)
-            data_bands = {n: item.assets[n] for n in used_assets}
-        else:
-            data_bands = dicttoolz.itemfilter(self._keep, item.assets)
+        assert self.md_plugin is not None
 
-            # found no data bands with check_proj=True
-            # so try again with check_proj=False
-            if len(data_bands) == 0 and self.has_proj:
-                self.has_proj = False
-                self.check_proj = False
-                data_bands = dicttoolz.itemfilter(self._keep, item.assets)
-
-            bands: Dict[BandKey, RasterBandMetadata] = {}
-            aliases = alias_map_from_eo(item)
-
-            # 1. If band in user config -- use that
-            # 2. Use data from raster extension (with fallback to "*" config)
-            # 3. Use config for "*" from user config as fallback
-            for name, asset in data_bands.items():
-                bands.update(self._extract_bands(name, asset))
-
-            for alias, bkey in self._cfg.aliases.items():
-                aliases.setdefault(alias, []).insert(0, bkey)
-            md = RasterGroupMetadata(
-                bands, aliases, self._cfg.extra_dims, self._cfg.extra_coords
-            )
+        has_proj = has_proj_ext(item)
+        meta = self.md_plugin.extract(item)
+        data_asset_names = set(n for n, _ in meta.bands)
+        data_assets = {n: item.assets[n] for n in data_asset_names}
 
         # We assume that grouping of data bands into grids is consistent across
         # entire collection, so we compute it once and keep it
-        if self.has_proj:
-            _, band2grid = compute_eo3_grids(data_bands)
+        if has_proj:
+            _, band2grid = compute_eo3_grids(data_assets)
         else:
-            band2grid = band2grid_from_gsd(data_bands)
+            band2grid = band2grid_from_gsd(data_assets)
 
-        self._asset_keeps = {name: name in data_bands for name in item.assets}
+        self._asset_keeps = {name: name in data_assets for name in item.assets}
         self._known_assets = set(self._asset_keeps)
 
         self.md = RasterCollectionMetadata(
             self.collection_id,
-            md,
-            has_proj=self.has_proj,
+            meta,
+            has_proj=has_proj,
             band2grid=band2grid,
         )
 
@@ -577,47 +591,42 @@ class _CMDAssembler:
             self._bootstrap(item)
             return
 
+        meta = self.md_plugin.extract(item)
+        # TODO: merge current meta with new meta
+
         new_assets = set(item.assets) - self._known_assets
         if len(new_assets) == 0:
             return
 
-        new_data_assets: List[Tuple[str, pystac.asset.Asset]] = []
+        has_proj = has_proj_ext(item)
+        new_data_assets: list[tuple[str, pystac.asset.Asset]] = []
+        data_asset_names = set(n for n, _ in meta.bands)
         for name in new_assets:
             asset = item.assets[name]
-            is_data = self._keep((name, asset))
+            is_data = name in data_asset_names
             self._asset_keeps[name] = is_data
             if is_data:
                 new_data_assets.append((name, asset))
         self._known_assets = set(self._asset_keeps)
 
-        # some new assets that we don't care about
+        # no new assets we care about
         if len(new_data_assets) == 0:
             return
 
-        bands = self.md.meta.bands
-        aliases = self.md.meta.aliases
+        if not has_proj:
+            return
+
+        # Update band2grid
         band2grid = self.md.band2grid
 
         # GeoBox -> grid name
-        grid2band: Dict[GeoBox, str] = {}
-        if self.has_proj:
-            for name, asset in item.assets.items():
-                if (grid_name := band2grid.get(name, None)) is not None:
-                    grid2band[asset_geobox(asset)] = grid_name
+        grid2band: dict[GeoBox, str] = {}
+        for name, asset in item.assets.items():
+            if (grid_name := band2grid.get(name, None)) is not None:
+                grid2band[asset_geobox(asset)] = grid_name
 
         for name, asset in new_data_assets:
-            bands.update(self._extract_bands(name, asset))
-
-            # update alias table
-            for alias, count, bkey in _extract_aliases(name, asset, self._known_assets):
-                _bands = aliases.setdefault(alias, [])
-                if count == 1:
-                    _bands.insert(0, bkey)
-                else:
-                    _bands.append(bkey)
-
-            if self.has_proj:
-                band2grid[name] = grid2band.get(asset_geobox(asset), f"grid-{name}")
+            band2grid[name] = grid2band.get(asset_geobox(asset), f"grid-{name}")
 
 
 def extract_collection_metadata(
@@ -753,7 +762,7 @@ def parse_items(
             proc_cache[collection_id] = proc
 
         proc.update(item)
-        yield parse_item(item, proc.md, md_plugin)
+        yield parse_item(item, proc.md, proc.md_plugin)
 
 
 def _most_common_gbox(
