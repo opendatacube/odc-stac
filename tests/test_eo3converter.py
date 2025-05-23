@@ -12,7 +12,6 @@ import pystac
 import pystac.asset
 import pystac.collection
 import pystac.item
-from common import NO_WARN_CFG, STAC_CFG, mk_stac_item
 from datacube.testutils.io import native_geobox
 from datacube.utils.geometry import Geometry
 from pystac.extensions.eo import EOExtension
@@ -23,6 +22,8 @@ from toolz import dicttoolz
 from odc.stac._mdtools import RasterCollectionMetadata, has_proj_ext, has_raster_ext
 from odc.stac.eo3 import infer_dc_product, stac2ds
 from odc.stac.eo3._eo3converter import _compute_uuid, _item_to_ds
+
+from .common import NO_WARN_CFG, STAC_CFG, mk_stac_item
 
 
 def test_infer_product_collection(

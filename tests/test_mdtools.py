@@ -8,14 +8,13 @@ import pystac.collection
 import pystac.item
 import pystac.utils
 import pytest
-from common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
 from odc.geo import geom
 from odc.geo.geobox import AnchorEnum, GeoBox, geobox_union_conservative
 from odc.geo.xr import xr_zeros
-from pystac.extensions.projection import ProjectionExtension
-
 from odc.loader.testing.fixtures import FakeMDPlugin
 from odc.loader.types import FixedCoord, RasterBandMetadata, RasterGroupMetadata
+from pystac.extensions.projection import ProjectionExtension
+
 from odc.stac._mdtools import (
     MDParseConfig,
     _auto_load_params,
@@ -34,6 +33,8 @@ from odc.stac._mdtools import (
 )
 from odc.stac.model import ParsedItem
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
+
+from .common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
 
 GBOX = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
 
@@ -325,7 +326,7 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item) -> None:
     assert xx["B02"] is xx["B02.1"]
     assert xx.get("B02", None) is xx["B02.1"]
 
-    assert xx.geoboxes() == xx.geoboxes(S2_ALL_BANDS)
+    assert xx.geoboxes() == xx.geoboxes(list(S2_ALL_BANDS))
     assert xx.geoboxes(["B02", "B03"]) == (xx["B02"].geobox,)
     assert xx.geoboxes(["B01", "B02", "B03"]) == (
         xx["B02"].geobox,
@@ -558,6 +559,7 @@ def test_output_geobox_from_items() -> None:
     gboxes = [GBOX, GBOX.left, GBOX.right.pad(3)]
 
     gbox = output_geobox([mk_item(gbox) for gbox in gboxes])
+    assert gbox is not None
     assert gbox.crs == GBOX.crs
     assert geobox_union_conservative(gboxes) == gbox
 
@@ -594,8 +596,11 @@ def test_mk_parsed_item() -> None:
         end_datetime="2020-01-31",
     )
 
+    assert item.datetime is not None
     assert item.datetime.strftime(fmt) == "2020-01-10"
+    assert item.datetime_range[0] is not None
     assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1] is not None
     assert item.datetime_range[1].strftime(fmt) == "2020-01-31"
     assert item.geometry is None
     assert item.crs() is None
@@ -612,7 +617,9 @@ def test_mk_parsed_item() -> None:
     )
 
     assert item.datetime is None
+    assert item.datetime_range[0] is not None
     assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
+    assert item.datetime_range[1] is not None
     assert item.datetime_range[1].strftime(fmt) == "2020-01-31"
 
     item = mk_parsed_item(
@@ -621,7 +628,9 @@ def test_mk_parsed_item() -> None:
         start_datetime="2020-01-01",
         end_datetime=None,
     )
+    assert item.datetime is not None
     assert item.datetime.strftime(fmt) == "2020-01-10"
+    assert item.datetime_range[0] is not None
     assert item.datetime_range[0].strftime(fmt) == "2020-01-01"
     assert item.datetime_range[1] is None
 

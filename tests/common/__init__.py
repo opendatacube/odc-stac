@@ -1,3 +1,7 @@
+"""
+Common test data and utilities for STAC tests.
+"""
+
 from pystac import Item
 
 from odc.stac._mdtools import RasterBandMetadata
@@ -16,7 +20,7 @@ STAC_CFG = {
         "assets": {
             "*": RasterBandMetadata("uint16", 0, "1"),
             "SCL": RasterBandMetadata("uint8", 0, "1"),
-            "visual": dict(data_type="uint8", nodata=0, unit="1"),
+            "visual": {"data_type": "uint8", "nodata": 0, "unit": "1"},
         },
         "aliases": {
             # Work around duplicate rededge common_name
