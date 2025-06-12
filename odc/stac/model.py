@@ -7,13 +7,13 @@ import math
 from copy import copy
 from dataclasses import astuple, dataclass, field, replace
 from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
-from typing_extensions import override
 
 from odc.geo import CRS, Geometry, MaybeCRS
 from odc.geo.geobox import GeoBox
 from odc.geo.types import Unset
-
 from odc.loader.types import (
+    AuxBandMetadata,
+    AuxDataSource,
     BandIdentifier,
     BandKey,
     BandQuery,
@@ -24,10 +24,13 @@ from odc.loader.types import (
     norm_band_metadata,
     norm_key,
 )
+from typing_extensions import override
 
 
 @dataclass(eq=True, frozen=True)
-class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
+class RasterCollectionMetadata(
+    Mapping[BandIdentifier, RasterBandMetadata | AuxBandMetadata]
+):
     """
     Information about raster data in a collection.
 
@@ -109,14 +112,18 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
             return self.all_bands
         return list(bands)
 
-    def resolve_bands(self, bands: BandQuery = None) -> Dict[str, RasterBandMetadata]:
+    def resolve_bands(
+        self,
+        bands: BandQuery = None,
+    ) -> Dict[str, RasterBandMetadata | AuxBandMetadata]:
         """
         Query bands taking care of aliases.
         """
-        bands = self.normalize_band_query(bands)
+        query = self.normalize_band_query(bands)
+
         return {
             band: self.meta.bands[k]
-            for band, k in ((band, self.band_key(band)) for band in bands)
+            for band, k in ((band, self.band_key(band)) for band in query)
         }
 
     def band_key(self, band: str) -> BandKey:
@@ -151,7 +158,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         return self._norm_key(self.band_key(band))
 
     @override
-    def __getitem__(self, band: BandIdentifier) -> RasterBandMetadata:
+    def __getitem__(self, band: BandIdentifier) -> RasterBandMetadata | AuxBandMetadata:
         """
         Query band taking care of aliases.
 
@@ -165,7 +172,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         return self.meta.bands[band]
 
     @property
-    def bands(self) -> Dict[BandKey, RasterBandMetadata]:
+    def bands(self) -> Mapping[BandKey, RasterBandMetadata | AuxBandMetadata]:
         return self.meta.bands
 
     def meta_for(self, bands: BandQuery = None) -> RasterGroupMetadata:
@@ -202,9 +209,12 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
     def __dask_tokenize__(self):
         return astuple(self)
 
+    def patch(self, **kwargs) -> "RasterCollectionMetadata":
+        return replace(self, **kwargs)
+
 
 @dataclass(eq=True, frozen=True)
-class ParsedItem(Mapping[BandIdentifier, RasterSource]):
+class ParsedItem(Mapping[BandIdentifier, RasterSource | AuxDataSource]):
     """
     Captures essentials parts for data loading from a STAC Item.
 
@@ -219,7 +229,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
     collection: RasterCollectionMetadata
     """Collection this Item is part of."""
 
-    bands: Dict[BandKey, RasterSource]
+    bands: Mapping[BandKey, RasterSource | AuxDataSource]
     """Raster bands."""
 
     geometry: Optional[Geometry] = None
@@ -252,7 +262,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         gbx: Set[GeoBox] = set()
         for name in bands:
             b = self.bands.get(self.collection.band_key(name), None)
-            if b is not None:
+            if isinstance(b, RasterSource):
                 if b.geobox is not None:
                     assert isinstance(b.geobox, GeoBox)
                     gbx.add(b.geobox)
@@ -320,7 +330,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 
     def resolve_bands(
         self, bands: BandQuery = None
-    ) -> Dict[str, Optional[RasterSource]]:
+    ) -> dict[str, RasterSource | AuxDataSource | None]:
         """
         Query bands taking care of aliases.
         """
@@ -333,7 +343,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         }
 
     @override
-    def __getitem__(self, band: BandIdentifier) -> RasterSource:
+    def __getitem__(self, band: BandIdentifier) -> RasterSource | AuxDataSource:
         """
         Query band taking care of aliases.
 
@@ -421,7 +431,8 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         """
         assets: Dict[str, List[Tuple[int, RasterSource]]] = {}
         for (asset, idx), src in self.bands.items():
-            assets.setdefault(asset, []).append((idx, src))
+            if isinstance(src, RasterSource):
+                assets.setdefault(asset, []).append((idx, src))
 
         return {
             k: [src for _, src in sorted(srcs, key=lambda x: x[0])]

@@ -8,16 +8,15 @@ import pystac.asset
 import pystac.item
 import xarray as xr
 from odc.geo.geobox import GeoBox
-from pystac.extensions.projection import ProjectionExtension
-from pystac.extensions.raster import RasterBand, RasterExtension
-from toolz import dicttoolz
-
 from odc.loader.types import (
     RasterBandMetadata,
     RasterGroupMetadata,
     RasterSource,
     norm_key,
 )
+from pystac.extensions.projection import ProjectionExtension
+from pystac.extensions.raster import RasterBand, RasterExtension
+from toolz import dicttoolz
 
 from .._mdtools import _group_geoboxes
 from ..model import ParsedItem, RasterCollectionMetadata
@@ -175,6 +174,7 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
 
     for asset_name, asset in xx.assets.items():
         bb = item.bands[(asset_name, 1)]
+        assert isinstance(bb, RasterSource)
         if bb.geobox is not None:
             assert isinstance(bb.geobox, GeoBox)
             _add_proj(bb.geobox, asset)

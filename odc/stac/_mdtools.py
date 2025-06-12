@@ -46,6 +46,10 @@ from odc.geo.geobox import AnchorEnum, GeoBox, GeoboxAnchor
 from odc.geo.types import Unset
 from odc.geo.xr import ODCExtension
 from odc.loader.types import (
+    AuxBandMetadata,
+    AuxDataSource,
+    BandKey,
+    BandQuery,
     MDParser,
     RasterBandMetadata,
     RasterGroupMetadata,
@@ -59,13 +63,7 @@ from pystac.extensions.projection import ProjectionExtension
 from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
-from .model import (
-    BandKey,
-    BandQuery,
-    MDParseConfig,
-    ParsedItem,
-    RasterCollectionMetadata,
-)
+from .model import MDParseConfig, ParsedItem, RasterCollectionMetadata
 
 ConversionConfig: TypeAlias = Dict[str, Any]
 
@@ -592,8 +590,8 @@ class _CMDAssembler:
             self._bootstrap(item)
             return
 
-        meta = self.md_plugin.extract(item)
-        # TODO: merge current meta with new meta
+        meta = self.md.meta.merge(self.md_plugin.extract(item))
+        self.md = self.md.patch(meta=meta)
 
         new_assets = set(item.assets) - self._known_assets
         if len(new_assets) == 0:
@@ -677,7 +675,7 @@ def parse_item(
     _assets = item.assets
 
     _grids: Dict[str, GeoBox] = {}
-    bands: Dict[BandKey, RasterSource] = {}
+    bands: Dict[BandKey, RasterSource | AuxDataSource] = {}
     geometry: Optional[Geometry] = None
 
     if item.geometry is not None:
@@ -715,18 +713,27 @@ def parse_item(
             if isinstance(driver_data, dict):
                 subdataset = driver_data.get("subdataset", None)
 
-        # Assumption: if extra dims are defined then asset bands are loaded into 3d+ array
-        if meta.extra_dims:
-            band_idx = 0
+        if isinstance(meta, RasterBandMetadata):
+            # Assumption: if extra dims are defined then asset bands are loaded into 3d+ array
+            # RastetSource.band == 0 indicates "all the bands"
+            if meta.extra_dims:
+                band_idx = 0
 
-        bands[bk] = RasterSource(
-            uri=uri,
-            band=band_idx,
-            subdataset=subdataset,
-            geobox=geobox,
-            meta=meta,
-            driver_data=driver_data,
-        )
+            bands[bk] = RasterSource(
+                uri=uri,
+                band=band_idx,
+                subdataset=subdataset,
+                geobox=geobox,
+                meta=meta,
+                driver_data=driver_data,
+            )
+        elif isinstance(meta, AuxBandMetadata):
+            bands[bk] = AuxDataSource(
+                uri=uri,
+                subdataset=subdataset,
+                meta=meta,
+                driver_data=driver_data,
+            )
 
     # the assets that aren't bands are accessories
     acc_names = set(_assets.keys()).difference(set(band_names))

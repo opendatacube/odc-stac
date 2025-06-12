@@ -30,14 +30,13 @@ from dask.utils import ndeepmap
 from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
-
 from odc.loader import (
     chunked_load,
     reader_driver,
     resolve_chunk_shape,
     resolve_load_cfg,
 )
-from odc.loader.types import ReaderDriverSpec, Band_DType
+from odc.loader.types import Band_DType, ReaderDriverSpec
 
 from ._mdtools import ConversionConfig, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
@@ -430,7 +429,7 @@ def load(
     assert isinstance(gbox.crs, CRS)
     gbt = GeoboxTiles(gbox, (chunk_shape[1], chunk_shape[2]))
     tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
-    _parsed = [item.strip() for item in _parsed]
+    srcs = [item.resolve_bands(bands) for item in _parsed]
 
     def _with_debug_info(ds: xr.Dataset, **kw) -> xr.Dataset:
         # expose data for debugging
@@ -444,6 +443,7 @@ def load(
                 gbt=gbt,
                 mid_lon=mid_lon,
                 parsed=_parsed,
+                srcs=srcs,
                 grouped_idx=_grouped_idx,
                 tyx_bins=tyx_bins,
                 bands_to_load=bands_to_load,
@@ -458,7 +458,7 @@ def load(
         chunked_load(
             load_cfg,
             meta,
-            _parsed,
+            srcs,
             tyx_bins,
             gbt,
             tss,
