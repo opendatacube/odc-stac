@@ -1,6 +1,6 @@
 """STAC Item -> ODC Dataset[eo3]."""
 
-from odc.loader._rio import configure_rio, configure_s3_access
+from odc.loader import configure_rio, configure_s3_access
 from odc.loader.types import RasterBandMetadata, RasterLoadParams, RasterSource
 
 from ._mdtools import (
