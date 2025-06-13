@@ -30,15 +30,10 @@ from dask.utils import ndeepmap
 from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
-from odc.loader import (
-    chunked_load,
-    reader_driver,
-    resolve_chunk_shape,
-    resolve_load_cfg,
-)
+from odc.loader import chunked_load, resolve_chunk_shape, resolve_load_cfg
 from odc.loader.types import Band_DType, ReaderDriverSpec
 
-from ._mdtools import ConversionConfig, output_geobox, parse_items
+from ._mdtools import ConversionConfig, _resolve_driver, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
@@ -353,11 +348,10 @@ def load(
     if groupby is None:
         groupby = "id"
 
-    rdr = reader_driver(driver)
-    md_plugin = rdr.md_parser
+    rdr, md_parser = _resolve_driver(driver, stac_cfg)
 
     items = list(items)
-    _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_plugin))
+    _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_parser))
 
     if geopolygon is None and intersects is not None:
         geopolygon = intersects
