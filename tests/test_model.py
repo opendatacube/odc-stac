@@ -6,6 +6,8 @@ import pytest
 from dask.base import tokenize
 from odc.geo.geobox import GeoBox
 from odc.loader.types import (
+    AuxDataSource,
+    BandKey,
     RasterBandMetadata,
     RasterGroupMetadata,
     RasterLoadParams,
@@ -14,6 +16,7 @@ from odc.loader.types import (
 )
 
 from odc.stac import ParsedItem, RasterCollectionMetadata
+from odc.stac.model import PropertyLoadRequest
 from odc.stac.testing.stac import b_, mk_parsed_item
 
 
@@ -88,13 +91,16 @@ def collection_ab() -> RasterCollectionMetadata:
 
 @pytest.fixture()
 def parsed_item_ab(collection_ab: RasterCollectionMetadata) -> ParsedItem:
+    def _src(k: BandKey) -> RasterSource | AuxDataSource:
+        meta = collection_ab[k]
+        if isinstance(meta, RasterBandMetadata):
+            return RasterSource(f"file:///{k[0]}-{k[1]}.tif", meta=meta)
+        return AuxDataSource(f"file:///{k[0]}-{k[1]}.aux", meta=meta)
+
     return ParsedItem(
         "item-ab",
         collection_ab,
-        {
-            k: RasterSource(f"file:///{k[0]}-{k[1]}.tif", meta=collection_ab[k])
-            for k in collection_ab
-        },
+        {k: _src(k) for k in collection_ab},
     )
 
 
@@ -184,6 +190,8 @@ def test_parsed_item(parsed_item_ab: ParsedItem) -> None:
         assert isinstance(xx[k], RasterSource)
         assert xx[k] is xx.resolve_bands(k)[k]
 
+    assert isinstance(xx["b"], RasterSource)
+    assert isinstance(xx["b"].strip(), RasterSource)
     assert xx["b"].strip().geobox is None
     assert xx["b"].strip().meta is xx["b"].meta
     assert xx["b"].strip().uri == xx["b"].uri
@@ -191,12 +199,14 @@ def test_parsed_item(parsed_item_ab: ParsedItem) -> None:
     assert xx["b"].strip().subdataset == xx["b"].subdataset
     assert xx["b"].strip().driver_data == xx["b"].driver_data
 
-    assert xx.strip()["b"].geobox is None
-    assert xx.strip()["b"].meta is xx["b"].meta
-    assert xx.strip()["b"].uri == xx["b"].uri
-    assert xx.strip()["b"].band == xx["b"].band
-    assert xx.strip()["b"].subdataset == xx["b"].subdataset
-    assert xx.strip()["b"].driver_data == xx["b"].driver_data
+    xx_strip = xx.strip()
+    assert isinstance(xx_strip["b"], RasterSource)
+    assert xx_strip["b"].geobox is None
+    assert xx_strip["b"].meta is xx["b"].meta
+    assert xx_strip["b"].uri == xx["b"].uri
+    assert xx_strip["b"].band == xx["b"].band
+    assert xx_strip["b"].subdataset == xx["b"].subdataset
+    assert xx_strip["b"].driver_data == xx["b"].driver_data
 
 
 def test_tokenize(parsed_item_ab: ParsedItem) -> None:
@@ -225,7 +235,82 @@ def test_normkey(name, expected) -> None:
 
 
 def test_version() -> None:
-    from odc.stac import __version__
+    from odc.stac import __version__  # pylint: disable=no-name-in-module
 
     assert __version__ is not None
     assert len(__version__.split(".")) == 3
+
+
+def test_property_load_request_basic() -> None:
+    """Test basic PropertyLoadRequest functionality."""
+    # Test with just key
+    req = PropertyLoadRequest(key="eo:cloud_cover")
+    assert req.key == "eo:cloud_cover"
+    assert req.dtype == "float32"  # default
+    assert req.name is None  # default
+    assert req.nodata is None
+    assert req.units == "1"
+    assert req.output_name == "eo_cloud_cover"
+
+    # Test with all fields
+    req = PropertyLoadRequest(
+        key="eo:cloud_cover", dtype="int16", name="cloud_cover", nodata=-999
+    )
+    assert req.key == "eo:cloud_cover"
+    assert req.dtype == "int16"
+    assert req.name == "cloud_cover"
+    assert req.nodata == -999
+    assert req.units == "1"
+    assert req.output_name == "cloud_cover"
+
+
+def test_property_load_request_from_user_input() -> None:
+    """Test from_user_input method with various inputs."""
+    # Test with string inputs
+    requests = PropertyLoadRequest.from_user_input(["eo:cloud_cover", "eo:platform"])
+    assert len(requests) == 2
+    assert requests[0].key == "eo:cloud_cover"
+    assert requests[1].key == "eo:platform"
+    assert all(req.dtype == "float32" for req in requests)
+    assert all(req.name is None for req in requests)
+
+    # Test with dict inputs
+    requests = PropertyLoadRequest.from_user_input(
+        [
+            {"key": "eo:cloud_cover", "dtype": "int16", "name": "cloud_cover"},
+            {"key": "eo:platform", "name": "satellite"},
+        ]
+    )
+    assert len(requests) == 2
+    assert requests[0].key == "eo:cloud_cover"
+    assert requests[0].dtype == "int16"
+    assert requests[0].name == "cloud_cover"
+    assert requests[1].key == "eo:platform"
+    assert requests[1].dtype == "float32"  # default
+    assert requests[1].name == "satellite"
+
+    # Test with mixed inputs
+    requests = PropertyLoadRequest.from_user_input(
+        ["eo:cloud_cover", {"key": "eo:platform", "name": "satellite"}]
+    )
+    assert len(requests) == 2
+    assert requests[0].key == "eo:cloud_cover"
+    assert requests[0].dtype == "float32"
+    assert requests[0].name is None
+    assert requests[1].key == "eo:platform"
+    assert requests[1].name == "satellite"
+
+
+def test_property_load_request_errors() -> None:
+    """Test error cases for PropertyLoadRequest."""
+    # Test missing key in dict
+    with pytest.raises(ValueError, match="Dictionary input must contain 'key' field"):
+        PropertyLoadRequest.from_user_input([{"dtype": "int16"}])
+
+    # Test invalid input type
+    with pytest.raises(ValueError, match="Input must be string or dict"):
+        PropertyLoadRequest.from_user_input([123])  # type: ignore
+
+    # Test empty sequence
+    requests = PropertyLoadRequest.from_user_input([])
+    assert len(requests) == 0
