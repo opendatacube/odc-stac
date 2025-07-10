@@ -13,12 +13,12 @@ dependencies:
 
   # odc-stac dependencies
   - affine
-  - datacube >=1.8.5
   - jinja2
   - numpy
   - pandas
   - toolz
   - odc-geo >=0.4.7
+  - odc-loader >=0.5.1
   - pystac >=1.12.1
   - dask
   - xarray
