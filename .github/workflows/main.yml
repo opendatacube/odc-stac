@@ -73,6 +73,7 @@ jobs:
         if: steps.conda_cache.outputs.cache-hit != 'true'
         run: |
           mamba env create -f tests/test-env-py310.yml -p /tmp/test_env
+          /tmp/test_env/bin/python -m pip install -e .
 
       - name: Check Python Env
         shell: bash -l {0}
