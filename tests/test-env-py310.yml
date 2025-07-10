@@ -56,3 +56,4 @@ dependencies:
   - pylint =3
   - pip:
     - -e ../
+    - odc-loader==0.6.0rc1

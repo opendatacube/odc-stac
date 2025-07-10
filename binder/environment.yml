@@ -41,3 +41,4 @@ dependencies:
   - pip:
       # odc-stac local checkout
       - -e ../
+      - odc-loader==0.6.0rc1

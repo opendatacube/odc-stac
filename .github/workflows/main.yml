@@ -73,7 +73,12 @@ jobs:
         if: steps.conda_cache.outputs.cache-hit != 'true'
         run: |
           mamba env create -f tests/test-env-py310.yml -p /tmp/test_env
-          /tmp/test_env/bin/python -m pip install -e .
+
+      - name: Install odc-loader
+        shell: bash -l {0}
+        if: steps.conda_cache.outputs.cache-hit != 'true'
+        run: |
+          /tmp/test_env/bin/python -m pip install odc-loader==0.6.0rc1
 
       - name: Check Python Env
         shell: bash -l {0}
@@ -170,7 +175,7 @@ jobs:
       - name: Install in Edit mode
         shell: bash
         run: |
-          pip install -e . --no-deps
+          pip install -e .
 
       - name: Check with pylint
         shell: bash
@@ -199,13 +204,18 @@ jobs:
         run: |
           echo "/tmp/test_env/bin" >> $GITHUB_PATH
 
+      - name: Install in Edit mode
+        shell: bash
+        run: |
+          pip install -e .
+
       - name: Check with mypy
         shell: bash
         run: |
           python -m mypy --namespace-packages --explicit-package-bases odc
 
 
-  test-with-botocore-and-coverage:
+  test-with-coverage:
     runs-on: ubuntu-latest
 
     needs:
@@ -231,7 +241,7 @@ jobs:
       - name: Install in Edit mode
         shell: bash
         run: |
-          pip install -e '.[botocore]' --no-deps
+          pip install -e '.[botocore]'
 
       - name: Run Tests
         shell: bash
