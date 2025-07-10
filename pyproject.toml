@@ -65,7 +65,6 @@ test-all = [
     "pystac_client",
     "distributed",
     "geopandas",
-    "datacube",
     "stackstac"
 ]
 
