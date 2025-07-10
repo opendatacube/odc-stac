@@ -47,7 +47,6 @@ docs = [
     "matplotlib-inline",
     "pandas",
     "distributed",
-    "datacube>=1.8.8",
     "ipython",
     "ipykernel"
 ]

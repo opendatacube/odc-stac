@@ -26,7 +26,6 @@ from scripts import notebook_hash
 # isort: off
 # extra imports to check env
 import odc.stac.bench
-import odc.stac.eo3
 
 
 # Workaround for https://github.com/agronholm/sphinx-autodoc-typehints/issues/123
