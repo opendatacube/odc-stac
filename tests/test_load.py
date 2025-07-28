@@ -8,8 +8,9 @@ import shapely.geometry
 from dask.utils import ndeepmap
 from odc.geo.geobox import GeoBox
 from odc.geo.xr import ODCExtension
-
 from odc.loader import resolve_load_cfg
+from odc.loader.types import RasterBandMetadata
+
 from odc.stac import RasterLoadParams
 from odc.stac import load as stac_load
 from odc.stac._stac_load import _group_items
@@ -228,10 +229,14 @@ def test_resolve_load_cfg() -> None:
     assert item.collection["b"].data_type == "float64"
 
     _bands = {n: b for (n, _), b in item.collection.bands.items()}
+    assert isinstance(_bands["a"], RasterBandMetadata)
+    assert isinstance(_bands["b"], RasterBandMetadata)
 
     cfg = resolve_load_cfg(_bands, resampling="average")
-    assert cfg["a"] == rlp("int8", -1, resampling="average")
-    assert cfg["b"] == rlp("float64", None, resampling="average", dims=("y", "x", "b"))
+    assert cfg["a"] == rlp("int8", -1, resampling="average", meta=_bands["a"])
+    assert cfg["b"] == rlp(
+        "float64", None, resampling="average", dims=("y", "x", "b"), meta=_bands["b"]
+    )
 
     cfg = resolve_load_cfg(
         _bands,
@@ -239,12 +244,14 @@ def test_resolve_load_cfg() -> None:
         nodata=-999,
         dtype="int64",
     )
-    assert cfg["a"] == rlp("int64", -999, resampling="mode")
-    assert cfg["b"] == rlp("int64", -999, resampling="sum", dims=("y", "x", "b"))
+    assert cfg["a"] == rlp("int64", -999, resampling="mode", meta=_bands["a"])
+    assert cfg["b"] == rlp(
+        "int64", -999, resampling="sum", dims=("y", "x", "b"), meta=_bands["b"]
+    )
 
     cfg = resolve_load_cfg(
         _bands,
         dtype={"a": "float32"},
     )
-    assert cfg["a"] == rlp("float32", -1)
-    assert cfg["b"] == rlp("float64", None, dims=_bands["b"].dims)
+    assert cfg["a"] == rlp("float32", -1, meta=_bands["a"])
+    assert cfg["b"] == rlp("float64", None, dims=_bands["b"].dims, meta=_bands["b"])
