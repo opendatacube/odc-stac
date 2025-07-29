@@ -3,12 +3,15 @@ Making STAC items for testing.
 """
 
 from datetime import datetime, timezone
+from typing import Any
 
 import pystac.asset
 import pystac.item
 import xarray as xr
 from odc.geo.geobox import GeoBox
 from odc.loader.types import (
+    AuxBandMetadata,
+    AuxDataSource,
     RasterBandMetadata,
     RasterGroupMetadata,
     RasterSource,
@@ -19,7 +22,7 @@ from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
 from .._mdtools import _group_geoboxes
-from ..model import ParsedItem, RasterCollectionMetadata
+from ..model import ParsedItem, PropertyLoadRequest, RasterCollectionMetadata
 
 # pylint: disable=redefined-builtin,too-many-arguments
 
@@ -67,11 +70,12 @@ def mk_parsed_item(
     id="some-item",
     collection="some-collection",
     href=None,
+    props: dict[str, Any] | None = None,
 ) -> ParsedItem:
     """
     Construct parsed stac item for testing.
     """
-    # pylint: disable=redefined-outer-name
+    # pylint: disable=redefined-outer-name, too-many-locals
     if isinstance(bands, (list, tuple)):
         bands = {norm_key(k): v for k, v in bands}
 
@@ -91,11 +95,40 @@ def mk_parsed_item(
     else:
         geometry = None
 
+    aliases = {}
+    if props is None:
+        props = {}
+
+    # Handle auxiliary bands from props
+    prop_user_input = [v[1] if isinstance(v, tuple) else k for k, v in props.items()]
+    prop_requests = PropertyLoadRequest.from_user_input(prop_user_input)
+    for idx, prop_req in enumerate(prop_requests):
+        bk = ("_stac_metadata", idx + 1)
+        # Look up actual value from props dict using prop_req.key
+        actual_value = props[prop_req.key]
+        if isinstance(actual_value, tuple):
+            actual_value, _ = actual_value
+
+        aux_meta = AuxBandMetadata(
+            prop_req.dtype,
+            nodata=prop_req.nodata,
+            units=prop_req.units,
+            driver_data=prop_req,
+        )
+        aux_source = AuxDataSource(
+            uri=f"virtual://{bk[0]}/{bk[1]}",
+            subdataset=None,
+            meta=aux_meta,
+            driver_data=actual_value,
+        )
+        bands[bk] = aux_source
+        aliases[prop_req.output_name] = [bk]
+
     collection = RasterCollectionMetadata(
         collection,
         RasterGroupMetadata(
             dicttoolz.valmap(lambda b: b.meta, bands),
-            aliases={},
+            aliases=aliases,
         ),
         has_proj=(geobox is not None),
         band2grid=band2grid,
