@@ -9,6 +9,12 @@ on:
       - 'binder/**'
       - '.github/workflows/build-binder.yml'
 
+# When a PR is updated, cancel the jobs from the previous version. Merges
+# do not define head_ref, so use run_id to never cancel those jobs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   repo2docker:
     timeout-minutes: 30
