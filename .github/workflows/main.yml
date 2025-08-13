@@ -6,6 +6,7 @@ on:
 
 jobs:
   build-wheels:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     steps:
@@ -40,6 +41,7 @@ jobs:
           retention-days: 1
 
   build-test-env-base:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     steps:
@@ -81,6 +83,7 @@ jobs:
           mamba env export -p /tmp/test_env
 
   build-binder-env:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     steps:
@@ -123,6 +126,7 @@ jobs:
           mamba env export -p /tmp/binder_env
 
   run-black-check:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     needs:
       - build-test-env-base
@@ -148,6 +152,7 @@ jobs:
           black --check --diff .
 
   run-pylint:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     needs:
       - build-test-env-base
@@ -180,6 +185,7 @@ jobs:
           pylint -v odc
 
   run-mypy:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     needs:
       - build-test-env-base
@@ -205,6 +211,7 @@ jobs:
 
 
   test-with-botocore-and-coverage:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -258,6 +265,7 @@ jobs:
           use_oidc: true
 
   test-wheels:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     needs:
@@ -306,6 +314,7 @@ jobs:
           DASK_TEMPORARY_DIRECTORY: /tmp/dask
 
   build-notebooks:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     needs:
@@ -347,6 +356,7 @@ jobs:
           ls -lh $nb_dir
 
   check-docs:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     needs:

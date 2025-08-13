@@ -11,6 +11,7 @@ on:
 
 jobs:
   repo2docker:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
 
     steps:
