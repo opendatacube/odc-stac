@@ -7,7 +7,7 @@ jobs:
   publish-pypi:
     if: |
       github.repository == 'opendatacube/odc-stac'
-
+    timeout-minutes: 15
     runs-on: ubuntu-latest
 
     steps:
