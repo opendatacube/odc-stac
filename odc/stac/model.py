@@ -117,12 +117,25 @@ class RasterCollectionMetadata(
     def all_bands(self) -> List[str]:
         return [self._norm_key(k) for k in self.meta.bands]
 
+    @property
+    def prop_bands(self) -> List[str]:
+        return [self._norm_key(k) for k in self.meta.bands if k[0] == "_stac_metadata"]
+
     def normalize_band_query(self, bands: BandQuery = None) -> List[str]:
-        if isinstance(bands, str):
-            return [bands]
         if bands is None:
             return self.all_bands
-        return list(bands)
+
+        if isinstance(bands, str):
+            bands = [bands]
+        elif not isinstance(bands, list):
+            bands = list(bands)
+
+        # when subset of raster bands is requested, we still add properties to
+        # the query, unless query references at least one property also
+        _props = self.prop_bands
+        if any(b in _props for b in bands):
+            return bands
+        return bands + _props
 
     def resolve_bands(
         self,

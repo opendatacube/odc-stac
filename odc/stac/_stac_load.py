@@ -15,6 +15,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -105,6 +106,7 @@ def load(
     fail_on_error: bool = True,
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
+    with_properties: Optional[Sequence[str | Mapping[str, Any]]] = None,
     patch_url: Optional[Callable[[str], str]] = None,
     preserve_original_order: bool = False,
     # custom driver
@@ -268,6 +270,10 @@ def load(
        Controls interpretation of :py:class:`pystac.Item`. Mostly used to specify "missing"
        metadata like pixel data types.
 
+    :param with_properties:
+       List of properties to load from STAC item. Can be a list of strings or dictionaries with
+       the following fields: ``.key``, ``.name``, ``.dtype``, ``.nodata``, ``.units``, ``.fuser``.
+
     :param patch_url:
        Optionally transform url of every band before loading
 
@@ -348,10 +354,27 @@ def load(
     if groupby is None:
         groupby = "id"
 
-    rdr, md_parser = _resolve_driver(driver, stac_cfg)
+    rdr, md_parser = _resolve_driver(driver, stac_cfg, with_properties=with_properties)
 
     items = list(items)
-    _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_parser))
+    _parsed = list(parse_items(items, md_plugin=md_parser))
+
+    # Check we have all the bands of interest
+    # will raise ValueError if no such band/alias
+    collection = _collection(_parsed)
+    bands_to_load = collection.resolve_bands(bands)
+    bands = list(bands_to_load)
+
+    load_cfg = resolve_load_cfg(
+        bands_to_load,
+        resampling,
+        dtype=dtype,
+        use_overviews=kw.get("use_overviews", True),
+        nodata=kw.get("nodata", None),
+        fail_on_error=fail_on_error,
+    )
+    if patch_url is not None:
+        _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
     if geopolygon is None and intersects is not None:
         geopolygon = intersects
@@ -374,26 +397,9 @@ def load(
     )
 
     if gbox is None:
+        # TODO: handle no raster bands case here by creating some fake
+        # geobox when only aux bands are present/requested for loading
         raise ValueError("Failed to auto-guess CRS/resolution.")
-
-    debug = kw.get("debug", False)
-
-    # Check we have all the bands of interest
-    # will raise ValueError if no such band/alias
-    collection = _collection(_parsed)
-    bands_to_load = collection.resolve_bands(bands)
-    bands = list(bands_to_load)
-
-    load_cfg = resolve_load_cfg(
-        bands_to_load,
-        resampling,
-        dtype=dtype,
-        use_overviews=kw.get("use_overviews", True),
-        nodata=kw.get("nodata", None),
-        fail_on_error=fail_on_error,
-    )
-    if patch_url is not None:
-        _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
     # Time dimension
     ((mid_lon, _),) = gbox.extent.centroid.to_crs("epsg:4326").points
@@ -424,6 +430,7 @@ def load(
     gbt = GeoboxTiles(gbox, (chunk_shape[1], chunk_shape[2]))
     tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
     srcs = [item.resolve_bands(bands) for item in _parsed]
+    debug = kw.get("debug", False)
 
     def _with_debug_info(ds: xr.Dataset, **kw) -> xr.Dataset:
         # expose data for debugging

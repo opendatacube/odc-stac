@@ -1170,10 +1170,13 @@ def output_geobox(
 def _resolve_driver(
     driver: ReaderDriverSpec | None,
     stac_cfg: Optional[ConversionConfig],
+    with_properties: Sequence[str | Mapping[str, Any]] | None = None,
 ) -> tuple[ReaderDriver, MDParser]:
     md_parser: MDParser | None = None
 
     stac_cfg = {} if stac_cfg is None else stac_cfg
+    if with_properties is not None:
+        stac_cfg["with_properties"] = with_properties
     if driver is None:
         md_parser = StacMDParser(stac_cfg)
         return RioDriver(md_parser=md_parser, aux_reader=StacAuxReader()), md_parser
