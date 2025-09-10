@@ -662,7 +662,7 @@ class _CMDAssembler:
 
         has_proj = has_proj_ext(item)
         meta = self.md_plugin.extract(item)
-        data_asset_names = set(n for n, _ in meta.bands)
+        data_asset_names = set(n for n, _ in meta.bands if n in item.assets)
         data_assets = {n: item.assets[n] for n in data_asset_names}
 
         # We assume that grouping of data bands into grids is consistent across
