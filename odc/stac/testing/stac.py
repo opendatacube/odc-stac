@@ -3,7 +3,7 @@ Making STAC items for testing.
 """
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Generator
 
 import pystac.asset
 import pystac.item
@@ -161,6 +161,16 @@ def _add_proj(gbox: GeoBox, xx) -> None:
             proj.wkt2 = crs.wkt
 
 
+def _extract_props(item: ParsedItem) -> Generator[tuple[str, Any], None, None]:
+    for k in item.bands:
+        if k[0] != "_stac_metadata":
+            continue
+        b = item[k]
+        if b.meta is None or b.meta.driver_data is None:
+            continue
+        yield b.meta.driver_data.key, b.driver_data
+
+
 def to_stac_item(item: ParsedItem) -> pystac.item.Item:
     gg = item.geometry
 
@@ -168,6 +178,8 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
     for n, dt in zip(["start_datetime", "end_datetime"], item.datetime_range):
         if dt is not None:
             props[n] = dt.strftime(STAC_DATE_FMT)
+
+    props.update(_extract_props(item))
 
     xx = pystac.item.Item(
         item.id,
