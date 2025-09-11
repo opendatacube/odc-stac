@@ -65,11 +65,13 @@ def b_(
 def mk_parsed_item(
     bands,
     datetime=None,
+    *,
     start_datetime=None,
     end_datetime=None,
     id="some-item",
     collection="some-collection",
     href=None,
+    geometry=None,
     props: dict[str, Any] | None = None,
 ) -> ParsedItem:
     """
@@ -90,10 +92,8 @@ def mk_parsed_item(
         grids, band2grid = _group_geoboxes(gboxes)
         geobox = grids["default"]
 
-    if geobox is not None:
+    if geometry is None and geobox is not None:
         geometry = geobox.geographic_extent
-    else:
-        geometry = None
 
     aliases = {}
     if props is None:
@@ -190,7 +190,6 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
         collection=item.collection.name,
     )
 
-    RasterExtension.add_to(xx)
     gboxes = item.geoboxes()
     if len(gboxes) > 0:
         gbox = gboxes[0]
@@ -208,6 +207,7 @@ def to_stac_item(item: ParsedItem) -> pystac.item.Item:
         )
 
     for asset_name, bands in item.assets().items():
+        RasterExtension.add_to(xx)
         b = bands[0]  # all bands should share same uri
         xx.add_asset(
             asset_name,

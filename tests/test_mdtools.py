@@ -668,7 +668,10 @@ def test_mk_parsed_item() -> None:
     "parsed_item",
     [
         mk_parsed_item(
-            [b_("band")], None, "2020-01-01", "2021-12-31T23:59:59.9999999Z"
+            [b_("band")],
+            None,
+            start_datetime="2020-01-01",
+            end_datetime="2021-12-31T23:59:59.9999999Z",
         ),
         mk_parsed_item([b_("b1"), b_("b2", nodata=10)], "2020-01-01"),
         mk_parsed_item(
@@ -684,8 +687,8 @@ def test_mk_parsed_item() -> None:
                 b_("b2", dtype="int32", nodata=-99, geobox=GBOX.zoom_out(2)),
             ],
             "2020-01-01",
-            "2020-01-01",
-            "2021-12-31T23:59:59.9999999Z",
+            start_datetime="2020-01-01",
+            end_datetime="2021-12-31T23:59:59.9999999Z",
             href="file:///date/item/1.json",
         ),
     ],
