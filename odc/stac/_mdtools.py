@@ -20,6 +20,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    TypeAlias,
     Union,
 )
 
@@ -66,7 +67,7 @@ from .model import (
     RasterCollectionMetadata,
 )
 
-ConversionConfig = Dict[str, Any]
+ConversionConfig: TypeAlias = Dict[str, Any]
 
 EPSG4326 = CRS("EPSG:4326")
 

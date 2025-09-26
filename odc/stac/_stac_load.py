@@ -18,6 +18,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    TypeAlias,
     Union,
     cast,
 )
@@ -44,9 +45,9 @@ from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 DEFAULT_CHUNK_FOR_LOAD = 2048
 """Used to partition load when not using Dask."""
 
-GroupbyCallback = Callable[[pystac.item.Item, ParsedItem, int], Any]
+GroupbyCallback: TypeAlias = Callable[[pystac.item.Item, ParsedItem, int], Any]
 
-Groupby = Union[str, GroupbyCallback]
+Groupby: TypeAlias = Union[str, GroupbyCallback]
 
 
 def _collection(items: Iterable[ParsedItem]) -> RasterCollectionMetadata:
