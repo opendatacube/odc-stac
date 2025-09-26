@@ -7,7 +7,7 @@ from copy import copy
 from dataclasses import dataclass, field
 from time import sleep
 from timeit import default_timer as t_now
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, TypeAlias, Union
 
 import affine
 import distributed
@@ -21,7 +21,7 @@ from odc.geo.xr import ODCExtension
 
 import odc.stac
 
-TimeSample = Tuple[float, float, float]
+TimeSample: TypeAlias = Tuple[float, float, float]
 """(t0, t_finished_submit, t_finished_compute)"""
 
 # pylint: disable=too-many-instance-attributes,too-many-locals,too-many-arguments
