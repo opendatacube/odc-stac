@@ -244,8 +244,8 @@ def mk_1x1_geobox(g: Geometry) -> GeoBox:
     """
     Construct 1x1 pixels GeoBox tightly enclosing supplied geometry.
 
-    :param geom: Geometry in whatever projection
-    :return: GeoBox object such that geobox.extent.contains(geom) is True, geobox.shape == (1,1)
+    :param g: Geometry in whatever projection
+    :return: GeoBox object such that geobox.extent.contains(g) is True, geobox.shape == (1,1)
     """
     x1, y1, x2, y2 = g.boundingbox
     # note that Y axis is inverted
@@ -639,7 +639,7 @@ def extract_collection_metadata(
     Use sample item to figure out raster bands within the collection.
 
     1. Decide which assets contain raster data
-    2. Extract metadata about about rasters from STAC or from ``cfg``
+    2. Extract metadata about rasters from STAC or from ``cfg``
     3. See if ``proj`` data is available and group bands by resolution
     4. Construct alias map from common names and user config
 

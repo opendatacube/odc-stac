@@ -62,10 +62,10 @@ def patch_urls(
     """
     Map function over dataset measurement urls.
 
-    :param ds: Dataset to edit in place
+    :param item: Item to edit in place
     :param edit: Function that returns modified url from input url
     :param bands: Only edit specified bands, default is to edit all
-    :return: Input dataset
+    :return: Input item
     """
 
     if bands is None:
