@@ -658,12 +658,14 @@ def parse_item(
     item: pystac.item.Item,
     template: Union[RasterCollectionMetadata, ConversionConfig, None] = None,
     md_plugin: MDParser | None = None,
+    asset_absolute_paths: bool = True,
 ) -> ParsedItem:
     """
     Extract raster band information relevant for data loading.
 
     :param item: STAC Item
     :param template: Common collection level information
+    :param asset_absolute_paths: Use absolute paths for assets
     :return: ``ParsedItem``
     """
     # pylint: disable=too-many-locals
@@ -700,7 +702,7 @@ def parse_item(
         grid_name = band2grid.get(asset_name, "default")
         geobox: Optional[GeoBox] = _get_grid(grid_name, asset) if has_proj else None
 
-        uri = asset.get_absolute_href()
+        uri = asset.get_absolute_href() if asset_absolute_paths else asset.href
         if uri is None:
             raise ValueError(
                 f"Can not determine absolute path for band: {asset_name}"
@@ -747,6 +749,7 @@ def parse_items(
     items: Iterable[pystac.item.Item],
     cfg: Optional[ConversionConfig] = None,
     md_plugin: MDParser | None = None,
+    asset_absolute_paths: bool = True,
 ) -> Iterator[ParsedItem]:
     """
     Parse sequence of STAC Items into internal representation.
@@ -763,7 +766,7 @@ def parse_items(
             proc_cache[collection_id] = proc
 
         proc.update(item)
-        yield parse_item(item, proc.md, proc.md_plugin)
+        yield parse_item(item, proc.md, proc.md_plugin, asset_absolute_paths)
 
 
 def _most_common_gbox(
