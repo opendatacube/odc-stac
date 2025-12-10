@@ -1,7 +1,7 @@
 [project]
 name = "odc-stac"
 description = "Tooling for converting STAC metadata to ODC data model"
-version = "0.4.1"
+version = "0.5.0"
 authors = [
     {name = "Open Data Cube"}
 ]
