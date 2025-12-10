@@ -15,6 +15,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -30,16 +31,10 @@ from dask.utils import ndeepmap
 from odc.geo import CRS, MaybeCRS, SomeResolution
 from odc.geo.geobox import GeoBox, GeoboxAnchor, GeoboxTiles
 from odc.geo.types import Unset
+from odc.loader import chunked_load, resolve_chunk_shape, resolve_load_cfg
+from odc.loader.types import Band_DType, ReaderDriverSpec
 
-from odc.loader import (
-    chunked_load,
-    reader_driver,
-    resolve_chunk_shape,
-    resolve_load_cfg,
-)
-from odc.loader.types import ReaderDriverSpec, Band_DType
-
-from ._mdtools import ConversionConfig, output_geobox, parse_items
+from ._mdtools import ConversionConfig, _resolve_driver, output_geobox, parse_items
 from .model import BandQuery, ParsedItem, RasterCollectionMetadata
 
 DEFAULT_CHUNK_FOR_LOAD = 2048
@@ -111,6 +106,7 @@ def load(
     fail_on_error: bool = True,
     # stac related
     stac_cfg: Optional[ConversionConfig] = None,
+    with_properties: Optional[Sequence[str | Mapping[str, Any]]] = None,
     patch_url: Optional[Callable[[str], str]] = None,
     preserve_original_order: bool = False,
     # custom driver
@@ -274,6 +270,10 @@ def load(
        Controls interpretation of :py:class:`pystac.Item`. Mostly used to specify "missing"
        metadata like pixel data types.
 
+    :param with_properties:
+       List of properties to load from STAC item. Can be a list of strings or dictionaries with
+       the following fields: ``.key``, ``.name``, ``.dtype``, ``.nodata``, ``.units``, ``.fuser``.
+
     :param patch_url:
        Optionally transform url of every band before loading
 
@@ -354,11 +354,27 @@ def load(
     if groupby is None:
         groupby = "id"
 
-    rdr = reader_driver(driver)
-    md_plugin = rdr.md_parser
+    rdr, md_parser = _resolve_driver(driver, stac_cfg, with_properties=with_properties)
 
     items = list(items)
-    _parsed = list(parse_items(items, cfg=stac_cfg, md_plugin=md_plugin))
+    _parsed = list(parse_items(items, md_plugin=md_parser))
+
+    # Check we have all the bands of interest
+    # will raise ValueError if no such band/alias
+    collection = _collection(_parsed)
+    bands_to_load = collection.resolve_bands(bands)
+    bands = list(bands_to_load)
+
+    load_cfg = resolve_load_cfg(
+        bands_to_load,
+        resampling,
+        dtype=dtype,
+        use_overviews=kw.get("use_overviews", True),
+        nodata=kw.get("nodata", None),
+        fail_on_error=fail_on_error,
+    )
+    if patch_url is not None:
+        _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
     if geopolygon is None and intersects is not None:
         geopolygon = intersects
@@ -381,26 +397,9 @@ def load(
     )
 
     if gbox is None:
+        # TODO: handle no raster bands case here by creating some fake
+        # geobox when only aux bands are present/requested for loading
         raise ValueError("Failed to auto-guess CRS/resolution.")
-
-    debug = kw.get("debug", False)
-
-    # Check we have all the bands of interest
-    # will raise ValueError if no such band/alias
-    collection = _collection(_parsed)
-    bands_to_load = collection.resolve_bands(bands)
-    bands = list(bands_to_load)
-
-    load_cfg = resolve_load_cfg(
-        bands_to_load,
-        resampling,
-        dtype=dtype,
-        use_overviews=kw.get("use_overviews", True),
-        nodata=kw.get("nodata", None),
-        fail_on_error=fail_on_error,
-    )
-    if patch_url is not None:
-        _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
 
     # Time dimension
     ((mid_lon, _),) = gbox.extent.centroid.to_crs("epsg:4326").points
@@ -430,7 +429,8 @@ def load(
     assert isinstance(gbox.crs, CRS)
     gbt = GeoboxTiles(gbox, (chunk_shape[1], chunk_shape[2]))
     tyx_bins = dict(_tyx_bins(_grouped_idx, _parsed, gbt))
-    _parsed = [item.strip() for item in _parsed]
+    srcs = [item.resolve_bands(bands) for item in _parsed]
+    debug = kw.get("debug", False)
 
     def _with_debug_info(ds: xr.Dataset, **kw) -> xr.Dataset:
         # expose data for debugging
@@ -444,6 +444,7 @@ def load(
                 gbt=gbt,
                 mid_lon=mid_lon,
                 parsed=_parsed,
+                srcs=srcs,
                 grouped_idx=_grouped_idx,
                 tyx_bins=tyx_bins,
                 bands_to_load=bands_to_load,
@@ -458,7 +459,7 @@ def load(
         chunked_load(
             load_cfg,
             meta,
-            _parsed,
+            srcs,
             tyx_bins,
             gbt,
             tss,

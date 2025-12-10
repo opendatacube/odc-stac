@@ -12,7 +12,12 @@ from odc.geo import geom
 from odc.geo.geobox import AnchorEnum, GeoBox, geobox_union_conservative
 from odc.geo.xr import xr_zeros
 from odc.loader.testing.fixtures import FakeMDPlugin
-from odc.loader.types import FixedCoord, RasterBandMetadata, RasterGroupMetadata
+from odc.loader.types import (
+    FixedCoord,
+    RasterBandMetadata,
+    RasterGroupMetadata,
+    RasterSource,
+)
 from pystac.extensions.projection import ProjectionExtension
 
 from odc.stac._mdtools import (
@@ -321,6 +326,9 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item) -> None:
     assert item not in xx
 
     assert set(n for n, _ in xx.bands) == S2_ALL_BANDS
+    assert isinstance(xx["B02"], RasterSource)
+    assert isinstance(xx["B01"], RasterSource)
+    assert isinstance(xx["B05"], RasterSource)
     assert xx["B02"].geobox is not None
     assert xx["B02"] is xx[("B02", 1)]
     assert xx["B02"] is xx["B02.1"]
@@ -354,11 +362,16 @@ def test_parse_item_raster_ext(
 ) -> None:
     item = sentinel_stac_ms_with_raster_ext
     parsed = parse_item(item)
+    assert isinstance(parsed[("visual", 2)], RasterSource)
+    assert isinstance(parsed["visual.2"], RasterSource)
+    assert isinstance(parsed[("visual", 3)], RasterSource)
+    assert isinstance(parsed["visual.3"], RasterSource)
     assert parsed[("visual", 2)].band == 2
     assert parsed["visual.2"].band == 2
     assert parsed[("visual", 3)] is parsed["visual.3"]
 
     for (band, idx), b in parsed.bands.items():
+        assert isinstance(b, RasterSource)
         assert idx == b.band
         assert band in S2_ALL_BANDS
 
@@ -387,6 +400,7 @@ def test_parse_item_no_proj(sentinel_stac_ms: pystac.item.Item) -> None:
 
     xx = parse_item(item, md)
     for band in xx.bands.values():
+        assert isinstance(band, RasterSource)
         assert band.geobox is None
 
     assert xx.geoboxes() == ()
@@ -418,6 +432,10 @@ def test_auto_load_params(parsed_item_s2: ParsedItem) -> None:
     xx = parsed_item_s2
     assert len(xx.geoboxes()) == 3
     crs = xx.geoboxes()[0].crs
+
+    assert isinstance(xx["B01"], RasterSource)
+    assert isinstance(xx["B02"], RasterSource)
+    assert isinstance(xx["B05"], RasterSource)
 
     _gbox_10m = xx["B02"].geobox
     _gbox_20m = xx["B05"].geobox
@@ -650,7 +668,10 @@ def test_mk_parsed_item() -> None:
     "parsed_item",
     [
         mk_parsed_item(
-            [b_("band")], None, "2020-01-01", "2021-12-31T23:59:59.9999999Z"
+            [b_("band")],
+            None,
+            start_datetime="2020-01-01",
+            end_datetime="2021-12-31T23:59:59.9999999Z",
         ),
         mk_parsed_item([b_("b1"), b_("b2", nodata=10)], "2020-01-01"),
         mk_parsed_item(
@@ -666,8 +687,8 @@ def test_mk_parsed_item() -> None:
                 b_("b2", dtype="int32", nodata=-99, geobox=GBOX.zoom_out(2)),
             ],
             "2020-01-01",
-            "2020-01-01",
-            "2021-12-31T23:59:59.9999999Z",
+            start_datetime="2020-01-01",
+            end_datetime="2021-12-31T23:59:59.9999999Z",
             href="file:///date/item/1.json",
         ),
     ],

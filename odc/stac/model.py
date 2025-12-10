@@ -6,14 +6,26 @@ import datetime as dt
 import math
 from copy import copy
 from dataclasses import astuple, dataclass, field, replace
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple
-from typing_extensions import override
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+)
 
+import numpy as np
 from odc.geo import CRS, Geometry, MaybeCRS
 from odc.geo.geobox import GeoBox
 from odc.geo.types import Unset
-
 from odc.loader.types import (
+    AuxBandMetadata,
+    AuxDataSource,
     BandIdentifier,
     BandKey,
     BandQuery,
@@ -24,10 +36,13 @@ from odc.loader.types import (
     norm_band_metadata,
     norm_key,
 )
+from typing_extensions import override
 
 
 @dataclass(eq=True, frozen=True)
-class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
+class RasterCollectionMetadata(
+    Mapping[BandIdentifier, RasterBandMetadata | AuxBandMetadata]
+):
     """
     Information about raster data in a collection.
 
@@ -87,7 +102,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         asset, idx = k
 
         # if single band asset it's just asset name
-        if idx == 1 and (asset, 2) not in self.meta.bands:
+        if idx == 1 and (asset, 2) not in self.meta.bands and asset != "_stac_metadata":
             return asset
 
         # if any alias references this key as first choice return that
@@ -102,21 +117,38 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
     def all_bands(self) -> List[str]:
         return [self._norm_key(k) for k in self.meta.bands]
 
+    @property
+    def prop_bands(self) -> List[str]:
+        return [self._norm_key(k) for k in self.meta.bands if k[0] == "_stac_metadata"]
+
     def normalize_band_query(self, bands: BandQuery = None) -> List[str]:
-        if isinstance(bands, str):
-            return [bands]
         if bands is None:
             return self.all_bands
-        return list(bands)
 
-    def resolve_bands(self, bands: BandQuery = None) -> Dict[str, RasterBandMetadata]:
+        if isinstance(bands, str):
+            bands = [bands]
+        elif not isinstance(bands, list):
+            bands = list(bands)
+
+        # when subset of raster bands is requested, we still add properties to
+        # the query, unless query references at least one property also
+        _props = self.prop_bands
+        if any(b in _props for b in bands):
+            return bands
+        return bands + _props
+
+    def resolve_bands(
+        self,
+        bands: BandQuery = None,
+    ) -> Dict[str, RasterBandMetadata | AuxBandMetadata]:
         """
         Query bands taking care of aliases.
         """
-        bands = self.normalize_band_query(bands)
+        query = self.normalize_band_query(bands)
+
         return {
             band: self.meta.bands[k]
-            for band, k in ((band, self.band_key(band)) for band in bands)
+            for band, k in ((band, self.band_key(band)) for band in query)
         }
 
     def band_key(self, band: str) -> BandKey:
@@ -151,7 +183,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         return self._norm_key(self.band_key(band))
 
     @override
-    def __getitem__(self, band: BandIdentifier) -> RasterBandMetadata:
+    def __getitem__(self, band: BandIdentifier) -> RasterBandMetadata | AuxBandMetadata:
         """
         Query band taking care of aliases.
 
@@ -165,7 +197,7 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
         return self.meta.bands[band]
 
     @property
-    def bands(self) -> Dict[BandKey, RasterBandMetadata]:
+    def bands(self) -> Mapping[BandKey, RasterBandMetadata | AuxBandMetadata]:
         return self.meta.bands
 
     def meta_for(self, bands: BandQuery = None) -> RasterGroupMetadata:
@@ -202,9 +234,24 @@ class RasterCollectionMetadata(Mapping[BandIdentifier, RasterBandMetadata]):
     def __dask_tokenize__(self):
         return astuple(self)
 
+    def patch(self, **kwargs) -> "RasterCollectionMetadata":
+        return replace(self, **kwargs)
+
+    def asset_names(self) -> tuple[str, ...]:
+        out: list[str] = []
+        seen: set[str] = set()
+        for asset_name, _ in self.meta.bands:
+            if asset_name != "_stac_metadata":
+                if asset_name in seen:
+                    continue
+                seen.add(asset_name)
+                out.append(asset_name)
+
+        return tuple(out)
+
 
 @dataclass(eq=True, frozen=True)
-class ParsedItem(Mapping[BandIdentifier, RasterSource]):
+class ParsedItem(Mapping[BandIdentifier, RasterSource | AuxDataSource]):
     """
     Captures essentials parts for data loading from a STAC Item.
 
@@ -219,7 +266,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
     collection: RasterCollectionMetadata
     """Collection this Item is part of."""
 
-    bands: Dict[BandKey, RasterSource]
+    bands: Mapping[BandKey, RasterSource | AuxDataSource]
     """Raster bands."""
 
     geometry: Optional[Geometry] = None
@@ -252,7 +299,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         gbx: Set[GeoBox] = set()
         for name in bands:
             b = self.bands.get(self.collection.band_key(name), None)
-            if b is not None:
+            if isinstance(b, RasterSource):
                 if b.geobox is not None:
                     assert isinstance(b.geobox, GeoBox)
                     gbx.add(b.geobox)
@@ -320,7 +367,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
 
     def resolve_bands(
         self, bands: BandQuery = None
-    ) -> Dict[str, Optional[RasterSource]]:
+    ) -> dict[str, RasterSource | AuxDataSource | None]:
         """
         Query bands taking care of aliases.
         """
@@ -333,7 +380,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         }
 
     @override
-    def __getitem__(self, band: BandIdentifier) -> RasterSource:
+    def __getitem__(self, band: BandIdentifier) -> RasterSource | AuxDataSource:
         """
         Query band taking care of aliases.
 
@@ -421,7 +468,8 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         """
         assets: Dict[str, List[Tuple[int, RasterSource]]] = {}
         for (asset, idx), src in self.bands.items():
-            assets.setdefault(asset, []).append((idx, src))
+            if isinstance(src, RasterSource):
+                assets.setdefault(asset, []).append((idx, src))
 
         return {
             k: [src for _, src in sorted(srcs, key=lambda x: x[0])]
@@ -443,6 +491,86 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource]):
         )
 
 
+def _default_props_fuser(xx: Sequence[Any]) -> Any:
+    n = len(xx)
+    if n == 0:
+        return None
+    if n == 1:
+        return xx[0]
+    if isinstance(xx[0], str):
+        return ",".join((str(x) for x in xx))
+
+    xx = [x for x in xx if isinstance(x, (int, float)) and math.isfinite(x)]
+    if len(xx) == 0:
+        return None
+    if len(xx) == 1:
+        return xx[0]
+    return sum(xx) / len(xx)
+
+
+@dataclass(frozen=True)
+class PropertyLoadRequest:
+    """
+    Request to load a property from STAC item as xarray DataArray.
+
+    Attributes:
+        key: The key of the property to load from STAC item
+        name: Name to use for output DataArray, if None will use the property key
+        dtype: Data type to use for loaded data, defaults to float32
+    """
+
+    key: str
+    name: str | None = None
+    dtype: str = "float32"
+    nodata: float | None = None
+    units: str = "1"
+    fuser: Callable[[Sequence[Any]], Any] = _default_props_fuser
+
+    @staticmethod
+    def from_user_input(
+        inputs: Sequence[str | Mapping[str, Any]],
+    ) -> list["PropertyLoadRequest"]:
+        """
+        Create a list of PropertyLoadRequest objects from user input.
+
+        Args:
+            inputs: Sequence of either strings (property keys) or dictionaries with configuration.
+                   Dictionaries must have 'key' defined, and can optionally have 'dtype' and 'name'.
+
+        Returns:
+            List of PropertyLoadRequest objects
+
+        Raises:
+            ValueError: If a dictionary input is missing the required 'key' field
+        """
+
+        def _norm(what: str | Mapping[str, Any]) -> "PropertyLoadRequest":
+            if isinstance(what, str):
+                return PropertyLoadRequest(key=what)
+            if isinstance(what, dict):
+                if "key" not in what:
+                    raise ValueError("Dictionary input must contain 'key' field")
+                return PropertyLoadRequest(**what)
+            raise ValueError(f"Input must be string or dict, got {type(what)}")
+
+        return [_norm(what) for what in inputs]
+
+    @property
+    def output_name(self) -> str:
+        if self.name is not None:
+            return self.name
+        return self.key.replace(".", "_").replace(":", "_").replace("-", "_")
+
+    @property
+    def fill_value(self) -> Any:
+        dtype = np.dtype(self.dtype)
+        if self.nodata is not None:
+            return dtype.type(self.nodata)
+        if dtype.kind == "f":
+            return dtype.type(float("nan"))
+        return dtype.type(0)
+
+
 @dataclass(frozen=True)
 class MDParseConfig:
     """Item parsing config."""
@@ -455,6 +583,7 @@ class MDParseConfig:
     ignore_proj: bool = False
     extra_dims: Dict[str, int] = field(default_factory=dict)
     extra_coords: Sequence[FixedCoord] = ()
+    with_props: Sequence[PropertyLoadRequest] = field(default_factory=list)
 
     @staticmethod
     def from_dict(
@@ -480,6 +609,8 @@ class MDParseConfig:
         extra_coords: list[FixedCoord] = []
         cc: dict[str, list[Any]] = _cfg.get("coords", {})
         assert isinstance(cc, dict)
+        with_props = _cfg.get("with_properties", cfg.get("with_properties", []))
+        assert isinstance(with_props, list)
 
         for name, val in cc.items():
             assert isinstance(val, list)
@@ -492,6 +623,7 @@ class MDParseConfig:
             aliases=aliases,
             extra_dims=extra_dims,
             extra_coords=tuple(extra_coords),
+            with_props=PropertyLoadRequest.from_user_input(with_props),
         )
 
 

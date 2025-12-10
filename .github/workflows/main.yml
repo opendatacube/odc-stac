@@ -57,7 +57,7 @@ jobs:
         id: conda_cache
         with:
           path: /tmp/test_env
-          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
+          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml', 'pyproject.toml') }}
 
       - uses: conda-incubator/setup-miniconda@835234971496cad1653abb28a638a281cf32541f # v3.2.0
         if: steps.conda_cache.outputs.cache-hit != 'true'
@@ -144,7 +144,7 @@ jobs:
         id: conda_cache
         with:
           path: /tmp/test_env
-          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
+          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml', 'pyproject.toml') }}
 
       - name: Update PATH
         shell: bash
@@ -170,7 +170,7 @@ jobs:
         id: conda_cache
         with:
           path: /tmp/test_env
-          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
+          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml', 'pyproject.toml') }}
 
       - name: Update PATH
         shell: bash
@@ -203,7 +203,7 @@ jobs:
         id: conda_cache
         with:
           path: /tmp/test_env
-          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
+          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml', 'pyproject.toml') }}
 
       - name: Update PATH
         shell: bash
@@ -234,7 +234,7 @@ jobs:
         with:
           path: /tmp/test_env
 
-          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
+          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml', 'pyproject.toml') }}
 
       - name: Update PATH
         shell: bash
@@ -293,7 +293,7 @@ jobs:
         id: conda_cache
         with:
           path: /tmp/test_env
-          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
+          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml', 'pyproject.toml') }}
 
       - name: Update PATH
         shell: bash
@@ -385,7 +385,7 @@ jobs:
         id: conda_cache
         with:
           path: /tmp/test_env
-          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml') }}
+          key: ${{ runner.os }}-test-env-py310-${{ hashFiles('tests/test-env-py310.yml', 'pyproject.toml') }}
 
       - name: Update PATH
         shell: bash

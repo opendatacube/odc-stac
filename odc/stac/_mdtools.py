@@ -8,6 +8,7 @@ Utilities for translating STAC Items to EO3 Datasets.
 from __future__ import annotations
 
 import datetime
+import functools
 from collections import Counter
 from copy import copy
 from typing import (
@@ -16,6 +17,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Mapping,
     Optional,
     Sequence,
     Set,
@@ -24,11 +26,13 @@ from typing import (
     Union,
 )
 
+import numpy as np
 import pystac.asset
 import pystac.collection
 import pystac.errors
 import pystac.item
 import shapely.geometry
+import xarray as xr
 from affine import Affine
 from odc.geo import (
     CRS,
@@ -45,11 +49,19 @@ from odc.geo import (
 from odc.geo.geobox import AnchorEnum, GeoBox, GeoboxAnchor
 from odc.geo.types import Unset
 from odc.geo.xr import ODCExtension
+from odc.loader import ReaderDriver, RioDriver, reader_driver
 from odc.loader.types import (
+    AuxBandMetadata,
+    AuxDataSource,
+    AuxLoadParams,
+    BandKey,
+    BandQuery,
+    GlobalLoadContext,
     MDParser,
     RasterBandMetadata,
     RasterGroupMetadata,
     RasterSource,
+    ReaderDriverSpec,
     norm_nodata,
     with_default,
 )
@@ -60,10 +72,9 @@ from pystac.extensions.raster import RasterBand, RasterExtension
 from toolz import dicttoolz
 
 from .model import (
-    BandKey,
-    BandQuery,
     MDParseConfig,
     ParsedItem,
+    PropertyLoadRequest,
     RasterCollectionMetadata,
 )
 
@@ -477,12 +488,18 @@ class StacMDParser:
     implements :class:`~odc.loader.types.MDParser` protocol.
     """
 
-    def __init__(self, cfg: MDParseConfig):
+    def __init__(self, cfg: ConversionConfig):
         self._cfg = cfg
 
-    def extract(self, gmd: pystac.item.Item) -> RasterGroupMetadata:
-        item = gmd
-        c = self._cfg
+    @functools.lru_cache()
+    def _config(self, collection_id: str | None) -> MDParseConfig:
+        return MDParseConfig.from_dict(self._cfg, collection_id)
+
+    def extract(self, md: Any) -> RasterGroupMetadata:
+        # pylint: disable=too-many-locals
+        assert isinstance(md, pystac.item.Item)
+        item = md
+        c = self._config(item.collection_id)
 
         # Ignore non-proj data bands when Item has proj extension, unless user
         # disabled that filter with `ignore_proj=True` option
@@ -496,40 +513,127 @@ class StacMDParser:
 
         data_bands = dicttoolz.itemfilter(_keep, item.assets)
 
-        bands: dict[BandKey, RasterBandMetadata] = {}
+        bands: dict[BandKey, RasterBandMetadata | AuxBandMetadata] = {}
         aliases = alias_map_from_eo(item)
 
         # 1. If band in user config -- use that
         # 2. Use data from raster extension (with fallback to "*" config)
         # 3. Use config for "*" from user config as fallback
         for name, asset in data_bands.items():
-            bands.update(self._extract_bands(name, asset))
+            bands.update(self._extract_bands(name, asset, c))
 
         for alias, bkey in c.aliases.items():
             aliases.setdefault(alias, []).insert(0, bkey)
 
+        for idx, prop in enumerate(c.with_props):
+            bk: BandKey = ("_stac_metadata", idx + 1)
+            bands[bk] = AuxBandMetadata(
+                prop.dtype,
+                nodata=prop.nodata,
+                units=prop.units,
+                driver_data=prop,
+            )
+            aliases[prop.output_name] = [bk]
+
         return RasterGroupMetadata(bands, aliases, c.extra_dims, c.extra_coords)
 
-    def driver_data(self, md: pystac.item.Item, band_key: BandKey) -> Any:
-        assert md and band_key
+    def driver_data(self, md: Any, band_key: BandKey) -> Any:
+        # None for raster bands
+        # (PropertyLoadRequest, Value|None)
+        assert isinstance(md, pystac.item.Item)
+        c = self._config(md.collection_id)
+
+        asset_name, band_idx = band_key
         driver_data = None
+
+        if asset_name == "_stac_metadata":
+            prop_cfg = c.with_props[band_idx - 1]
+            driver_data = md.properties.get(prop_cfg.key, None)
+
         return driver_data
 
     def _extract_bands(
-        self, name: str, asset: pystac.asset.Asset
+        self, name: str, asset: pystac.asset.Asset, cfg: MDParseConfig
     ) -> dict[BandKey, RasterBandMetadata]:
-        c = self._cfg
-        bm = c.band_cfg.get(name, None)
+        bm = cfg.band_cfg.get(name, None)
         if bm is not None:
             return {(name, 1): copy(bm)}
 
-        bm = c.band_cfg.get(f"{name}.*", None)
+        bm = cfg.band_cfg.get(f"{name}.*", None)
         if bm is None:
-            bm = c.band_defaults
+            bm = cfg.band_defaults
 
         bands = band_metadata(asset, bm)
 
         return {(name, idx + 1): bm for idx, bm in enumerate(bands)}
+
+
+class StacAuxReader:
+    """
+    Implements AuxReader protocol for STAC items.
+
+    Handles reading auxiliary data from STAC items, particularly metadata properties
+    that are exposed as auxiliary bands.
+    """
+
+    # pylint: disable=too-few-public-methods
+
+    def read(
+        self,
+        srcs: Sequence[Sequence[AuxDataSource]],
+        cfg: AuxLoadParams,
+        used_names: set[str],
+        available_coords: Mapping[str, xr.DataArray],
+        ctx: GlobalLoadContext,
+        *,
+        dask_layer_name: str | None = None,
+    ) -> xr.DataArray:
+        """
+        Read auxiliary data from STAC items.
+
+        :param srcs: Auxiliary data sources grouped by time
+        :param cfg: Loading configuration
+        :param used_names: Names claimed by raster bands and their coordinates
+        :param available_coords: Available coordinates, must include time
+        :param ctx: Load context
+        :param dask_layer_name: Suggested dask layer name when reading with dask
+        :return: Auxiliary data loaded into a xarray.DataArray
+        """
+        assert (used_names, ctx, dask_layer_name) is not None
+        # cfg.meta.driver_data: PropertyLoadRequest
+        # srcs[].driver_data:  None|float|str|int
+
+        def extract_cfg() -> PropertyLoadRequest:
+            meta = cfg.meta
+            assert meta is not None
+            assert isinstance(meta.driver_data, PropertyLoadRequest)
+            return meta.driver_data
+
+        prop_cfg = extract_cfg()
+        _fill = prop_cfg.fill_value
+        assert _fill is not None
+
+        def _value(row: Sequence[AuxDataSource]) -> Any:
+            if len(row) == 0:
+                return _fill
+
+            dd: Iterator[Any] = (src.driver_data for src in row)
+            return prop_cfg.fuser([v for v in dd if v is not None])
+
+        values = [_value(row) for row in srcs]
+        data = np.array(values, dtype=cfg.dtype)
+        attrs: dict[str, Any] = {"units": prop_cfg.units}
+        if cfg.fill_value is not None:
+            attrs["nodata"] = cfg.fill_value
+
+        # Use time coordinate
+        time = available_coords["time"]
+        return xr.DataArray(
+            data,
+            coords={"time": time},
+            dims=["time"],
+            attrs=attrs,
+        )
 
 
 class _CMDAssembler:
@@ -543,20 +647,12 @@ class _CMDAssembler:
 
     def __init__(
         self,
+        md_plugin: MDParser,
         collection_id: str,
-        cfg: Optional[ConversionConfig] = None,
-        md_plugin: MDParser | None = None,
     ) -> None:
-        if cfg is None:
-            cfg = {}
-
-        _cfg = MDParseConfig.from_dict(cfg, collection_id)
-        if md_plugin is None:
-            md_plugin = StacMDParser(_cfg)
-
         self.collection_id = collection_id
         self.md: Optional[RasterCollectionMetadata] = None
-        self.md_plugin: MDParser = md_plugin
+        self.md_plugin = md_plugin
         self._asset_keeps: dict[str, bool] = {}
         self._known_assets: set[str] = set()
 
@@ -566,7 +662,7 @@ class _CMDAssembler:
 
         has_proj = has_proj_ext(item)
         meta = self.md_plugin.extract(item)
-        data_asset_names = set(n for n, _ in meta.bands)
+        data_asset_names = set(n for n, _ in meta.bands if n in item.assets)
         data_assets = {n: item.assets[n] for n in data_asset_names}
 
         # We assume that grouping of data bands into grids is consistent across
@@ -592,8 +688,8 @@ class _CMDAssembler:
             self._bootstrap(item)
             return
 
-        meta = self.md_plugin.extract(item)
-        # TODO: merge current meta with new meta
+        meta = self.md.meta.merge(self.md_plugin.extract(item))
+        self.md = self.md.patch(meta=meta)
 
         new_assets = set(item.assets) - self._known_assets
         if len(new_assets) == 0:
@@ -647,8 +743,8 @@ def extract_collection_metadata(
     :param cfg: Optional user configuration
     :return: :py:class:`~odc.stac._model.RasterCollectionMetadata`
     """
-    collection_id = _collection_id(item)
-    proc = _CMDAssembler(collection_id, cfg, md_plugin)
+    _, md_plugin = _resolve_driver(None, cfg)
+    proc = _CMDAssembler(md_plugin, _collection_id(item))
     proc.update(item)
     assert proc.md is not None
     return proc.md
@@ -656,8 +752,34 @@ def extract_collection_metadata(
 
 def parse_item(
     item: pystac.item.Item,
-    template: Union[RasterCollectionMetadata, ConversionConfig, None] = None,
+    template: ConversionConfig | RasterCollectionMetadata | None = None,
     md_plugin: MDParser | None = None,
+    asset_absolute_paths: bool = True,
+) -> ParsedItem:
+    """
+    Extract raster band information relevant for data loading.
+
+    :param item: STAC Item
+    :param cfg: Common collection level information
+    :return: ``ParsedItem``
+    """
+
+    if template is None or isinstance(template, dict):
+        return next(parse_items([item], template, md_plugin))
+
+    # TODO: remove this part, i.e. template = RasterCollectionMetadata(...)
+    # version of this method
+    assert isinstance(template, RasterCollectionMetadata)
+    if md_plugin is None:
+        _, md_plugin = _resolve_driver(None, None)
+
+    return _parse_item(item, template, md_plugin, asset_absolute_paths)
+
+
+def _parse_item(
+    item: pystac.item.Item,
+    template: RasterCollectionMetadata,
+    md_plugin: MDParser,
     asset_absolute_paths: bool = True,
 ) -> ParsedItem:
     """
@@ -669,15 +791,12 @@ def parse_item(
     :return: ``ParsedItem``
     """
     # pylint: disable=too-many-locals
-    if not isinstance(template, RasterCollectionMetadata):
-        template = extract_collection_metadata(item, template, md_plugin)
-
     band2grid = template.band2grid
     has_proj = False if template.has_proj is False else has_proj_ext(item)
     _assets = item.assets
 
     _grids: Dict[str, GeoBox] = {}
-    bands: Dict[BandKey, RasterSource] = {}
+    bands: Dict[BandKey, RasterSource | AuxDataSource] = {}
     geometry: Optional[Geometry] = None
 
     if item.geometry is not None:
@@ -691,55 +810,74 @@ def parse_item(
         _grids[grid_name] = grid
         return grid
 
-    band_names = []
-    for bk, meta in template.meta.bands.items():
-        asset_name, band_idx = bk
-        asset = _assets.get(asset_name)
-        if asset is None:
-            continue
-        band_names.append(asset_name)
-
-        grid_name = band2grid.get(asset_name, "default")
-        geobox: Optional[GeoBox] = _get_grid(grid_name, asset) if has_proj else None
-
-        uri = asset.get_absolute_href() if asset_absolute_paths else asset.href
-        if uri is None:
-            raise ValueError(
-                f"Can not determine absolute path for band: {asset_name}"
-            )  # pragma: no cover (https://github.com/stac-utils/pystac/issues/754)
-
+    def _get_driver_data(bk: BandKey) -> tuple[Any, str | None]:
         driver_data: Any = None
         subdataset: str | None = None
-        if md_plugin is not None:
-            driver_data = md_plugin.driver_data(asset, bk)
-            if isinstance(driver_data, dict):
-                subdataset = driver_data.get("subdataset", None)
+        driver_data = md_plugin.driver_data(item, bk)
+        if isinstance(driver_data, dict):
+            subdataset = driver_data.get("subdataset", None)
+        return driver_data, subdataset
 
-        # Assumption: if extra dims are defined then asset bands are loaded into 3d+ array
-        if meta.extra_dims:
-            band_idx = 0
+    for bk, meta in template.meta.bands.items():
+        uri: str | None = None
+        asset_name, band_idx = bk
+        asset = _assets.get(asset_name)
 
-        bands[bk] = RasterSource(
-            uri=uri,
-            band=band_idx,
-            subdataset=subdataset,
-            geobox=geobox,
-            meta=meta,
-            driver_data=driver_data,
-        )
+        if asset is not None:
+            uri = asset.get_absolute_href() if asset_absolute_paths else asset.href
+            if uri is None:
+                raise ValueError(
+                    f"Can not determine absolute path for asset: {asset_name}"
+                )  # pragma: no cover (https://github.com/stac-utils/pystac/issues/754)
 
-    # the assets that aren't bands are accessories
-    acc_names = set(_assets.keys()).difference(set(band_names))
-    accessories = {name: {"path": _assets[name].href} for name in acc_names}
+        if isinstance(meta, RasterBandMetadata):
+            if asset is None or uri is None:
+                continue
 
-    md = item.common_metadata
+            driver_data, subdataset = _get_driver_data(bk)
+            grid_name = band2grid.get(asset_name, "default")
+            geobox: Optional[GeoBox] = _get_grid(grid_name, asset) if has_proj else None
+
+            # Assumption: if extra dims are defined then asset bands are loaded into 3d+ array
+            # RasterSource.band == 0 indicates "all the bands"
+            if meta.extra_dims:
+                band_idx = 0
+
+            bands[bk] = RasterSource(
+                uri=uri,
+                band=band_idx,
+                subdataset=subdataset,
+                geobox=geobox,
+                meta=meta,
+                driver_data=driver_data,
+            )
+        elif isinstance(meta, AuxBandMetadata):
+            if uri is None:
+                uri = f"virtual://{asset_name}/{band_idx}"
+
+            driver_data, subdataset = _get_driver_data(bk)
+            bands[bk] = AuxDataSource(
+                uri=uri,
+                subdataset=subdataset,
+                meta=meta,
+                driver_data=driver_data,
+            )
+
+    data_asset_names = set(template.asset_names())
+    accessories = {
+        name: asset.to_dict()
+        for name, asset in _assets.items()
+        if name not in data_asset_names
+    }
+
+    _cmd = item.common_metadata
     return ParsedItem(
         item.id,
         template,
         bands,
         geometry,
         datetime=item.datetime,
-        datetime_range=(md.start_datetime, md.end_datetime),
+        datetime_range=(_cmd.start_datetime, _cmd.end_datetime),
         href=item.get_self_href(),
         accessories=accessories,
     )
@@ -747,7 +885,7 @@ def parse_item(
 
 def parse_items(
     items: Iterable[pystac.item.Item],
-    cfg: Optional[ConversionConfig] = None,
+    cfg: ConversionConfig | None = None,
     md_plugin: MDParser | None = None,
     asset_absolute_paths: bool = True,
 ) -> Iterator[ParsedItem]:
@@ -762,10 +900,13 @@ def parse_items(
         collection_id = _collection_id(item)
         proc = proc_cache.get(collection_id, None)
         if proc is None:
-            proc = _CMDAssembler(collection_id, cfg, md_plugin=md_plugin)
+            if md_plugin is None:
+                _, md_plugin = _resolve_driver(None, cfg)
+            proc = _CMDAssembler(md_plugin, collection_id)
             proc_cache[collection_id] = proc
 
         proc.update(item)
+        assert proc.md is not None
         yield parse_item(item, proc.md, proc.md_plugin, asset_absolute_paths)
 
 
@@ -1024,3 +1165,23 @@ def output_geobox(
     # compute from parsed items
     _bbox = _compute_bbox(items, crs)
     return GeoBox.from_bbox(_bbox, resolution=resolution, anchor=anchor)
+
+
+def _resolve_driver(
+    driver: ReaderDriverSpec | None,
+    stac_cfg: Optional[ConversionConfig],
+    with_properties: Sequence[str | Mapping[str, Any]] | None = None,
+) -> tuple[ReaderDriver, MDParser]:
+    md_parser: MDParser | None = None
+
+    stac_cfg = {} if stac_cfg is None else stac_cfg
+    if with_properties is not None:
+        stac_cfg["with_properties"] = with_properties
+    if driver is None:
+        md_parser = StacMDParser(stac_cfg)
+        return RioDriver(md_parser=md_parser, aux_reader=StacAuxReader()), md_parser
+    rdr = reader_driver(driver)
+    md_parser = rdr.md_parser
+    if md_parser is None:
+        md_parser = StacMDParser(stac_cfg)
+    return rdr, md_parser
