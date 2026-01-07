@@ -298,6 +298,29 @@ def test_noassets_case(no_bands_stac) -> None:
     assert len(md.bands) == 0
 
 
+def test_partial_proj_fallback(partial_proj_stac: pystac.item.Item) -> None:
+    """
+    Test that items declaring proj extension but without per-asset proj data
+    fall back correctly and don't produce empty datasets.
+    Regression test for https://github.com/opendatacube/odc-stac/issues/251
+    """
+    # Item declares proj extension but assets don't have proj:shape/transform
+    item = partial_proj_stac
+    assert has_proj_ext(item) is True
+
+    # Extract collection metadata - should fall back to has_proj=False
+    md = extract_collection_metadata(item)
+    assert len(md.bands) > 0, "Should have found data bands with fallback"
+    assert md.has_proj is False, "Should have fallen back to has_proj=False"
+
+    # Parse item - should successfully extract bands
+    parsed = parse_item(item, md)
+    assert len(parsed.bands) == len(item.assets), "All assets should be parsed as bands"
+    # Verify bands are parsed correctly
+    for asset_name in item.assets:
+        assert (asset_name, 1) in parsed.bands, f"Asset {asset_name} should be in bands"
+
+
 def test_extract_md_raster_ext(
     sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ) -> None:

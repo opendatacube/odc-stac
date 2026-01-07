@@ -505,13 +505,19 @@ class StacMDParser:
         # disabled that filter with `ignore_proj=True` option
         check_proj = has_proj_ext(item) and not c.ignore_proj
 
-        def _keep(kv: tuple[str, pystac.asset.Asset]) -> bool:
+        def _keep(kv: tuple[str, pystac.asset.Asset], check_proj: bool) -> bool:
             name, asset = kv
             if name in c.band_cfg:
                 return True
             return is_raster_data(asset, check_proj=check_proj)
 
-        data_bands = dicttoolz.itemfilter(_keep, item.assets)
+        data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv, check_proj), item.assets)
+
+        if len(data_bands) == 0 and check_proj:
+            # If no data bands found with check_proj=True, fallback to check_proj=False
+            # This handles items that declare proj extension at item level but don't have
+            # per-asset proj data (shape/transform)
+            data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv, False), item.assets)
 
         bands: dict[BandKey, RasterBandMetadata | AuxBandMetadata] = {}
         aliases = alias_map_from_eo(item)
@@ -664,6 +670,15 @@ class _CMDAssembler:
         meta = self.md_plugin.extract(item)
         data_asset_names = set(n for n, _ in meta.bands if n in item.assets)
         data_assets = {n: item.assets[n] for n in data_asset_names}
+
+        # Check if any data assets have proj data.
+        # If item declares proj extension but assets don't have proj data, fall back to has_proj=False
+        if (
+            has_proj
+            and data_assets
+            and not any(has_proj_data(a) for a in data_assets.values())
+        ):
+            has_proj = False
 
         # We assume that grouping of data bands into grids is consistent across
         # entire collection, so we compute it once and keep it
