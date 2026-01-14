@@ -81,36 +81,38 @@ def patch_urls(
 # pylint: disable=too-many-arguments,too-many-locals,too-many-statements
 def load(
     items: Iterable[pystac.item.Item],
-    bands: Optional[Union[str, Sequence[str]]] = None,
+    bands: str | Sequence[str] | None = None,
     *,
-    groupby: Optional[Groupby] = "time",
-    resampling: Optional[Union[str, Dict[str, str]]] = None,
+    groupby: Groupby | None = "time",
+    resampling: str | dict[str, str] | None = None,
     dtype: Band_DType = None,
-    chunks: Optional[Dict[str, int | Literal["auto"]]] = None,
-    pool: Union[ThreadPoolExecutor, int, None] = None,
+    chunks: dict[str, int | Literal["auto"]] | None = None,
+    pool: ThreadPoolExecutor | int | None = None,
     # Geo selection
     crs: MaybeCRS = Unset(),
-    resolution: Optional[SomeResolution] = None,
-    anchor: Optional[GeoboxAnchor] = None,
-    geobox: Optional[GeoBox] = None,
-    bbox: Optional[Tuple[float, float, float, float]] = None,
-    lon: Optional[Tuple[float, float]] = None,
-    lat: Optional[Tuple[float, float]] = None,
-    x: Optional[Tuple[float, float]] = None,
-    y: Optional[Tuple[float, float]] = None,
-    like: Optional[Any] = None,
-    geopolygon: Optional[Any] = None,
-    intersects: Optional[Any] = None,
+    resolution: SomeResolution | None = None,
+    anchor: GeoboxAnchor | None = None,
+    geobox: GeoBox | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+    lon: tuple[float, float] | None = None,
+    lat: tuple[float, float] | None = None,
+    x: tuple[float, float] | None = None,
+    y: tuple[float, float] | None = None,
+    like: Any = None,
+    geopolygon: Any = None,
+    intersects: Any = None,
     # UI
-    progress: Optional[Any] = None,
+    progress: Any = None,
     fail_on_error: bool = True,
     # stac related
-    stac_cfg: Optional[ConversionConfig] = None,
-    with_properties: Optional[Sequence[str | Mapping[str, Any]]] = None,
-    patch_url: Optional[Callable[[str], str]] = None,
+    stac_cfg: ConversionConfig | None = None,
+    with_properties: Sequence[str | Mapping[str, Any]] | None = None,
+    patch_url: Callable[[str], str] | None = None,
     preserve_original_order: bool = False,
     # custom driver
-    driver: Optional[ReaderDriverSpec] = None,
+    driver: ReaderDriverSpec | None = None,
+    # load behaviour
+    fuse_func: str | Mapping[str, str | None] | None = None,
     **kw,
 ) -> xr.Dataset:
     """
@@ -266,8 +268,7 @@ def load(
 
     .. rubric:: STAC Related Options
 
-    :param stac_cfg:
-       Controls interpretation of :py:class:`pystac.Item`. Mostly used to specify "missing"
+    :param stac_cfg: Controls interpretation of :py:class:`pystac.Item`. Mostly used to specify "missing"
        metadata like pixel data types.
 
     :param with_properties:
@@ -276,6 +277,54 @@ def load(
 
     :param patch_url:
        Optionally transform url of every band before loading
+
+    .. rubric:: Load behaviour options
+
+    :param driver:
+       Optional. If provided, use the specified driver to load the data.
+
+    :param fuse_func:
+        Function used to fuse/combine/reduce data with the ``group_by`` parameter.
+
+        By default, pixels are only copied where valid (i.e. not nodata) pixels
+        have not yet been copied from previous items.
+
+        If data (especially categorical data) appears wrong or unexpected in areas
+        where items overlap, then an appropriate fuse_func may help.
+
+        The fuse_func can perform specific combining steps and can be specified per band.
+
+    .. rubric:: Custom fuser functions
+
+    Custom fuse functions should be defined as follows:
+
+    .. code-block:: python
+
+            def my_fuser(dst: np.ndarray, src: np.ndarray) -> None:
+                # Create a boolean mask array of pixels from this src array to copy.
+                mask = pixels_to_copy(src)
+
+                # Efficiently copy only masked pixels to dst.
+                np.copyto(dst, src, where=mask)
+
+    For an example of a more sophisticated fuser function, see
+    https://github.com/GeoscienceAustralia/dea-notebooks/blob/77e9e3a05c104f4a0de91857905acce5853975b6/Tools/dea_tools/datahandling.py#L713
+
+    Fuser functions are passed to odc-stac as importable strings (fully qualified Python
+    names of top-level functions) so that they can be serialised to dask workers.
+
+    In the following example, the ``my_fuser`` function is used for ``band0``, the default nodata-only
+    fuser is used for ``band1`` and the ``other_fuser`` function is used for all other raster bands:
+
+    .. code-block:: python
+
+        data = odc.stac.load(...,
+            fuse_func={
+                "band0": "mymodule.my_fuser",
+                "band1": None,
+                "*": "mymodule.other_fuser",
+            }
+        )
 
     :return:
        :py:class:`xarray.Dataset` with requested bands populated
@@ -372,6 +421,7 @@ def load(
         use_overviews=kw.get("use_overviews", True),
         nodata=kw.get("nodata", None),
         fail_on_error=fail_on_error,
+        fuse_func=fuse_func,
     )
     if patch_url is not None:
         _parsed = [patch_urls(item, edit=patch_url, bands=bands) for item in _parsed]
