@@ -299,11 +299,7 @@ def test_noassets_case(no_bands_stac) -> None:
 
 
 def test_partial_proj_fallback(partial_proj_stac: pystac.item.Item) -> None:
-    """
-    Test that items declaring proj extension but without per-asset proj data
-    fall back correctly and don't produce empty datasets.
-    Regression test for https://github.com/opendatacube/odc-stac/issues/251
-    """
+    # Regression test for https://github.com/opendatacube/odc-stac/issues/251
     # Item declares proj extension but assets don't have proj:shape/transform
     item = partial_proj_stac
     assert has_proj_ext(item) is True

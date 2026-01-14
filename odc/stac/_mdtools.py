@@ -501,16 +501,19 @@ class StacMDParser:
         item = md
         c = self._config(item.collection_id)
 
-        # Ignore non-proj data bands when Item has proj extension, unless user
-        # disabled that filter with `ignore_proj=True` option
-        check_proj = has_proj_ext(item) and not c.ignore_proj
-
         def _keep(kv: tuple[str, pystac.asset.Asset], check_proj: bool) -> bool:
             name, asset = kv
             if name in c.band_cfg:
                 return True
             return is_raster_data(asset, check_proj=check_proj)
 
+        # Ignore non-proj data bands when Item has proj extension, unless user
+        # disabled that filter with `ignore_proj=True` option
+        check_proj = (
+            has_proj_ext(item)
+            and not c.ignore_proj
+            and not any(has_proj_data(a) for a in item.assets.values())
+        )
         data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv, check_proj), item.assets)
 
         if len(data_bands) == 0 and check_proj:
@@ -681,8 +684,12 @@ class _CMDAssembler:
             has_proj = False
 
         # We assume that grouping of data bands into grids is consistent across
-        # entire collection, so we compute it once and keep it
-        if has_proj:
+        # the entire collection, so we compute it once and keep it
+        if (
+            has_proj
+            and data_assets
+            and any(has_proj_data(a) for a in data_assets.values())
+        ):
             _, band2grid = compute_eo3_grids(data_assets)
         else:
             band2grid = band2grid_from_gsd(data_assets)
