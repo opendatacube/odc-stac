@@ -674,23 +674,15 @@ class _CMDAssembler:
         data_asset_names = set(n for n, _ in meta.bands if n in item.assets)
         data_assets = {n: item.assets[n] for n in data_asset_names}
 
-        # Check if any data assets have proj data.
-        # If item declares proj extension but assets don't have proj data, fall back to has_proj=False
-        if (
-            has_proj
-            and data_assets
-            and not any(has_proj_data(a) for a in data_assets.values())
-        ):
-            has_proj = False
-
         # We assume that grouping of data bands into grids is consistent across
         # the entire collection, so we compute it once and keep it
-        if (
-            has_proj
-            and data_assets
-            and any(has_proj_data(a) for a in data_assets.values())
-        ):
-            _, band2grid = compute_eo3_grids(data_assets)
+        if has_proj and data_assets:
+            # Check if any data assets have proj data.
+            if any(has_proj_data(a) for a in data_assets.values()):
+                _, band2grid = compute_eo3_grids(data_assets)
+            else:
+                band2grid = band2grid_from_gsd(data_assets)
+                has_proj = False
         else:
             band2grid = band2grid_from_gsd(data_assets)
 
