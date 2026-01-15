@@ -501,17 +501,26 @@ class StacMDParser:
         item = md
         c = self._config(item.collection_id)
 
-        # Ignore non-proj data bands when Item has proj extension, unless user
-        # disabled that filter with `ignore_proj=True` option
-        check_proj = has_proj_ext(item) and not c.ignore_proj
-
-        def _keep(kv: tuple[str, pystac.asset.Asset]) -> bool:
+        def _keep(kv: tuple[str, pystac.asset.Asset], check_proj: bool) -> bool:
             name, asset = kv
             if name in c.band_cfg:
                 return True
             return is_raster_data(asset, check_proj=check_proj)
 
-        data_bands = dicttoolz.itemfilter(_keep, item.assets)
+        # Ignore non-proj data bands when Item has proj extension, unless user
+        # disabled that filter with `ignore_proj=True` option
+        check_proj = (
+            has_proj_ext(item)
+            and not c.ignore_proj
+            and not any(has_proj_data(a) for a in item.assets.values())
+        )
+        data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv, check_proj), item.assets)
+
+        if len(data_bands) == 0 and check_proj:
+            # If no data bands found with check_proj=True, fallback to check_proj=False
+            # This handles items that declare proj extension at item level but don't have
+            # per-asset proj data (shape/transform)
+            data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv, False), item.assets)
 
         bands: dict[BandKey, RasterBandMetadata | AuxBandMetadata] = {}
         aliases = alias_map_from_eo(item)
@@ -666,9 +675,14 @@ class _CMDAssembler:
         data_assets = {n: item.assets[n] for n in data_asset_names}
 
         # We assume that grouping of data bands into grids is consistent across
-        # entire collection, so we compute it once and keep it
-        if has_proj:
-            _, band2grid = compute_eo3_grids(data_assets)
+        # the entire collection, so we compute it once and keep it
+        if has_proj and data_assets:
+            # Check if any data assets have proj data.
+            if any(has_proj_data(a) for a in data_assets.values()):
+                _, band2grid = compute_eo3_grids(data_assets)
+            else:
+                band2grid = band2grid_from_gsd(data_assets)
+                has_proj = False
         else:
             band2grid = band2grid_from_gsd(data_assets)
 
