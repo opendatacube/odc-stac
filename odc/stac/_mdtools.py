@@ -501,26 +501,23 @@ class StacMDParser:
         item = md
         c = self._config(item.collection_id)
 
-        def _keep(kv: tuple[str, pystac.asset.Asset], check_proj: bool) -> bool:
-            name, asset = kv
-            if name in c.band_cfg:
-                return True
-            return is_raster_data(asset, check_proj=check_proj)
-
         # Ignore non-proj data bands when Item has proj extension, unless user
         # disabled that filter with `ignore_proj=True` option
+        # Also ignore when the item declares the proj extension but doesn't have
+        # per-asset proj data
         check_proj = (
             has_proj_ext(item)
             and not c.ignore_proj
-            and not any(has_proj_data(a) for a in item.assets.values())
+            and any(has_proj_data(a) for a in item.assets.values())
         )
-        data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv, check_proj), item.assets)
 
-        if len(data_bands) == 0 and check_proj:
-            # If no data bands found with check_proj=True, fallback to check_proj=False
-            # This handles items that declare proj extension at item level but don't have
-            # per-asset proj data (shape/transform)
-            data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv, False), item.assets)
+        def _keep(kv: tuple[str, pystac.asset.Asset]) -> bool:
+            name, asset = kv
+            if name in c.band_cfg:
+                return True
+            return is_raster_data(asset, check_proj)
+
+        data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv), item.assets)
 
         bands: dict[BandKey, RasterBandMetadata | AuxBandMetadata] = {}
         aliases = alias_map_from_eo(item)
