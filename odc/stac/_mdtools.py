@@ -517,7 +517,7 @@ class StacMDParser:
                 return True
             return is_raster_data(asset, check_proj)
 
-        data_bands = dicttoolz.itemfilter(lambda kv: _keep(kv), item.assets)
+        data_bands = dicttoolz.itemfilter(_keep, item.assets)
 
         bands: dict[BandKey, RasterBandMetadata | AuxBandMetadata] = {}
         aliases = alias_map_from_eo(item)
