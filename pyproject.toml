@@ -36,6 +36,12 @@ dependencies = [
     "xarray>=0.19"
 ]
 
+[dependency-groups]
+dev = [
+     "odc-stac[botocore, docs, test-all]",
+     "ruff",
+]
+
 [project.optional-dependencies]
 botocore = ["botocore"]
 docs = [
@@ -95,9 +101,6 @@ omit = [
   "*/test_*"
 ]
 
-[tool.isort]
-profile = "black"
-
 [tool.pylint.messages_control]
 max-line-length = 120
 max-args = 15
@@ -109,4 +112,9 @@ disable = [
   "wrong-import-order",
   "duplicate-code",
   "ungrouped-imports",
+]
+
+[tool.ruff.lint]
+select = [
+    "I",  # Isort
 ]

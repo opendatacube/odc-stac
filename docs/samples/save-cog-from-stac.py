@@ -79,7 +79,7 @@ print("Load finished")
 ts = xx.time[0].dt.strftime("%Y%m%d").item()
 fname = f"{band}-{ts}-{res}m.tif"
 print(
-    f"Will write image to: '{fname}' Raw Size is: {format_bytes(xx[band].data.size*xx[band].dtype.itemsize)}"
+    f"Will write image to: '{fname}' Raw Size is: {format_bytes(xx[band].data.size * xx[band].dtype.itemsize)}"
 )
 
 xx[band].odc.write_cog(
