@@ -19,13 +19,14 @@ from timeit import default_timer as t_now
 
 import geopandas as gpd
 import numpy as np
-import odc.stac
 import planetary_computer as pc
 import pystac.item
 import pystac_client
 from dask.utils import format_bytes
 from distributed import Client
 from distributed import wait as dask_wait
+
+import odc.stac
 
 if "geom_query" in locals():
     bbox = tuple(geom_query.boundingbox)

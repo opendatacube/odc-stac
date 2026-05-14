@@ -6,8 +6,8 @@ distributed = pytest.importorskip("distributed")
 
 from unittest.mock import MagicMock
 
-import xarray
 import numpy as np
+import xarray
 from distributed import Client
 from odc.geo.xr import ODCExtension
 

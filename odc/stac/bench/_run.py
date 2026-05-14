@@ -152,8 +152,8 @@ class BenchmarkContext:
         return f"""
 {"T.Elapsed":{nw}}: {t_elapsed:8.3f} seconds
 {"T.Submit":{nw}}: {t_submit:8.3f} seconds
-{"Throughput":{nw}}: {self.npix/(t_elapsed*1e+6):8.3f} Mpx/second (overall)
-{"":{nw}}| {self.npix/(self.nthreads*t_elapsed*1e+6):8.3f} Mpx/second (per thread)
+{"Throughput":{nw}}: {self.npix / (t_elapsed * 1e6):8.3f} Mpx/second (overall)
+{"":{nw}}| {self.npix / (self.nthreads * t_elapsed * 1e6):8.3f} Mpx/second (per thread)
 """.strip()
 
     @property

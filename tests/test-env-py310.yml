@@ -50,9 +50,8 @@ dependencies:
 
   # dev
   - autoflake
-  - black >=25.1.0
-  - isort
   - mypy
   - pylint =3
   - pip:
     - -e ../
+  - ruff

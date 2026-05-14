@@ -20,7 +20,6 @@ from timeit import default_timer as t_now
 
 import datacube
 import numpy as np
-import odc.stac
 import planetary_computer as pc
 import pystac.item
 import pystac_client
@@ -29,6 +28,8 @@ import stackstac
 import xarray as xr
 from distributed import Client
 from distributed import wait as dask_wait
+
+import odc.stac
 from odc.stac.bench import (
     BenchLoadParams,
     collect_context_info,
