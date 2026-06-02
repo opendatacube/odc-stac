@@ -776,7 +776,7 @@ def parse_item(
     """
 
     if template is None or isinstance(template, dict):
-        return next(parse_items([item], template, md_plugin))
+        return next(parse_items([item], template, md_plugin, asset_absolute_paths))
 
     # TODO: remove this part, i.e. template = RasterCollectionMetadata(...)
     # version of this method
