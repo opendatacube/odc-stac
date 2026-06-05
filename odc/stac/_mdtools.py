@@ -874,7 +874,7 @@ def _parse_item(
                 driver_data=driver_data,
             )
 
-    def get_acc_dict(asset: pystac.asset.Asset):
+    def _acc_dict(asset: pystac.asset.Asset):
         asset_dict = asset.to_dict()
         if asset_absolute_paths:
             asset_dict["href"] = asset.get_absolute_href()
@@ -882,7 +882,7 @@ def _parse_item(
 
     data_asset_names = set(template.asset_names())
     accessories = {
-        name: get_acc_dict(asset)
+        name: _acc_dict(asset)
         for name, asset in _assets.items()
         if name not in data_asset_names
     }
