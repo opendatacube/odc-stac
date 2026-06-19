@@ -118,8 +118,30 @@ def _band_metadata_raw(asset: pystac.asset.Asset) -> List[RasterBand]:
     return [RasterBand(props) for props in bands]
 
 
+def _band_metadata_common(asset: pystac.asset.Asset) -> List[RasterBand]:
+    asset_dict = asset.to_dict()
+    common_data_values = {
+        "nodata": asset_dict.get("nodata", None),
+        "data_type": asset_dict.get("data_type", None),
+        "unit": asset_dict.get("unit", None)
+    }
+    if all(v is None for v in common_data_values):
+        return []
+    common_bands = asset_dict.get("bands", None)
+    num_bands = len(common_bands) if common_bands else 1
+    return [RasterBand(common_data_values.copy()) for _ in range(num_bands)]
+
+
+def _band_metadata_raster_ext(asset: pystac.asset.Asset) -> List[RasterBand]:
+    try:
+        rext = RasterExtension.ext(asset)
+        return rext.bands if rext.bands is not None else []
+    except pystac.errors.ExtensionNotImplemented:
+        return []
+
+
 def band_metadata(
-    asset: pystac.asset.Asset, default: RasterBandMetadata
+        asset: pystac.asset.Asset, default: RasterBandMetadata
 ) -> List[RasterBandMetadata]:
     """
     Compute band metadata from Asset raster extension with defaults from default.
@@ -128,13 +150,10 @@ def band_metadata(
     :param default: Values to use for fallback
     :return: List of BandMetadata constructed from raster:bands metadata
     """
-    bands: List[RasterBand] = []
-    try:
-        rext = RasterExtension.ext(asset)
-        if rext.bands is not None:
-            bands = rext.bands
-    except pystac.errors.ExtensionNotImplemented:
-        bands = _band_metadata_raw(asset)
+    for get_band_meta in [_band_metadata_raster_ext, _band_metadata_common, _band_metadata_raw]:
+        bands = get_band_meta(asset)
+        if len(bands) > 0:
+            break
 
     if len(bands) == 0:
         return [default]
@@ -213,9 +232,9 @@ def is_raster_data(asset: pystac.asset.Asset, check_proj: bool = False) -> bool:
 
     if check_proj:
         if (
-            asset.owner is not None
-            and has_proj_ext(asset.owner)  # type: ignore
-            and not has_proj_data(asset)
+                asset.owner is not None
+                and has_proj_ext(asset.owner)  # type: ignore
+                and not has_proj_data(asset)
         ):
             return False
 
@@ -312,7 +331,7 @@ def geobox_gsd(geobox: GeoBox) -> float:
 
 
 def compute_eo3_grids(
-    assets: Dict[str, pystac.asset.Asset],
+        assets: Dict[str, pystac.asset.Asset],
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     """
     Compute a minimal set of eo3 grids.
@@ -328,7 +347,7 @@ def compute_eo3_grids(
 
 
 def _group_geoboxes(
-    geoboxes: Dict[str, GeoBox],
+        geoboxes: Dict[str, GeoBox],
 ) -> Tuple[Dict[str, GeoBox], Dict[str, str]]:
     # pylint: disable=too-many-locals
     if len(geoboxes) == 0:
@@ -395,9 +414,9 @@ def band2grid_from_gsd(assets: Dict[str, pystac.asset.Asset]) -> Dict[str, str]:
 
 
 def _extract_aliases(
-    asset_name: str,
-    asset: pystac.asset.Asset,
-    block_list: Set[str],
+        asset_name: str,
+        asset: pystac.asset.Asset,
+        block_list: Set[str],
 ) -> Iterator[Tuple[str, int, BandKey]]:
     try:
         eo = EOExtension.ext(asset)
@@ -506,9 +525,9 @@ class StacMDParser:
         # Also ignore when the item declares the proj extension but doesn't have
         # per-asset proj data
         check_proj = (
-            has_proj_ext(item)
-            and not c.ignore_proj
-            and any(has_proj_data(a) for a in item.assets.values())
+                has_proj_ext(item)
+                and not c.ignore_proj
+                and any(has_proj_data(a) for a in item.assets.values())
         )
 
         def _keep(kv: tuple[str, pystac.asset.Asset]) -> bool:
@@ -559,7 +578,7 @@ class StacMDParser:
         return driver_data
 
     def _extract_bands(
-        self, name: str, asset: pystac.asset.Asset, cfg: MDParseConfig
+            self, name: str, asset: pystac.asset.Asset, cfg: MDParseConfig
     ) -> dict[BandKey, RasterBandMetadata]:
         bm = cfg.band_cfg.get(name, None)
         if bm is not None:
@@ -585,14 +604,14 @@ class StacAuxReader:
     # pylint: disable=too-few-public-methods
 
     def read(
-        self,
-        srcs: Sequence[Sequence[AuxDataSource]],
-        cfg: AuxLoadParams,
-        used_names: set[str],
-        available_coords: Mapping[str, xr.DataArray],
-        ctx: GlobalLoadContext,
-        *,
-        dask_layer_name: str | None = None,
+            self,
+            srcs: Sequence[Sequence[AuxDataSource]],
+            cfg: AuxLoadParams,
+            used_names: set[str],
+            available_coords: Mapping[str, xr.DataArray],
+            ctx: GlobalLoadContext,
+            *,
+            dask_layer_name: str | None = None,
     ) -> xr.DataArray:
         """
         Read auxiliary data from STAC items.
@@ -606,6 +625,7 @@ class StacAuxReader:
         :return: Auxiliary data loaded into a xarray.DataArray
         """
         assert (used_names, ctx, dask_layer_name) is not None
+
         # cfg.meta.driver_data: PropertyLoadRequest
         # srcs[].driver_data:  None|float|str|int
 
@@ -652,9 +672,9 @@ class _CMDAssembler:
     # pylint: disable=too-few-public-methods,too-many-instance-attributes
 
     def __init__(
-        self,
-        md_plugin: MDParser,
-        collection_id: str,
+            self,
+            md_plugin: MDParser,
+            collection_id: str,
     ) -> None:
         self.collection_id = collection_id
         self.md: Optional[RasterCollectionMetadata] = None
@@ -738,9 +758,9 @@ class _CMDAssembler:
 
 
 def extract_collection_metadata(
-    item: pystac.item.Item,
-    cfg: Optional[ConversionConfig] = None,
-    md_plugin: MDParser | None = None,
+        item: pystac.item.Item,
+        cfg: Optional[ConversionConfig] = None,
+        md_plugin: MDParser | None = None,
 ) -> RasterCollectionMetadata:
     """
     Use sample item to figure out raster bands within the collection.
@@ -762,10 +782,10 @@ def extract_collection_metadata(
 
 
 def parse_item(
-    item: pystac.item.Item,
-    template: ConversionConfig | RasterCollectionMetadata | None = None,
-    md_plugin: MDParser | None = None,
-    asset_absolute_paths: bool = True,
+        item: pystac.item.Item,
+        template: ConversionConfig | RasterCollectionMetadata | None = None,
+        md_plugin: MDParser | None = None,
+        asset_absolute_paths: bool = True,
 ) -> ParsedItem:
     """
     Extract raster band information relevant for data loading.
@@ -788,10 +808,10 @@ def parse_item(
 
 
 def _parse_item(
-    item: pystac.item.Item,
-    template: RasterCollectionMetadata,
-    md_plugin: MDParser,
-    asset_absolute_paths: bool = True,
+        item: pystac.item.Item,
+        template: RasterCollectionMetadata,
+        md_plugin: MDParser,
+        asset_absolute_paths: bool = True,
 ) -> ParsedItem:
     """
     Extract raster band information relevant for data loading.
@@ -901,10 +921,10 @@ def _parse_item(
 
 
 def parse_items(
-    items: Iterable[pystac.item.Item],
-    cfg: ConversionConfig | None = None,
-    md_plugin: MDParser | None = None,
-    asset_absolute_paths: bool = True,
+        items: Iterable[pystac.item.Item],
+        cfg: ConversionConfig | None = None,
+        md_plugin: MDParser | None = None,
+        asset_absolute_paths: bool = True,
 ) -> Iterator[ParsedItem]:
     """
     Parse sequence of STAC Items into internal representation.
@@ -928,8 +948,8 @@ def parse_items(
 
 
 def _most_common_gbox(
-    gboxes: Sequence[GeoBox],
-    thresh: float = 0.1,
+        gboxes: Sequence[GeoBox],
+        thresh: float = 0.1,
 ) -> Tuple[Optional[CRS], Resolution, GeoboxAnchor, Optional[GeoBox]]:
     gboxes = list(gboxes)
 
@@ -954,10 +974,10 @@ def _most_common_gbox(
 
 
 def _auto_load_params(
-    items: Sequence[ParsedItem], bands: Optional[Sequence[str]] = None
+        items: Sequence[ParsedItem], bands: Optional[Sequence[str]] = None
 ) -> Optional[Tuple[Optional[CRS], Resolution, GeoboxAnchor, Optional[GeoBox]]]:
     def _extract_gbox(
-        item: ParsedItem,
+            item: ParsedItem,
     ) -> Optional[GeoBox]:
         gbx = item.geoboxes(bands)
         return gbx[0] if len(gbx) else None
@@ -989,9 +1009,9 @@ def _normalize_geometry(xx: Any) -> Geometry:
 
 
 def _compute_bbox(
-    items: Iterable[ParsedItem],
-    crs: MaybeCRS,
-    bands: BandQuery = None,
+        items: Iterable[ParsedItem],
+        crs: MaybeCRS,
+        bands: BandQuery = None,
 ) -> geom.BoundingBox:
     def bboxes(items: Iterable[ParsedItem]) -> Iterator[geom.BoundingBox]:
         crs0 = crs
@@ -1008,7 +1028,7 @@ def _compute_bbox(
 
 
 def _align2anchor(
-    align: Optional[Union[float, int, XY[float]]], resolution: SomeResolution
+        align: Optional[Union[float, int, XY[float]]], resolution: SomeResolution
 ) -> GeoboxAnchor:
     if align is None:
         return AnchorEnum.EDGE
@@ -1025,21 +1045,21 @@ def _align2anchor(
 
 
 def output_geobox(
-    items: Sequence[ParsedItem],
-    bands: Optional[Sequence[str]] = None,
-    *,
-    crs: MaybeCRS = Unset(),
-    resolution: Optional[SomeResolution] = None,
-    anchor: Optional[GeoboxAnchor] = None,
-    align: Optional[Union[float, int, XY[float]]] = None,
-    geobox: Optional[GeoBox] = None,
-    like: Optional[Any] = None,
-    geopolygon: Optional[Any] = None,
-    bbox: Optional[Tuple[float, float, float, float]] = None,
-    lon: Optional[Tuple[float, float]] = None,
-    lat: Optional[Tuple[float, float]] = None,
-    x: Optional[Tuple[float, float]] = None,
-    y: Optional[Tuple[float, float]] = None,
+        items: Sequence[ParsedItem],
+        bands: Optional[Sequence[str]] = None,
+        *,
+        crs: MaybeCRS = Unset(),
+        resolution: Optional[SomeResolution] = None,
+        anchor: Optional[GeoboxAnchor] = None,
+        align: Optional[Union[float, int, XY[float]]] = None,
+        geobox: Optional[GeoBox] = None,
+        like: Optional[Any] = None,
+        geopolygon: Optional[Any] = None,
+        bbox: Optional[Tuple[float, float, float, float]] = None,
+        lon: Optional[Tuple[float, float]] = None,
+        lat: Optional[Tuple[float, float]] = None,
+        x: Optional[Tuple[float, float]] = None,
+        y: Optional[Tuple[float, float]] = None,
 ) -> Optional[GeoBox]:
     """
     Used to compute output geobox from load parameters.
@@ -1185,9 +1205,9 @@ def output_geobox(
 
 
 def _resolve_driver(
-    driver: ReaderDriverSpec | None,
-    stac_cfg: Optional[ConversionConfig],
-    with_properties: Sequence[str | Mapping[str, Any]] | None = None,
+        driver: ReaderDriverSpec | None,
+        stac_cfg: Optional[ConversionConfig],
+        with_properties: Sequence[str | Mapping[str, Any]] | None = None,
 ) -> tuple[ReaderDriver, MDParser]:
     md_parser: MDParser | None = None
 

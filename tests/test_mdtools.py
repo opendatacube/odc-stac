@@ -38,7 +38,6 @@ from odc.stac._mdtools import (
 )
 from odc.stac.model import ParsedItem
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
-
 from .common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
 
 GBOX = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
@@ -168,6 +167,27 @@ def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item) -> No
         RasterBandMetadata("uint8", 0, "1"),
         RasterBandMetadata(data_type="uint16", nodata=-10, units="1"),
     ]
+
+
+def test_band_metadata_for_stac_110(sentinel_stac_cdse: pystac.item.Item) -> None:
+    item = sentinel_stac_cdse.clone()
+    assert item.to_dict()["stac_version"] == "1.1.0"
+    assert "https://stac-extensions.github.io/raster/v2.0.0/schema.json" in item.stac_extensions
+    dummy_default = RasterBandMetadata("float32", None, "1")
+
+    b04_asset = item.assets["B04_10m"]
+    b04_bm = band_metadata(b04_asset, dummy_default)
+    assert b04_bm == [RasterBandMetadata("uint16", 0, "1")]
+
+    # SCL_20m has no bands attr for some reason, assume 1
+    scl_asset = item.assets["SCL_20m"]
+    scl_bm = band_metadata(scl_asset, dummy_default)
+    assert scl_bm == [RasterBandMetadata("uint8", 0, "1")]
+
+    # TCI
+    tci_asset = item.assets["TCI_60m"]
+    tci_bm = band_metadata(tci_asset, dummy_default)
+    assert tci_bm == [RasterBandMetadata("uint8", 0, "1")] * 3
 
 
 def test_is_raster_data_more() -> None:
@@ -318,7 +338,7 @@ def test_partial_proj_fallback(partial_proj_stac: pystac.item.Item) -> None:
 
 
 def test_extract_md_raster_ext(
-    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+        sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ) -> None:
     item = sentinel_stac_ms_with_raster_ext
 
@@ -377,7 +397,7 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item) -> None:
 
 
 def test_parse_item_raster_ext(
-    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+        sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ) -> None:
     item = sentinel_stac_ms_with_raster_ext
     parsed = parse_item(item)
@@ -494,7 +514,7 @@ def test_norm_geom(gpd_iso3) -> None:
 
     assert _normalize_geometry(g.geojson()) == g
     assert (
-        _normalize_geometry(dict(type="FeatureCollection", features=[g.geojson()])) == g
+            _normalize_geometry(dict(type="FeatureCollection", features=[g.geojson()])) == g
     )
 
     g = gpd_iso3("AUS")
@@ -738,11 +758,11 @@ def test_most_common_gbox() -> None:
     assert _most_common_gbox(
         [gbox, gbox.center_pixel, gbox[:1, :1], gbox.zoom_out(1.3)]
     ) == (
-        gbox.crs,
-        gbox.resolution,
-        AnchorEnum.EDGE,
-        None,
-    )
+               gbox.crs,
+               gbox.resolution,
+               AnchorEnum.EDGE,
+               None,
+           )
     # not enough consensus for anchor
     # fallback to EDGE aligned
     assert _most_common_gbox(
@@ -754,11 +774,11 @@ def test_most_common_gbox() -> None:
         ],
         1 / 4 + 0.1,
     ) == (
-        gbox.crs,
-        gbox.resolution,
-        AnchorEnum.EDGE,
-        None,
-    )
+               gbox.crs,
+               gbox.resolution,
+               AnchorEnum.EDGE,
+               None,
+           )
 
     # CENTER
     gbox = GeoBox.from_bbox(
@@ -767,8 +787,8 @@ def test_most_common_gbox() -> None:
     assert _most_common_gbox(
         [gbox, gbox.center_pixel, gbox[:1, :1], gbox.zoom_out(1.3)]
     ) == (
-        gbox.crs,
-        gbox.resolution,
-        AnchorEnum.CENTER,
-        None,
-    )
+               gbox.crs,
+               gbox.resolution,
+               AnchorEnum.CENTER,
+               None,
+           )
