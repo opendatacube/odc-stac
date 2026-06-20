@@ -172,7 +172,10 @@ def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item) -> No
 def test_band_metadata_for_stac_110(sentinel_stac_cdse: pystac.item.Item) -> None:
     item = sentinel_stac_cdse.clone()
     assert item.to_dict()["stac_version"] == "1.1.0"
-    assert "https://stac-extensions.github.io/raster/v2.0.0/schema.json" in item.stac_extensions
+    assert (
+        "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
+        in item.stac_extensions
+    )
     dummy_default = RasterBandMetadata("float32", None, "1")
 
     b04_asset = item.assets["B04_10m"]
@@ -338,7 +341,7 @@ def test_partial_proj_fallback(partial_proj_stac: pystac.item.Item) -> None:
 
 
 def test_extract_md_raster_ext(
-        sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ) -> None:
     item = sentinel_stac_ms_with_raster_ext
 
@@ -397,7 +400,7 @@ def test_parse_item(sentinel_stac_ms: pystac.item.Item) -> None:
 
 
 def test_parse_item_raster_ext(
-        sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
 ) -> None:
     item = sentinel_stac_ms_with_raster_ext
     parsed = parse_item(item)
@@ -514,7 +517,7 @@ def test_norm_geom(gpd_iso3) -> None:
 
     assert _normalize_geometry(g.geojson()) == g
     assert (
-            _normalize_geometry(dict(type="FeatureCollection", features=[g.geojson()])) == g
+        _normalize_geometry(dict(type="FeatureCollection", features=[g.geojson()])) == g
     )
 
     g = gpd_iso3("AUS")
@@ -758,11 +761,11 @@ def test_most_common_gbox() -> None:
     assert _most_common_gbox(
         [gbox, gbox.center_pixel, gbox[:1, :1], gbox.zoom_out(1.3)]
     ) == (
-               gbox.crs,
-               gbox.resolution,
-               AnchorEnum.EDGE,
-               None,
-           )
+        gbox.crs,
+        gbox.resolution,
+        AnchorEnum.EDGE,
+        None,
+    )
     # not enough consensus for anchor
     # fallback to EDGE aligned
     assert _most_common_gbox(
@@ -774,11 +777,11 @@ def test_most_common_gbox() -> None:
         ],
         1 / 4 + 0.1,
     ) == (
-               gbox.crs,
-               gbox.resolution,
-               AnchorEnum.EDGE,
-               None,
-           )
+        gbox.crs,
+        gbox.resolution,
+        AnchorEnum.EDGE,
+        None,
+    )
 
     # CENTER
     gbox = GeoBox.from_bbox(
@@ -787,8 +790,8 @@ def test_most_common_gbox() -> None:
     assert _most_common_gbox(
         [gbox, gbox.center_pixel, gbox[:1, :1], gbox.zoom_out(1.3)]
     ) == (
-               gbox.crs,
-               gbox.resolution,
-               AnchorEnum.CENTER,
-               None,
-           )
+        gbox.crs,
+        gbox.resolution,
+        AnchorEnum.CENTER,
+        None,
+    )
