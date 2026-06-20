@@ -192,6 +192,12 @@ def test_band_metadata_for_stac_110(sentinel_stac_cdse: pystac.item.Item) -> Non
     tci_bm = band_metadata(tci_asset, dummy_default)
     assert tci_bm == [RasterBandMetadata("uint8", 0, "1")] * 3
 
+    # test multiband with shared common unit
+    rgba_asset = item.assets["RGBA_FAKE"]
+    rgba_bm = band_metadata(rgba_asset, dummy_default)
+    assert rgba_bm[:3] == [RasterBandMetadata("uint16", 0, "shared_unit")] * 3
+    assert rgba_bm[3] == RasterBandMetadata("uint8", 255, "shared_unit")
+
 
 def test_is_raster_data_more() -> None:
     def _a(href="http://example.com/", **kw):

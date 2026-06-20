@@ -119,17 +119,30 @@ def _band_metadata_raw(asset: pystac.asset.Asset) -> list[RasterBand]:
 
 
 def _band_metadata_common(asset: pystac.asset.Asset) -> list[RasterBand]:
+    def _extract_data_values(common_meta) -> dict:
+        return {
+            "nodata": common_meta.get("nodata"),
+            "data_type": common_meta.get("data_type"),
+            "unit": common_meta.get("unit"),
+        }
+
     asset_dict = asset.to_dict()
-    common_data_values = {
-        "nodata": asset_dict.get("nodata"),
-        "data_type": asset_dict.get("data_type"),
-        "unit": asset_dict.get("unit"),
-    }
-    if all(v is None for v in common_data_values):
-        return []
+    asset_data_values = _extract_data_values(asset_dict)
+    bands = []
     common_bands = asset_dict.get("bands")
-    num_bands = len(common_bands) if common_bands else 1
-    return [RasterBand(common_data_values.copy()) for _ in range(num_bands)]
+    if not common_bands:
+        bands = [asset_data_values]
+    else:
+        for band in common_bands:
+            band_data_values = _extract_data_values(band)
+            band_data_values = {
+                k: v for k, v in band_data_values.items() if v is not None
+            }
+            bands.append(asset_data_values | band_data_values)
+    if all(value is None for d in bands for value in d.values()):
+        return []
+
+    return [RasterBand(band) for band in bands]
 
 
 def _band_metadata_raster_ext(asset: pystac.asset.Asset) -> list[RasterBand]:
