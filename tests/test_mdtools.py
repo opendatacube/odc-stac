@@ -187,19 +187,12 @@ def test_band_metadata_rasterv2() -> None:
         "data_type": "uint8",
     }
     bm = band_metadata(pystac.Asset.from_dict(asset1), default_bm)
-    assert bm == [
-        RasterBandMetadata(data_type="uint8", nodata=0, units="1")
-    ]
+    assert bm == [RasterBandMetadata(data_type="uint8", nodata=0, units="1")]
 
     # raster fields only in bands
-    asset2 = {
-        **asset_base,
-        "bands": [{"nodata": 255, "data_type": "int16"}]
-    }
+    asset2 = {**asset_base, "bands": [{"nodata": 255, "data_type": "int16"}]}
     bm = band_metadata(pystac.Asset.from_dict(asset2), default_bm)
-    assert bm == [
-        RasterBandMetadata(data_type="int16", nodata=255, units="1")
-    ]
+    assert bm == [RasterBandMetadata(data_type="int16", nodata=255, units="1")]
 
     # second, non-raster band
     asset3 = {
@@ -225,7 +218,7 @@ def test_band_metadata_rasterv2() -> None:
     bm = band_metadata(pystac.Asset.from_dict(asset4), default_bm)
     assert bm == [
         RasterBandMetadata(data_type="float32", nodata=-999, units="1"),
-        RasterBandMetadata(data_type="float32", nodata=0, units="1")
+        RasterBandMetadata(data_type="float32", nodata=0, units="1"),
     ]
 
     # only non-raster bands
@@ -234,7 +227,7 @@ def test_band_metadata_rasterv2() -> None:
         "bands": [
             {"eo:common_name": "blue"},
             {"eo:common_name": "red"},
-        ]
+        ],
     }
     bm = band_metadata(pystac.Asset.from_dict(asset5), default_bm)
     # no raster bands, so the default RasterBandMetadata is returned

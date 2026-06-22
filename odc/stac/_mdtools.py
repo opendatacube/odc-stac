@@ -117,10 +117,10 @@ def _get_v2_raster_bands(props: Dict[str, Any]) -> List[RasterBand]:
     def _has_raster_fields(d):
         # the nodata, unit, data_type, and statistics fields are no longer specific
         # to the raster v2.0.0 extension, but we assume they are still associated with it
-        return (
-            any(field in d for field in ["nodata", "unit", "data_type", "statistics"])
-            or any(prop.startswith("raster:") for prop in d)
-        )
+        return any(
+            field in d for field in ["nodata", "unit", "data_type", "statistics"]
+        ) or any(prop.startswith("raster:") for prop in d)
+
     # unlike 'raster:bands', 'bands' does not neccessarily imply the raster
     # extension, and the raster bands may not contain all relevant raster fields
     bands = props.pop("bands", [{}])
