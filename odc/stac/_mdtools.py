@@ -111,11 +111,34 @@ NON_IMAGE_RASTER_MEDIA_TYPES = {
 }
 
 
+def _get_v2_raster_bands(props: Dict[str, Any]) -> List[RasterBand]:
+    # account for new raster ext conventions and common metadata fields
+    # relevant properties may be in the 'bands' dicts, the asset properties, or both
+    def _has_raster_fields(d):
+        # the nodata, unit, data_type, and statistics fields are no longer specific
+        # to the raster v2.0.0 extension, but we assume they are still associated with it
+        return (
+            any(field in d for field in ["nodata", "unit", "data_type", "statistics"])
+            or any(prop.startswith("raster:") for prop in d)
+        )
+    # unlike 'raster:bands', 'bands' does not neccessarily imply the raster
+    # extension, and the raster bands may not contain all relevant raster fields
+    bands = props.pop("bands", [{}])
+    # if the asset contains raster fields, we can assume any bands are raster bands
+    if _has_raster_fields(props):
+        # there's no need to filter which properties get passed to the RasterBand
+        # since we retrieve specific ones later
+        return [RasterBand({**band, **props}) for band in bands]
+    # otherwise, determine which bands contain raster fields
+    return [RasterBand(band) for band in bands if _has_raster_fields(band)]
+
+
 def _band_metadata_raw(asset: pystac.asset.Asset) -> List[RasterBand]:
-    bands = asset.to_dict().get("raster:bands", None)
-    if bands is None:
-        return []
-    return [RasterBand(props) for props in bands]
+    asset_dict = asset.to_dict()
+    bands = asset_dict.get("raster:bands", None)
+    if bands is not None:
+        return [RasterBand(props) for props in bands]
+    return _get_v2_raster_bands(asset_dict)
 
 
 def band_metadata(
@@ -133,6 +156,10 @@ def band_metadata(
         rext = RasterExtension.ext(asset)
         if rext.bands is not None:
             bands = rext.bands
+        # if the asset defines the raster ext but does not include raster:bands,
+        # assume we're working with the new conventions
+        elif rprops := rext.properties:
+            bands = _get_v2_raster_bands(rprops)
     except pystac.errors.ExtensionNotImplemented:
         bands = _band_metadata_raw(asset)
 
