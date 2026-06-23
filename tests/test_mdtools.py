@@ -38,6 +38,7 @@ from odc.stac._mdtools import (
 )
 from odc.stac.model import ParsedItem
 from odc.stac.testing.stac import b_, mk_parsed_item, to_stac_item
+
 from .common import NO_WARN_CFG, S2_ALL_BANDS, STAC_CFG
 
 GBOX = GeoBox.from_bbox((-20, -10, 20, 10), "epsg:3857", shape=(200, 400))
@@ -197,6 +198,89 @@ def test_band_metadata_for_stac_110(sentinel_stac_cdse: pystac.item.Item) -> Non
     rgba_bm = band_metadata(rgba_asset, dummy_default)
     assert rgba_bm[:3] == [RasterBandMetadata("uint16", 0, "shared_unit")] * 3
     assert rgba_bm[3] == RasterBandMetadata("uint8", 255, "shared_unit")
+
+
+def test_band_metadata_rasterv2() -> None:
+    asset_base = {
+        "href": "https://example.com/asset.tif",
+        "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+        "title": "Raster ext v2 asset",
+    }
+    default_bm = RasterBandMetadata("uint16", 0, "1")
+
+    # raster fields directly in asset
+    asset1 = {
+        **asset_base,
+        "nodata": 0,
+        "data_type": "uint8",
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset1), default_bm)
+    assert bm == [RasterBandMetadata(data_type="uint8", nodata=0, units="1")]
+
+    # raster fields only in bands
+    asset2 = {**asset_base, "bands": [{"nodata": 255, "data_type": "int16"}]}
+    bm = band_metadata(pystac.Asset.from_dict(asset2), default_bm)
+    assert bm == [RasterBandMetadata(data_type="int16", nodata=255, units="1")]
+
+    # second, non-raster band
+    asset3 = {
+        **asset_base,
+        "bands": [
+            {"raster:sampling": "area"},
+            {"eo:cloud_cover": 50.0},
+        ],
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset3), default_bm)
+    # one raster band that doesn't overwrite the default values
+    assert bm == [default_bm]
+
+    # raster fields in asset means all bands are raster bands
+    asset4 = {
+        **asset_base,
+        "data_type": "float32",
+        "bands": [
+            {"nodata": -999},
+            {"eo:cloud_cover": 50.0},
+        ],
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset4), default_bm)
+    assert bm == [
+        RasterBandMetadata(data_type="float32", nodata=-999, units="1"),
+        RasterBandMetadata(data_type="float32", nodata=0, units="1"),
+    ]
+
+    # only non-raster bands
+    asset5 = {
+        **asset_base,
+        "bands": [
+            {"eo:common_name": "blue"},
+            {"eo:common_name": "red"},
+        ],
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset5), default_bm)
+    # no raster bands, so the default RasterBandMetadata is returned
+    assert bm == [default_bm]
+
+    # raster field in item props
+    item1 = pystac.item.Item.from_dict(
+        {
+            "type": "Feature",
+            "stac_version": "1.1.0",
+            "id": "example-item",
+            "geometry": "null",
+            "properties": {"datetime": "2026-06-23T15:00:00.000Z", "nodata": 254},
+            "links": [],
+            "assets": {
+                "asset6": {
+                    **asset_base,
+                    "data_type": "uint8",
+                    "bands": [{"unit": "W"}],
+                }
+            },
+        }
+    )
+    bm = band_metadata(item1.assets["asset6"], default_bm)
+    assert bm == [RasterBandMetadata(data_type="uint8", nodata=254, units="W")]
 
 
 def test_is_raster_data_more() -> None:

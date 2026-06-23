@@ -121,25 +121,25 @@ def _band_metadata_raw(asset: pystac.asset.Asset) -> list[RasterBand]:
 def _band_metadata_common(asset: pystac.asset.Asset) -> list[RasterBand]:
     def _extract_data_values(common_meta) -> dict:
         return {
-            "nodata": common_meta.get("nodata"),
-            "data_type": common_meta.get("data_type"),
-            "unit": common_meta.get("unit"),
+            key: value
+            for key in ("nodata", "data_type", "unit")
+            if (value := common_meta.get(key)) is not None
         }
 
+    item_data_values = {}
+    if isinstance(asset.owner, pystac.item.Item):
+        item_data_values = _extract_data_values(asset.owner.properties)
     asset_dict = asset.to_dict()
     asset_data_values = _extract_data_values(asset_dict)
     bands = []
     common_bands = asset_dict.get("bands")
     if not common_bands:
-        bands = [asset_data_values]
+        bands.append(item_data_values | asset_data_values)
     else:
         for band in common_bands:
             band_data_values = _extract_data_values(band)
-            band_data_values = {
-                k: v for k, v in band_data_values.items() if v is not None
-            }
-            bands.append(asset_data_values | band_data_values)
-    if all(value is None for d in bands for value in d.values()):
+            bands.append(item_data_values | asset_data_values | band_data_values)
+    if all(md == {} for md in bands):
         return []
 
     return [RasterBand(band) for band in bands]
