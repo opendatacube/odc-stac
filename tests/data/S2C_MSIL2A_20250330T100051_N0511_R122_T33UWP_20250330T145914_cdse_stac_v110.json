@@ -2675,38 +2675,6 @@
         "creodias-s3"
       ],
       "alternate:name": "S3"
-    },
-    "RGBA_FAKE": {
-      "href": "s3://fake/rgba/image/with/alpha/channel/made-up-image.tif",
-      "unit": "shared_unit",
-      "bands": [
-        {
-          "name": "B04",
-          "description": "Red",
-          "nodata": 0,
-          "data_type": "uint16"
-        },
-        {
-          "name": "B03",
-          "description": "Green",
-          "nodata": 0,
-          "data_type": "uint16"
-        },
-        {
-          "name": "B02",
-          "description": "Blue",
-          "nodata": 0,
-          "data_type": "uint16"
-        },
-        {
-          "name": "alpha",
-          "description": "2 bit alpha channel",
-          "nodata": 255,
-          "data_type": "uint8"
-        }
-      ],
-      "type": "image/tif",
-      "title": "This is not a real asset"
     }
   },
   "geometry": {
