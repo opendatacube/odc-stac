@@ -121,11 +121,13 @@ def sentinel_stac_ms_with_raster_ext():
         str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS_RASTER_EXT))
     )
 
+
 @pytest.fixture
 def sentinel_stac_cdse():
     return pystac.item.Item.from_file(
         str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_CDSE))
     )
+
 
 @pytest.fixture
 def sentinel_stac_collection():

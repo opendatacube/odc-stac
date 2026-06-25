@@ -154,7 +154,9 @@ def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item) -> None:
     assert has_proj_ext(sentinel_stac_ms_no_ext) is False
 
 
-def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item) -> None:
+def test_band_metadata_from_raster_ext_v1(
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+) -> None:
     item = sentinel_stac_ms_with_raster_ext.clone()
     assert has_raster_ext(item) is True
     asset = item.assets["SCL"]
@@ -237,7 +239,16 @@ def test_band_metadata_from_common_metadata() -> None:
         RasterBandMetadata(data_type="float32", nodata=0, units="u1"),
     ]
 
-    #
+    # has bands but no data values
+    asset4 = {
+        **asset_base,
+        "bands": [
+            {"name": "band0"},
+            {"name": "band1"},
+        ],
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset4), default_bm)
+    assert bm == [default_bm] * 2
 
     # data values in item props
     item1 = pystac.item.Item.from_dict(

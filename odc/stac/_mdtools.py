@@ -68,7 +68,7 @@ from odc.loader.types import (
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
-from pystac.extensions.raster import RasterBand, RasterExtension
+from pystac.extensions.raster import RasterExtension
 from toolz import dicttoolz
 
 from .model import (
@@ -111,14 +111,14 @@ NON_IMAGE_RASTER_MEDIA_TYPES = {
 }
 
 
-def _band_metadata_raw(asset: pystac.asset.Asset) -> list[RasterBand]:
+def _band_metadata_raster_ext_v1(asset: pystac.asset.Asset) -> list[dict[str, Any]]:
     bands = asset.to_dict().get("raster:bands")
     if bands is None:
         return []
-    return [RasterBand(props) for props in bands]
+    return bands
 
 
-def _band_metadata_common(asset: pystac.asset.Asset) -> list[RasterBand]:
+def _band_metadata_common(asset: pystac.asset.Asset) -> list[dict[str, Any]]:
     def _extract_data_values(common_meta) -> dict:
         return {
             key: value
@@ -126,31 +126,23 @@ def _band_metadata_common(asset: pystac.asset.Asset) -> list[RasterBand]:
             if (value := common_meta.get(key)) is not None
         }
 
-    item_data_values = {}
-    if isinstance(asset.owner, pystac.item.Item):
-        item_data_values = _extract_data_values(asset.owner.properties)
     asset_dict = asset.to_dict()
-    asset_data_values = _extract_data_values(asset_dict)
-    bands = []
+
+    parent_data_values = {}
+    if isinstance(asset.owner, pystac.item.Item):
+        parent_data_values |= _extract_data_values(asset.owner.properties)
+    parent_data_values |= _extract_data_values(asset_dict)
+
     common_bands = asset_dict.get("bands")
-    if not common_bands:
-        bands.append(item_data_values | asset_data_values)
-    else:
-        for band in common_bands:
-            band_data_values = _extract_data_values(band)
-            bands.append(item_data_values | asset_data_values | band_data_values)
-    if all(md == {} for md in bands):
-        return []
+    if common_bands is None:
+        if parent_data_values == {}:
+            # found no metadata at all
+            return []
+        # found some metadata in the asset or item props, but it is unclear how many bands this asset has
+        return [parent_data_values]
 
-    return [RasterBand(band) for band in bands]
-
-
-def _band_metadata_raster_ext(asset: pystac.asset.Asset) -> list[RasterBand]:
-    try:
-        rext = RasterExtension.ext(asset)
-        return rext.bands if rext.bands is not None else []
-    except pystac.errors.ExtensionNotImplemented:
-        return []
+    # found some band objects -> this is asset uses common metadata
+    return [parent_data_values | _extract_data_values(band) for band in common_bands]
 
 
 def band_metadata(
@@ -164,9 +156,8 @@ def band_metadata(
     :return: List of BandMetadata constructed from raster:bands metadata
     """
     for get_band_meta in [
-        _band_metadata_raster_ext,
         _band_metadata_common,
-        _band_metadata_raw,
+        _band_metadata_raster_ext_v1,
     ]:
         bands = get_band_meta(asset)
         if len(bands) > 0:
@@ -177,9 +168,9 @@ def band_metadata(
 
     return [
         RasterBandMetadata(
-            with_default(band.data_type, default.data_type),
-            with_default(norm_nodata(band.nodata), default.nodata),
-            with_default(band.unit, default.units),
+            with_default(band.get("data_type"), default.data_type),
+            with_default(norm_nodata(band.get("nodata")), default.nodata),
+            with_default(band.get("unit"), default.units),
         )
         for band in bands
     ]
