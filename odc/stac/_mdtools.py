@@ -128,7 +128,7 @@ def _band_metadata_common(asset: pystac.asset.Asset) -> list[dict[str, Any]]:
 
     asset_dict = asset.to_dict()
 
-    parent_data_values: dict[str, Any]  = {}
+    parent_data_values: dict[str, Any] = {}
     if isinstance(asset.owner, pystac.item.Item):
         parent_data_values |= _extract_data_values(asset.owner.properties)
     parent_data_values |= _extract_data_values(asset_dict)
