@@ -111,40 +111,6 @@ NON_IMAGE_RASTER_MEDIA_TYPES = {
 }
 
 
-def _band_metadata_raster_ext_v1(asset: pystac.asset.Asset) -> list[dict[str, Any]]:
-    bands = asset.to_dict().get("raster:bands")
-    if bands is None:
-        return []
-    return bands
-
-
-def _band_metadata_common(asset: pystac.asset.Asset) -> list[dict[str, Any]]:
-    def _extract_data_values(common_meta) -> dict:
-        return {
-            key: value
-            for key in ("nodata", "data_type", "unit")
-            if (value := common_meta.get(key)) is not None
-        }
-
-    asset_dict = asset.to_dict()
-
-    parent_data_values: dict[str, Any] = {}
-    if isinstance(asset.owner, pystac.item.Item):
-        parent_data_values |= _extract_data_values(asset.owner.properties)
-    parent_data_values |= _extract_data_values(asset_dict)
-
-    common_bands = asset_dict.get("bands")
-    if common_bands is None:
-        if parent_data_values == {}:
-            # found no metadata at all
-            return []
-        # found some metadata in the asset or item props, but it is unclear how many bands this asset has
-        return [parent_data_values]
-
-    # found some band objects -> this is asset uses common metadata
-    return [parent_data_values | _extract_data_values(band) for band in common_bands]
-
-
 def band_metadata(
     asset: pystac.asset.Asset, default: RasterBandMetadata
 ) -> List[RasterBandMetadata]:
@@ -155,13 +121,33 @@ def band_metadata(
     :param default: Values to use for fallback
     :return: List of BandMetadata constructed from raster:bands metadata
     """
-    for get_band_meta in [
-        _band_metadata_common,
-        _band_metadata_raster_ext_v1,
-    ]:
-        bands = get_band_meta(asset)
-        if len(bands) > 0:
-            break
+
+    def _extract_data_values(dv_dict) -> dict:
+        return {
+            key: value
+            for key in ("nodata", "data_type", "unit")
+            if (value := dv_dict.get(key)) is not None
+        }
+
+    asset_dict = asset.to_dict()
+
+    parent_data_values = {}
+    if isinstance(asset.owner, pystac.item.Item):
+        parent_data_values |= _extract_data_values(asset.owner.properties)
+    parent_data_values |= _extract_data_values(asset_dict)
+
+    common_bands = asset_dict.get("bands")
+    if common_bands is None:
+        bands = [parent_data_values]
+    else:
+        bands = [
+            parent_data_values | _extract_data_values(band) for band in common_bands
+        ]
+
+    raster_bands = asset_dict.get("raster:bands")
+    if raster_bands is not None and all(band == {} for band in bands):
+        # fallback to raster extension v1
+        bands = [_extract_data_values(band) for band in raster_bands]
 
     if len(bands) == 0:
         return [default]
