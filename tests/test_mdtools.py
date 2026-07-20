@@ -154,7 +154,9 @@ def test_has_proj_ext(sentinel_stac_ms_no_ext: pystac.item.Item) -> None:
     assert has_proj_ext(sentinel_stac_ms_no_ext) is False
 
 
-def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item) -> None:
+def test_band_metadata_from_raster_ext_v1(
+    sentinel_stac_ms_with_raster_ext: pystac.item.Item,
+) -> None:
     item = sentinel_stac_ms_with_raster_ext.clone()
     assert has_raster_ext(item) is True
     asset = item.assets["SCL"]
@@ -168,6 +170,161 @@ def test_band_metadata(sentinel_stac_ms_with_raster_ext: pystac.item.Item) -> No
         RasterBandMetadata("uint8", 0, "1"),
         RasterBandMetadata(data_type="uint16", nodata=-10, units="1"),
     ]
+
+
+def test_band_metadata_for_cdse_item(sentinel_stac_cdse: pystac.item.Item) -> None:
+    item = sentinel_stac_cdse.clone()
+    assert item.to_dict()["stac_version"] == "1.1.0"
+    assert (
+        "https://stac-extensions.github.io/raster/v2.0.0/schema.json"
+        in item.stac_extensions
+    )
+    dummy_default = RasterBandMetadata("float32", None, "1")
+
+    b04_asset = item.assets["B04_10m"]
+    b04_bm = band_metadata(b04_asset, dummy_default)
+    assert b04_bm == [RasterBandMetadata("uint16", 0, "1")]
+
+    # SCL_20m has no bands attr for some reason, assume 1
+    scl_asset = item.assets["SCL_20m"]
+    scl_bm = band_metadata(scl_asset, dummy_default)
+    assert scl_bm == [RasterBandMetadata("uint8", 0, "1")]
+
+    # TCI
+    tci_asset = item.assets["TCI_60m"]
+    tci_bm = band_metadata(tci_asset, dummy_default)
+    assert tci_bm == [RasterBandMetadata("uint8", 0, "1")] * 3
+
+
+def test_band_metadata_from_common_metadata() -> None:
+    asset_base = {
+        "href": "https://example.com/asset.tif",
+        "type": "image/tiff; application=geotiff; profile=cloud-optimized",
+        "title": "Raster ext v2 asset",
+    }
+    default_bm = RasterBandMetadata("uint16", 0, "1")
+
+    # data values directly in asset
+    asset1 = {**asset_base, "nodata": 0, "data_type": "uint8", "unit": "m2/m2"}
+    bm = band_metadata(pystac.Asset.from_dict(asset1), default_bm)
+    assert bm == [RasterBandMetadata(data_type="uint8", nodata=0, units="m2/m2")]
+
+    # data values only in bands
+    asset2 = {
+        **asset_base,
+        "bands": [
+            {"nodata": 1, "data_type": "int16", "unit": "u1"},
+            {"nodata": 255, "data_type": "int8", "unit": "u2"},
+        ],
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset2), default_bm)
+    assert bm == [
+        RasterBandMetadata(data_type="int16", nodata=1, units="u1"),
+        RasterBandMetadata(data_type="int8", nodata=255, units="u2"),
+    ]
+
+    # data values in asset and bands
+    asset3 = {
+        **asset_base,
+        "data_type": "float32",
+        "unit": "u1",
+        "bands": [
+            {"nodata": -999, "unit": "u2"},
+            {"eo:cloud_cover": 50.0},
+        ],
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset3), default_bm)
+    assert bm == [
+        RasterBandMetadata(data_type="float32", nodata=-999, units="u2"),
+        RasterBandMetadata(data_type="float32", nodata=0, units="u1"),
+    ]
+
+    # has bands but no data values
+    asset4 = {
+        **asset_base,
+        "bands": [
+            {"name": "band0"},
+            {"name": "band1"},
+        ],
+    }
+    bm = band_metadata(pystac.Asset.from_dict(asset4), default_bm)
+    assert bm == [default_bm] * 2
+
+    # data values in item props
+    item1 = pystac.item.Item.from_dict(
+        {
+            "type": "Feature",
+            "stac_version": "1.1.0",
+            "id": "example-item-1",
+            "geometry": "null",
+            "properties": {"datetime": "2026-06-23T15:00:00.000Z", "nodata": 254},
+            "links": [],
+            "assets": {
+                "asset4": {
+                    **asset_base,
+                    "data_type": "uint8",
+                    "unit": "u",
+                    "bands": [{"name": "band1"}, {"name": "band2"}],
+                }
+            },
+        }
+    )
+    bm = band_metadata(item1.assets["asset4"], default_bm)
+    assert bm == [RasterBandMetadata(data_type="uint8", nodata=254, units="u")] * 2
+
+    # stac v1.1.0 with no data values and raster ext v1
+    item2 = pystac.item.Item.from_dict(
+        {
+            "type": "Feature",
+            "stac_version": "1.1.0",
+            "id": "example-item-2",
+            "geometry": "null",
+            "properties": {"datetime": "2026-06-23T15:00:00.000Z"},
+            "links": [],
+            "assets": {
+                "asset5": {
+                    **asset_base,
+                    "bands": [{"name": "B04"}, {"name": "B03"}],
+                    "raster:bands": [
+                        {
+                            "scale": 0.0001,
+                            "offset": -0.1,
+                            "data_type": "int8",
+                            "nodata": 125,
+                            "unit": "deg",
+                        }
+                    ],
+                }
+            },
+        }
+    )
+    bm = band_metadata(item2.assets["asset5"], default_bm)
+    assert bm == [RasterBandMetadata(data_type="int8", nodata=125, units="deg")]
+
+    # stac v1.1.0 mixed with raster ext v1
+    item3 = pystac.item.Item.from_dict(
+        {
+            "type": "Feature",
+            "stac_version": "1.1.0",
+            "id": "example-item-3",
+            "geometry": "null",
+            "properties": {"datetime": "2026-06-23T15:00:00.000Z", "nodata": 254},
+            "links": [],
+            "assets": {
+                "asset6": {
+                    **asset_base,
+                    "data_type": "uint8",
+                    "unit": "u",
+                    "bands": [{"name": "B04"}],
+                    "raster:bands": [
+                        {"scale": 0.0001, "offset": -0.1, "data_type": "int8"}
+                    ],
+                }
+            },
+        }
+    )
+    bm = band_metadata(item3.assets["asset6"], default_bm)
+    assert bm == [RasterBandMetadata(data_type="uint8", nodata=254, units="u")]
 
 
 def test_is_raster_data_more() -> None:

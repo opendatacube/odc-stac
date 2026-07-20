@@ -20,6 +20,9 @@ SENTINEL_STAC_MS: str = "S2B_MSIL2A_20190629T212529_R043_T06VVN_20201006T080531.
 SENTINEL_STAC_MS_RASTER_EXT: str = (
     "S2B_MSIL2A_20190629T212529_R043_T06VVN_20201006T080531_raster_ext.json"
 )
+SENTINEL_STAC_CDSE: str = (
+    "S2C_MSIL2A_20250330T100051_N0511_R122_T33UWP_20250330T145914_cdse_stac_v110.json"
+)
 USGS_LANDSAT_STAC_v1b: str = "LC08_L2SR_081119_20200101_20200823_02_T2.json"
 USGS_LANDSAT_STAC_v1: str = "LC08_L2SP_028030_20200114_20200824_02_T1_SR.json"
 USGS_LANDSAT_STAC_v1_1_1: str = "LE07_L2SP_044033_20210329_20210424_02_T1_SR.json"
@@ -116,6 +119,13 @@ def sentinel_stac_ms_no_ext(sentinel_stac_ms_json):
 def sentinel_stac_ms_with_raster_ext():
     return pystac.item.Item.from_file(
         str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_MS_RASTER_EXT))
+    )
+
+
+@pytest.fixture
+def sentinel_stac_cdse():
+    return pystac.item.Item.from_file(
+        str(TEST_DATA_FOLDER.joinpath(SENTINEL_STAC_CDSE))
     )
 
 

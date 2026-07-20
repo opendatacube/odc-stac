@@ -68,7 +68,7 @@ from odc.loader.types import (
 from pystac.extensions.eo import EOExtension
 from pystac.extensions.item_assets import ItemAssetsExtension
 from pystac.extensions.projection import ProjectionExtension
-from pystac.extensions.raster import RasterBand, RasterExtension
+from pystac.extensions.raster import RasterExtension
 from toolz import dicttoolz
 
 from .model import (
@@ -111,13 +111,6 @@ NON_IMAGE_RASTER_MEDIA_TYPES = {
 }
 
 
-def _band_metadata_raw(asset: pystac.asset.Asset) -> List[RasterBand]:
-    bands = asset.to_dict().get("raster:bands", None)
-    if bands is None:
-        return []
-    return [RasterBand(props) for props in bands]
-
-
 def band_metadata(
     asset: pystac.asset.Asset, default: RasterBandMetadata
 ) -> List[RasterBandMetadata]:
@@ -128,22 +121,42 @@ def band_metadata(
     :param default: Values to use for fallback
     :return: List of BandMetadata constructed from raster:bands metadata
     """
-    bands: List[RasterBand] = []
-    try:
-        rext = RasterExtension.ext(asset)
-        if rext.bands is not None:
-            bands = rext.bands
-    except pystac.errors.ExtensionNotImplemented:
-        bands = _band_metadata_raw(asset)
+
+    def _extract_data_values(dv_dict) -> dict:
+        return {
+            key: value
+            for key in ("nodata", "data_type", "unit")
+            if (value := dv_dict.get(key)) is not None
+        }
+
+    asset_dict = asset.to_dict()
+
+    parent_data_values: dict[str, Any] = {}
+    if isinstance(asset.owner, pystac.item.Item):
+        parent_data_values |= _extract_data_values(asset.owner.properties)
+    parent_data_values |= _extract_data_values(asset_dict)
+
+    common_bands = asset_dict.get("bands")
+    if common_bands is None:
+        bands = [parent_data_values]
+    else:
+        bands = [
+            parent_data_values | _extract_data_values(band) for band in common_bands
+        ]
+
+    raster_bands = asset_dict.get("raster:bands")
+    if raster_bands is not None and all(band == {} for band in bands):
+        # fallback to raster extension v1
+        bands = [_extract_data_values(band) for band in raster_bands]
 
     if len(bands) == 0:
         return [default]
 
     return [
         RasterBandMetadata(
-            with_default(band.data_type, default.data_type),
-            with_default(norm_nodata(band.nodata), default.nodata),
-            with_default(band.unit, default.units),
+            with_default(band.get("data_type"), default.data_type),
+            with_default(norm_nodata(band.get("nodata")), default.nodata),
+            with_default(band.get("unit"), default.units),
         )
         for band in bands
     ]
@@ -606,6 +619,7 @@ class StacAuxReader:
         :return: Auxiliary data loaded into a xarray.DataArray
         """
         assert (used_names, ctx, dask_layer_name) is not None
+
         # cfg.meta.driver_data: PropertyLoadRequest
         # srcs[].driver_data:  None|float|str|int
 
