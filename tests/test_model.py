@@ -314,3 +314,30 @@ def test_property_load_request_errors() -> None:
     # Test empty sequence
     requests = PropertyLoadRequest.from_user_input([])
     assert len(requests) == 0
+
+
+def test_image_geometry_antimeridian() -> None:
+    # https://github.com/opendatacube/odc-geo/issues/208
+    # UTM zone 1 touches the antimeridian, so the raw footprint is an invalid,
+    # world-spanning polygon and gets silently dropped by grid_intersect.
+    from affine import Affine
+    from odc.geo import CRS
+    from odc.geo.geobox import GeoboxTiles
+
+    gbox = GeoBox(
+        (25129, 29486), Affine(10.0, 0.0, 281870.0, 0.0, -10.0, 7738430.0), "EPSG:32601"
+    )
+    xx = mk_parsed_item([b_("b1", gbox)])
+
+    fp = xx.safe_geometry(CRS("EPSG:4326"))
+    assert fp is not None
+    assert fp.geom.is_valid
+    assert fp.geom.area < 30  # sanity check, not wrapped around the whole globe
+
+    dst = GeoBox(
+        (256, 256),
+        Affine(0.00576000576, 0.0, -179.99945999946, 0.0, -0.00576000576, 69.3029493),
+        "EPSG:4326",
+    )
+    tiles = GeoboxTiles(dst, tile_shape=(256, 256))
+    assert list(tiles.tiles(fp)) == [(0, 0)]

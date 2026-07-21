@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "affine",
-    "odc-geo>=0.4.7",
+    "odc-geo>=0.5.0",
     "odc-loader>=0.6.4",  # custom fuser support in resolve_load_cfg from 0.6.4
     "rasterio>=1.0.0,!=1.3.0,!=1.3.1",
     "dask[array]",
