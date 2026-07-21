@@ -331,7 +331,7 @@ class ParsedItem(Mapping[BandIdentifier, RasterSource | AuxDataSource]):
             if gbox.crs is not None:
                 if crs is None or crs == gbox.crs:
                     return gbox.extent
-                return gbox.footprint(crs)
+                return gbox.footprint(crs, wrapdateline=True)
 
         return None
 
