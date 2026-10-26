@@ -52,6 +52,7 @@ dependencies:
   - autoflake
   - mypy
   - pylint =3
+  - botocore
   - pip:
     - -e ../
   - ruff
