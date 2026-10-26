@@ -43,7 +43,7 @@ dev = [
 ]
 
 docs = [
-     "odc-stac[docs]",
+     "odc-stac[docs, botocore]",
 ]
 
 [project.optional-dependencies]
